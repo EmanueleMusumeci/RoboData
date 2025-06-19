@@ -1,5 +1,17 @@
 # RoboData - Ontology Explorer
 
+![RoboData Visualization](robo-data-visualization.png) <!-- Add your image here -->
+
+## About This Project
+
+This project was developed as part of the [WikiProject Ontology Course](https://www.wikidata.org/w/index.php?title=Wikidata:WikiProject_Ontology/Ontology_Course) on Wikidata. It represents our work for the [RoboData project](https://www.wikidata.org/w/index.php?title=Wikidata:WikiProject_Ontology/Ontology_Course/Projects/RoboData), exploring ontology visualization and interaction using Wikidata.
+
+---
+
+An interactive ontology explorer that uses LLM agents to navigate and query Wikidata entities, with a graphical visualization interface.
+
+## Project Overview
+
 An interactive ontology explorer that uses LLM agents to navigate and query Wikidata entities, with a graphical visualization interface.
 
 ## Project Structure
