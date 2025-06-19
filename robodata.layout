@@ -1,0 +1,38 @@
+{
+    "window0": {
+        "type": "Window",
+        "position": [0, 0],
+        "size": [1920, 1080],
+        "panes": [
+            {
+                "type": "VPaned",
+                "position": 0.7,
+                "first": {
+                    "type": "HPaned",
+                    "position": 0.5,
+                    "first": {
+                        "type": "Terminal",
+                        "profile": "default",
+                        "command": "cd /DATA/RoboData && source .venv/bin/activate && hypercorn app.main:app --bind 0.0.0.0:8000"
+                    },
+                    "second": {
+                        "type": "Terminal",
+                        "profile": "default",
+                        "command": "cd /DATA/RoboData/frontend && npm start"
+                    }
+                },
+                "second": {
+                    "type": "Terminal",
+                    "profile": "default",
+                    "command": "cd /DATA/RoboData"
+                }
+            }
+        ]
+    },
+    "layouts": [
+        {
+            "name": "robodata",
+            "class": "RoboData Layout"
+        }
+    ]
+}
