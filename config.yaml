@@ -1,0 +1,21 @@
+# RoboData Configuration
+
+llm:
+  provider: "gemini"  # gemini, openai
+  model: "gemini-pro"
+  temperature: 0.7
+  max_tokens: 4096
+
+wikidata:
+  timeout: 30
+  max_results: 100
+  default_language: "en"
+
+toolbox:
+  auto_register_wikidata_tools: true
+  max_tool_execution_time: 60
+
+interactive:
+  show_tool_calls: true
+  show_intermediate_steps: true
+  max_history_length: 100

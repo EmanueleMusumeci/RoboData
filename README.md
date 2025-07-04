@@ -8,100 +8,252 @@ This project was developed as part of the [WikiProject Ontology Course](https://
 
 ---
 
-An interactive ontology explorer that uses LLM agents to navigate and query Wikidata entities, with a graphical visualization interface.
+An interactive ontology explorer that uses LLM agents to navigate and query Wikidata entities, with a graphical visualization interface and comprehensive testing infrastructure.
 
 ## Project Overview
 
-An interactive ontology explorer that uses LLM agents to navigate and query Wikidata entities, with a graphical visualization interface.
+RoboData provides an intelligent interface for exploring Wikidata ontologies through natural language queries. The system combines LLM agents with specialized tools to enable intuitive navigation of knowledge graphs, entity relationships, and semantic hierarchies.
 
 ## Project Structure
 
 ```
-robo_data/
-├── app/
-│   ├── api/           # FastAPI backend routes
-│   ├── core/          # Core modules (LLM Agent, Orchestrator)
-│   └── frontend/      # React + d3.js frontend
-├── requirements.txt   # Python dependencies
-└── README.md         # Project documentation
+RoboData/
+├── backend/
+│   ├── core/
+│   │   ├── agents/
+│   │   │   ├── __init__.py
+│   │   │   ├── agent.py          # Abstract base agent
+│   │   │   └── gemini.py         # Gemini implementation with tool calling
+│   │   ├── toolbox/
+│   │   │   ├── __init__.py
+│   │   │   ├── toolbox.py        # Dynamic tool management system
+│   │   │   ├── graph/
+│   │   │   │   ├── __init__.py
+│   │   │   │   └── graph_tools.py # Neo4j graph database tools
+│   │   │   └── wikidata/
+│   │   │       ├── __init__.py
+│   │   │       ├── base.py           # High-level Wikidata functions
+│   │   │       ├── datamodel.py      # Pydantic data models
+│   │   │       ├── wikidata_api.py   # REST API wrapper
+│   │   │       ├── wikidata_kif_api.py # KIF API implementation
+│   │   │       ├── queries.py        # SPARQL query tools
+│   │   │       └── exploration.py    # Graph exploration tools
+│   │   └── knowledge_base/
+│   │       ├── __init__.py
+│   │       └── graph.py          # Neo4j database abstraction
+│   ├── test/
+│   │   ├── __init__.py
+│   │   ├── test_tools.py         # Comprehensive tool tests
+│   │   ├── test_datamodel.py     # Data model validation tests
+│   │   ├── test_base_tools.py    # Base function integration tests
+│   │   ├── test_api.py           # REST API tests
+│   │   ├── test_api_kif.py       # KIF API tests
+│   │   └── run_tests.py          # Test runner with real API calls
+│   ├── settings.py               # Configuration management
+│   └── main.py                   # Interactive terminal application
+├── config.yaml                   # Configuration file
+├── requirements.txt               # Python dependencies
+├── frontend/                     # React frontend (future)
+└── README.md
 ```
 
-## Features
+## 🚀 Features
 
-- Interactive graphical ontology visualization
-- LLM-powered entity exploration
-- Natural language query interface
-- Modular architecture for future robot integration
-- Resizable panes interface (menu, chat, graph)
-- Wikidata entity exploration capabilities
-- Headless operation capability
+### Core Capabilities
+- **Natural Language Queries**: Ask questions about Wikidata entities in plain English
+- **Dynamic Tool System**: Extensible architecture with automatic tool registration
+- **Multiple API Backends**: Support for both REST API and KIF (Knowledge Integration Framework)
+- **Graph Database Integration**: Neo4j support for local knowledge graph storage
+- **Comprehensive Testing**: Real API integration tests with validation
 
-## Setup
+### Query Types
+- Entity exploration and detailed information retrieval
+- Subclass/superclass hierarchy navigation
+- Instance finding and classification
+- Path finding between entities
+- Local graph construction around entities
+- Custom SPARQL query execution
 
-1. Install dependencies:
+### Data Models
+- Strongly typed Pydantic models for all Wikidata entities
+- Automatic conversion between API formats and internal models
+- Entity reference detection and validation
+- Support for multilingual labels and descriptions
+
+## 🛠️ Installation
+
+1. **Clone the repository**:
+   ```bash
+   git clone <repository-url>
+   cd RoboData
+   ```
+
+2. **Install dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. **Set up API keys**:
+   ```bash
+   export GEMINI_API_KEY="your-gemini-api-key"
+   # OR create a .env file with:
+   # GEMINI_API_KEY=your-gemini-api-key
+   ```
+
+4. **Optional: Set up Neo4j** (for graph database features):
+   ```bash
+   # Install Neo4j and start the service
+   # Update config.yaml with your Neo4j credentials
+   ```
+
+5. **Configure settings** (optional):
+   Edit `config.yaml` to customize behavior
+
+## 🎯 Usage
+
+### Interactive Terminal
+
+Start the interactive terminal session:
+
 ```bash
-pip install -r requirements.txt
+cd backend
+python main.py
 ```
 
-2. Install frontend dependencies:
-```bash
-cd frontend
-npm install
+### Example Queries
+
+```
+🎤 You: What are the subclasses of Q35120?
+🎤 You: Explore entity Q5
+🎤 You: Find instances of Q16521
+🎤 You: Build a local graph around Q1
+🎤 You: Find path between Q5 and Q35120
 ```
 
-3. Start the application:
-```bash
-# Start Hypercorn server
-hypercorn app.main:app --bind 0.0.0.0:8000
+### Available Commands
 
-# In another terminal, start the frontend
-npm start
+- `help` - Show help information and query examples
+- `tools` - List all available tools with descriptions
+- `settings` - Show current configuration
+- `clear` - Clear conversation history
+- `exit`/`quit` - Exit the application
+
+## 🔧 Tools
+
+The system includes comprehensive tool sets for different domains:
+
+### Wikidata Query Tools
+- **SPARQLQueryTool**: Execute custom SPARQL queries with result formatting
+- **SubclassQueryTool**: Find subclasses of an entity with hierarchy depth
+- **SuperclassQueryTool**: Find superclasses and parent classifications
+- **InstanceQueryTool**: Find instances of a class with filtering options
+
+### Exploration Tools
+- **EntityExplorationTool**: Deep dive into entity properties and relationships
+- **LocalGraphTool**: Build neighborhood graphs with configurable depth
+
+### Graph Database Tools (Optional)
+- **Add/RemoveNodeTool**: Add nodes to local graph database
+- **Add/RemoveEdgeTool**: Create relationships between nodes
+- **QueryGraphTool**: Execute Cypher queries on local graph
+- **GetNeighborsTool**: Find neighboring nodes with relationship filtering
+
+
+## ⚙️ Configuration
+
+Configure the system via `config.yaml`:
+
+```yaml
+llm:
+  provider: "gemini"
+  model: "gemini-pro"
+  temperature: 0.7
+  api_key: null  # Set via environment variable
+
+wikidata:
+  timeout: 30
+  max_results: 100
+  default_language: "en"
+
+toolbox:
+  auto_register_wikidata_tools: true
+  max_tool_execution_time: 60
+
+interactive:
+  show_tool_calls: true
+  show_intermediate_steps: true
+  max_history_length: 100
 ```
 
-## Docker Setup
+## 🏗️ Architecture
 
-1. Build the Docker image:
-```bash
-docker build -t robo-data .
+### Core Components
+
+1. **BaseAgent**: Abstract interface for LLM agents with tool calling capabilities
+2. **Toolbox**: Dynamic tool registration and management with validation
+3. **Data Models**: Strongly typed Pydantic models for all Wikidata structures
+4. **API Abstraction**: Multiple backend support (REST, KIF) with consistent interface
+5. **Settings Management**: YAML configuration with environment variable overrides
+
+
+### API Backends
+
+- **REST API**: Using the `wikidata` Python library for standard operations
+- **KIF API**: IBM's Knowledge Integration Framework for advanced queries
+- **SPARQL**: Direct SPARQL endpoint access for custom queries
+
+## 📊 Data Models
+
+The system uses strongly typed data models for all Wikidata structures:
+
+```python
+# Example entity model
+WikidataEntity(
+    id="Q42",
+    label="Douglas Adams",
+    description="British author and humorist",
+    aliases=["Douglas Noel Adams", "DNA"],
+    statements={
+        "P31": [WikidataStatement(...)],  # instance of
+        "P106": [WikidataStatement(...)]  # occupation
+    }
+)
 ```
 
-2. Run the Docker container:
-```bash
-docker run -d -p 8000:8000 -p 3000:3000 robo-data
-```
+Models include:
+- **WikidataEntity**: Complete entity representation
+- **WikidataProperty**: Property definitions and constraints
+- **WikidataStatement**: Individual claims with qualifiers
+- **SearchResult**: Search result metadata
 
-## Components
+## 🤝 Contributing
 
-### LLM Agent
-- Processes natural language queries
-- Calls appropriate tools for entity exploration
-- Interfaces with Wikidata API
+1. Fork the repository
+2. Create a feature branch
+3. Add comprehensive tests for new functionality
+4. Ensure all tests pass with real API calls
+5. Update documentation as needed
+6. Submit a pull request
 
-### Orchestrator
-- Manages component communication
-- Coordinates LLM agent and visualization
-- Handles state management
+### Development Guidelines
+- Follow the existing tool pattern for new tools
+- Add both unit and integration tests
+- Use type hints and Pydantic models
+- Include docstrings with examples
 
-### Frontend
-- React + d3.js interface
-- Three-pane layout (menu, chat, graph)
-- Interactive graph visualization
-- Tooltips with entity information
-- Headless API endpoints for programmatic access
+## 📚 Documentation
 
-## Frontend Architecture
+- **Tool Development**: See `core/toolbox/toolbox.py` for the tool interface
+- **Data Models**: Check `core/toolbox/wikidata/datamodel.py` for schemas
+- **API Usage**: Examples in test files demonstrate real usage patterns
+- **Configuration**: All settings are documented in `settings.py`
 
-The frontend is built with:
-- React for UI components
-- d3.js for graph visualization
-- Material-UI for layout and styling
-- Recharts for additional visualization components
-- Axios for API communication
+## 📄 License
 
-The UI features:
-- Resizable panes using CSS Grid
-- Interactive graph with drag-and-drop support
-- Real-time updates through WebSocket
-- Tooltips with entity information
-- Clean, modern Material-UI design
-    
+This project is licensed under the MIT License.
+
+## 🙏 Acknowledgments
+
+- **WikiProject Ontology**: For providing the educational framework
+- **Wikidata Community**: For maintaining the knowledge base
+- **IBM KIF**: For the Knowledge Integration Framework

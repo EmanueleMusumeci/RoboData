@@ -1,22 +1,4 @@
-from fastapi import FastAPI, WebSocket
-from fastapi.middleware.cors import CORSMiddleware
-from app.api.routes import router
-from typing import Dict, Any
-import asyncio
-
-app = FastAPI(title="RoboData API")
-
-# Configure CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Include API routes
-app.include_router(router, prefix="/api")
+import websockets
 
 @app.get("/")
 async def root():
