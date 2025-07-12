@@ -8,7 +8,7 @@ import pprint
 # Add the backend directory to the Python path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.toolbox.wikidata.wikidata_api import WikidataRestAPI, wikidata_api
+from ..core.toolbox.wikidata.wikidata_api import WikidataRestAPI, wikidata_api
 
 
 class TestWikidataRestAPIUnit:
@@ -171,7 +171,7 @@ class TestWikidataRestAPIErrorHandling:
         api = WikidataRestAPI()
         
         with pytest.raises(ValueError, match="Failed to get entity Q999999"):
-            await api.get_entity('Q999999')
+            await api.get_entity('Q99999999')
     
     @pytest.mark.asyncio
     @patch('asyncio.get_event_loop')

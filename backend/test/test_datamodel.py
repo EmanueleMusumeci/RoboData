@@ -6,7 +6,7 @@ from typing import Dict, Any
 # Add the backend directory to the Python path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from core.toolbox.wikidata.datamodel import (
+from ..core.toolbox.wikidata.datamodel import (
     WikidataStatement, WikidataEntity, WikidataProperty, SearchResult,
     convert_api_entity_to_model, convert_api_property_to_model, convert_api_search_to_model
 )
@@ -151,7 +151,7 @@ class TestConversionFunctionsIntegration:
     @pytest.mark.asyncio
     async def test_convert_real_entity_data(self):
         """Test converting real API entity data to model."""
-        from core.toolbox.wikidata.wikidata_api import wikidata_api
+        from ..core.toolbox.wikidata.wikidata_api import wikidata_api
         
         # Get real API data
         api_data = await wikidata_api.get_entity('Q42')
@@ -177,7 +177,7 @@ class TestConversionFunctionsIntegration:
     @pytest.mark.asyncio
     async def test_convert_real_property_data(self):
         """Test converting real API property data to model."""
-        from core.toolbox.wikidata.wikidata_api import wikidata_api
+        from ..core.toolbox.wikidata.wikidata_api import wikidata_api
         
         # Get real API data
         api_data = await wikidata_api.get_property('P31')
@@ -195,7 +195,7 @@ class TestConversionFunctionsIntegration:
     @pytest.mark.asyncio
     async def test_convert_real_search_data(self):
         """Test converting real API search data to model."""
-        from core.toolbox.wikidata.wikidata_api import wikidata_api
+        from ..core.toolbox.wikidata.wikidata_api import wikidata_api
         
         # Get real API data
         api_data = await wikidata_api.search_entities('Douglas Adams', limit=5)

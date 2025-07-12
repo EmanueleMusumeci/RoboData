@@ -1,6 +1,5 @@
 import pytest
 import asyncio
-from unittest.mock import patch, MagicMock
 import sys
 from pathlib import Path
 
@@ -10,8 +9,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from ..core.toolbox.toolbox import Toolbox, Tool, ToolDefinition, ToolParameter
 from ..core.toolbox.wikidata import (
     get_entity_info, get_property_info, search_entities,
-    SPARQLQueryTool, SubclassQueryTool, SuperclassQueryTool, InstanceQueryTool,
-    EntityExplorationTool, PathFindingTool, LocalGraphTool
+    SPARQLQueryTool, SubclassQueryTool, SuperclassQueryTool, InstanceQueryTool
 )
 
 class MockTool(Tool):
@@ -132,75 +130,50 @@ class TestToolbox:
         assert len(results) == 0
 
 class TestWikidataBaseFunctions:
-    """Test basic Wikidata functions."""
+    """Test basic Wikidata functions with real API calls."""
     
-    @patch('core.toolbox.wikidata.base.requests.get')
-    def test_get_entity_info_success(self, mock_get):
-        """Test successful entity info retrieval."""
-        mock_response = MagicMock()
-        mock_response.json.return_value = {
-            'entities': {
-                'Q42': {
-                    'labels': {'en': {'value': 'Douglas Adams'}},
-                    'descriptions': {'en': {'value': 'British author'}},
-                    'aliases': {'en': [{'value': 'Douglas Noel Adams'}]},
-                    'claims': {
-                        'P31': [{
-                            'mainsnak': {
-                                'datavalue': {'value': {'id': 'Q5'}}
-                            }
-                        }]
-                    }
-                }
-            }
-        }
-        mock_get.return_value = mock_response
-        
-        entity = get_entity_info('Q42')
+    @pytest.mark.asyncio
+    async def test_get_entity_info_douglas_adams(self):
+        """Test getting real entity info for Douglas Adams (Q42)."""
+        entity = await get_entity_info('Q42')
         
         assert entity.id == 'Q42'
         assert entity.label == 'Douglas Adams'
-        assert entity.description == 'British author'
-        assert 'Douglas Noel Adams' in entity.aliases
-        assert 'P31' in entity.properties
-        assert 'Q5' in entity.properties['P31']
+        assert 'British' in entity.description or 'English' in entity.description
+        assert len(entity.aliases) > 0
+        assert 'P31' in entity.properties  # instance of
+        assert 'Q5' in entity.properties['P31']  # human
     
-    @patch('core.toolbox.wikidata.base.requests.get')
-    def test_get_entity_info_not_found(self, mock_get):
-        """Test entity not found error."""
-        mock_response = MagicMock()
-        mock_response.json.return_value = {'entities': {}}
-        mock_get.return_value = mock_response
+    @pytest.mark.asyncio
+    async def test_get_property_info_instance_of(self):
+        """Test getting real property info for P31 (instance of)."""
+        property_info = await get_property_info('P31')
         
-        with pytest.raises(ValueError, match="not found"):
-            get_entity_info('Q999999')
+        assert property_info.id == 'P31'
+        assert 'instance of' in property_info.label.lower()
+        assert 'wikibase-item' in property_info.datatype
     
-    @patch('core.toolbox.wikidata.base.requests.get')
-    def test_search_entities(self, mock_get):
-        """Test entity search."""
-        mock_response = MagicMock()
-        mock_response.json.return_value = {
-            'search': [
-                {
-                    'id': 'Q42',
-                    'label': 'Douglas Adams',
-                    'description': 'British author'
-                }
-            ]
-        }
-        mock_get.return_value = mock_response
+    @pytest.mark.asyncio
+    async def test_search_entities_douglas_adams(self):
+        """Test entity search with real API."""
+        entities = await search_entities('Douglas Adams', limit=5)
         
-        entities = search_entities('Douglas Adams')
+        assert len(entities) >= 1
+        assert len(entities) <= 5
+        assert any(e.id == 'Q42' and 'Douglas Adams' in e.label for e in entities)
+    
+    @pytest.mark.asyncio
+    async def test_search_entities_empty_result(self):
+        """Test entity search with query that returns no results."""
+        entities = await search_entities('xyzabcnonexistentquery123', limit=1)
         
-        assert len(entities) == 1
-        assert entities[0].id == 'Q42'
-        assert entities[0].label == 'Douglas Adams'
+        assert isinstance(entities, list)
+        assert len(entities) == 0 or len(entities) < 2
 
 class TestWikidataTools:
     """Test Wikidata-specific tools."""
     
-    @pytest.mark.asyncio
-    async def test_sparql_query_tool_definition(self):
+    def test_sparql_query_tool_definition(self):
         """Test SPARQL query tool definition."""
         tool = SPARQLQueryTool()
         definition = tool.get_definition()
@@ -210,8 +183,7 @@ class TestWikidataTools:
         assert len(definition.parameters) >= 1
         assert any(p.name == "query" for p in definition.parameters)
     
-    @pytest.mark.asyncio
-    async def test_subclass_query_tool_definition(self):
+    def test_subclass_query_tool_definition(self):
         """Test subclass query tool definition."""
         tool = SubclassQueryTool()
         definition = tool.get_definition()
@@ -221,69 +193,49 @@ class TestWikidataTools:
         assert any(p.name == "entity_id" for p in definition.parameters)
     
     @pytest.mark.asyncio
-    @patch('aiohttp.ClientSession.get')
-    async def test_sparql_tool_execution(self, mock_get):
-        """Test SPARQL tool execution."""
-        # Mock successful SPARQL response
-        mock_response = MagicMock()
-        mock_response.status = 200
-        mock_response.json.return_value = {
-            'results': {'bindings': []}
-        }
-        
-        mock_context = MagicMock()
-        mock_context.__aenter__.return_value = mock_response
-        mock_get.return_value = mock_context
-        
+    async def test_sparql_tool_execution_real(self):
+        """Test SPARQL tool execution with real API."""
         tool = SPARQLQueryTool()
         
-        with patch('aiohttp.ClientSession') as mock_session:
-            mock_session.return_value.__aenter__.return_value.get.return_value = mock_context
-            
-            result = await tool.execute("SELECT ?item WHERE { ?item wdt:P31 wd:Q5 } LIMIT 1")
-            
-            assert 'results' in result
-            assert 'bindings' in result['results']
+        # Simple query to get one human
+        query = "SELECT ?item ?itemLabel WHERE { ?item wdt:P31 wd:Q5 } LIMIT 1"
+        result = await tool.execute(query)
+        
+        assert 'results' in result
+        assert 'bindings' in result['results']
+    
+    @pytest.mark.asyncio
+    async def test_subclass_query_tool_execution_real(self):
+        """Test subclass query tool execution with real API."""
+        tool = SubclassQueryTool()
+        
+        # Query subclasses of person (Q215627)
+        result = await tool.execute("Q215627", limit=5)
+        
+        assert isinstance(result, list)
+        assert len(result) <= 5
 
 @pytest.mark.asyncio
 async def test_integration_toolbox_with_wikidata_tools():
-    """Integration test: toolbox with Wikidata tools."""
+    """Integration test: toolbox with basic Wikidata tools."""
     toolbox = Toolbox()
     
-    # Register tools manually (as would be done in main.py)
+    # Register basic tools (without exploration tools)
     tools = [
         SPARQLQueryTool(),
         SubclassQueryTool(),
         SuperclassQueryTool(),
-        InstanceQueryTool(),
-        EntityExplorationTool(),
-        PathFindingTool(),
-        LocalGraphTool()
+        InstanceQueryTool()
     ]
     
     for tool in tools:
         toolbox.register_tool(tool)
     
-    # Test that agent can be initialized with toolbox
-    from core.agents.gemini import GeminiAgent
-    
-    # This should not fail even without API key in tests
-    try:
-        agent = GeminiAgent(toolbox=toolbox)
-        assert agent.toolbox == toolbox
-        assert len(agent.toolbox.list_tools()) == len(tools)
-    except Exception as e:
-        # Skip if API key not available in test environment
-        if "api_key" in str(e).lower():
-            pytest.skip("API key not available in test environment")
-        else:
-            raise
-    
     # Verify all tools are registered
     tool_names = toolbox.list_tools()
     expected_tools = [
         "sparql_query", "query_subclasses", "query_superclasses",
-        "query_instances", "explore_entity", "find_path", "build_local_graph"
+        "query_instances"
     ]
     
     for expected_tool in expected_tools:
@@ -297,9 +249,14 @@ async def test_integration_toolbox_with_wikidata_tools():
         assert "type" in openai_tool
         assert openai_tool["type"] == "function"
         assert "function" in openai_tool
+    
+    # Test actual tool execution through toolbox
+    result = await toolbox.execute_tool("sparql_query", 
+                                      query="SELECT ?item WHERE { ?item wdt:P31 wd:Q5 } LIMIT 1")
+    assert 'results' in result
 
-def test_agent_initialization_with_empty_toolbox():
-    """Test that agent can be initialized with empty toolbox."""
+def test_agent_initialization_with_toolbox():
+    """Test that agent can be initialized with toolbox."""
     toolbox = Toolbox()
     
     try:

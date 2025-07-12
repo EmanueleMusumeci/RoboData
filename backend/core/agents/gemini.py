@@ -1,38 +1,45 @@
 from typing import Dict, Any, List, Optional
-from pydantic import BaseModel
 import google.generativeai as genai
 import os
 from dotenv import load_dotenv
 
-from .agent import BaseAgent, LLMMessage, LLMResponse
+from .agent import BaseAgent, LLMMessage, LLMResponse, Query
 from ..toolbox.toolbox import Toolbox
 
 load_dotenv()
-
-class Query(BaseModel):
-    text: str
-    entity_id: str = None
-    type: str = "general"  # general, property, navigation, query
 
 class GeminiAgent(BaseAgent):
     """Gemini-based LLM agent with Wikidata tools."""
     
     def __init__(self, toolbox: Toolbox):
-        super().__init__()
+        super().__init__(toolbox)
         genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
         self.model = genai.GenerativeModel('gemini-pro')
         
         assert self.model is not None, "Gemini model initialization failed. Check your API key."
-
-        # Use provided toolbox or create empty one
-        self.toolbox = toolbox
-
         assert self.toolbox is not None, "Toolbox must be provided to GeminiAgent."
     
-    async def query_llm(self, messages: List[LLMMessage], tools: Optional[List[Dict]] = None) -> LLMResponse:
-        """Send messages to Gemini and get response."""
+    async def query_llm(self, messages: List[LLMMessage], tools: Optional[List[Dict]] = None, **kwargs) -> LLMResponse:
+        """Send messages to Gemini and get response.
+        
+        Args:
+            messages: List of conversation messages (LLMMessage objects or dicts)
+            tools: Optional list of available tools
+            **kwargs: Hyperparameters (temperature, max_output_tokens, top_p, top_k, etc.)
+        """
         # Convert messages to Gemini format
-        prompt = self._format_messages_for_gemini(messages)
+        if messages and isinstance(messages[0], LLMMessage):
+            prompt = self._format_messages_for_gemini(messages)
+        else:
+            # Already in dict format, convert to string
+            prompt = ""
+            for msg in messages:
+                if msg.get("role") == "user":
+                    prompt += f"User: {msg.get('content', '')}\n"
+                elif msg.get("role") == "assistant":
+                    prompt += f"Assistant: {msg.get('content', '')}\n"
+                elif msg.get("role") == "system":
+                    prompt += f"System: {msg.get('content', '')}\n"
         
         # Add tool information if provided
         if tools:
@@ -43,7 +50,19 @@ class GeminiAgent(BaseAgent):
             prompt += f"\n\nAvailable tools:\n{tool_descriptions}"
         
         try:
-            response = self.model.generate_content(prompt)
+            # Configure generation parameters
+            generation_config = {
+                "temperature": kwargs.get("temperature", 0.1),
+                "top_p": kwargs.get("top_p", 1.0),
+                "top_k": kwargs.get("top_k", 40),
+                "max_output_tokens": kwargs.get("max_output_tokens", None),
+                "stop_sequences": kwargs.get("stop_sequences", None)
+            }
+            
+            # Remove None values
+            generation_config = {k: v for k, v in generation_config.items() if v is not None}
+            
+            response = self.model.generate_content(prompt, generation_config=generation_config)
             return LLMResponse(
                 content=response.text,
                 tool_calls=None,  # Gemini doesn't have native function calling like OpenAI
@@ -67,50 +86,6 @@ class GeminiAgent(BaseAgent):
             elif msg.role == "assistant":
                 formatted += f"Assistant: {msg.content}\n"
         return formatted
-    
-    def process_tool_call(self, tool_name: str, parameters: Dict) -> Any:
-        """Process a tool call using the toolbox."""
-        return self.toolbox.execute_tool(tool_name, **parameters)
-    
-    async def process_query(self, query: Query) -> Dict:
-        """Process a natural language query using tool-calling."""
-        # Add user message
-        self.add_message("user", query.text)
-        
-        # Get available tools from the toolbox
-        tools = self.toolbox.get_openai_tools()
-        
-        # Query LLM
-        response = await self.query_llm(self.conversation_history, tools)
-        
-        # For now, use simple heuristics to determine tool usage
-        # In a full implementation, you'd parse the LLM response for tool calls
-        result = await self._determine_and_execute_tool(query)
-        
-        # Add assistant response
-        self.add_message("assistant", str(result))
-        
-        return result
-    
-    async def _determine_and_execute_tool(self, query: Query) -> Dict:
-        """Determine which tool to use based on query content."""
-        text_lower = query.text.lower()
-        
-        if "subclass" in text_lower and query.entity_id:
-            return await self.toolbox.execute_tool("query_subclasses", entity_id=query.entity_id)
-        elif "superclass" in text_lower and query.entity_id:
-            return await self.toolbox.execute_tool("query_superclasses", entity_id=query.entity_id)
-        elif "instance" in text_lower and query.entity_id:
-            return await self.toolbox.execute_tool("query_instances", class_id=query.entity_id)
-        elif "explore" in text_lower and query.entity_id:
-            return await self.toolbox.execute_tool("explore_entity", entity_id=query.entity_id)
-        elif "path" in text_lower:
-            # This would need entity extraction from query
-            return {"message": "Path finding requires two entity IDs"}
-        elif "graph" in text_lower and query.entity_id:
-            return await self.toolbox.execute_tool("build_local_graph", center_entity=query.entity_id)
-        else:
-            return {"message": "Query not understood. Try asking about subclasses, superclasses, instances, or exploration."}
 
 # Alias for backward compatibility
 LLM_Agent = GeminiAgent

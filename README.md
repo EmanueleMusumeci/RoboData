@@ -100,10 +100,35 @@ RoboData/
    # GEMINI_API_KEY=your-gemini-api-key
    ```
 
-4. **Optional: Set up Neo4j** (for graph database features):
-   ```bash
-   # Install Neo4j and start the service
-   # Update config.yaml with your Neo4j credentials
+4. **Set up Neo4j** (for graph database features):
+   
+   **Install Neo4j on your system:**
+   Following the [official install guide](https://neo4j.com/docs/operations-manual/current/installation/linux/)
+   
+   **Verify Installation:**
+   Check if Neo4j is running
+   ```
+   sudo systemctl status neo4j
+   ```
+
+   Access Neo4j Browser (optional)
+   Open http://localhost:7474 in your browser
+   Login with username: neo4j, password: neo4j
+   
+   You will be prompted to change the password
+
+   Test connection with cypher-shell
+   ```
+   cypher-shell -u neo4j -p robodata123
+   ```
+   
+   **Update config.yaml with your Neo4j credentials:**
+   ```yaml
+   neo4j:
+     uri: "bolt://localhost:7687"
+     username: "neo4j"
+     password: "robodata123"
+     database: "neo4j"
    ```
 
 5. **Configure settings** (optional):
@@ -149,7 +174,7 @@ The system includes comprehensive tool sets for different domains:
 - **InstanceQueryTool**: Find instances of a class with filtering options
 
 ### Exploration Tools
-- **EntityExplorationTool**: Deep dive into entity properties and relationships
+- **NeighborsExplorationTool**: Deep dive into entity properties and relationships
 - **LocalGraphTool**: Build neighborhood graphs with configurable depth
 
 ### Graph Database Tools (Optional)

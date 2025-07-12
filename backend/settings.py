@@ -16,6 +16,16 @@ class WikidataSettings:
         self.max_results = max_results
         self.default_language = default_language
 
+class Neo4jSettings:
+    def __init__(self, uri="bolt://localhost:7687", username="neo4j", password="password", 
+                 database="neo4j", connection_timeout=30, max_connection_lifetime=3600):
+        self.uri = uri
+        self.username = username
+        self.password = password
+        self.database = database
+        self.connection_timeout = connection_timeout
+        self.max_connection_lifetime = max_connection_lifetime
+
 class ToolboxSettings:
     def __init__(self, auto_register_wikidata_tools=True, max_tool_execution_time=60):
         self.auto_register_wikidata_tools = auto_register_wikidata_tools
@@ -28,9 +38,10 @@ class InteractiveSettings:
         self.max_history_length = max_history_length
 
 class Settings:
-    def __init__(self, llm=None, wikidata=None, toolbox=None, interactive=None):
+    def __init__(self, llm=None, wikidata=None, neo4j=None, toolbox=None, interactive=None):
         self.llm = llm or LLMSettings()
         self.wikidata = wikidata or WikidataSettings()
+        self.neo4j = neo4j or Neo4jSettings()
         self.toolbox = toolbox or ToolboxSettings()
         self.interactive = interactive or InteractiveSettings()
 
@@ -38,6 +49,7 @@ class Settings:
         return {
             "llm": self.llm.__dict__,
             "wikidata": self.wikidata.__dict__,
+            "neo4j": self.neo4j.__dict__,
             "toolbox": self.toolbox.__dict__,
             "interactive": self.interactive.__dict__,
         }
@@ -47,6 +59,7 @@ class Settings:
         return cls(
             llm=LLMSettings(**data.get("llm", {})),
             wikidata=WikidataSettings(**data.get("wikidata", {})),
+            neo4j=Neo4jSettings(**data.get("neo4j", {})),
             toolbox=ToolboxSettings(**data.get("toolbox", {})),
             interactive=InteractiveSettings(**data.get("interactive", {})),
         )
@@ -72,6 +85,7 @@ class SettingsManager:
         if 'llm' not in settings_dict:
             settings_dict['llm'] = {}
 
+        # LLM environment overrides
         if os.getenv('GEMINI_API_KEY'):
             settings_dict['llm']['api_key'] = os.getenv('GEMINI_API_KEY')
         if os.getenv('OPENAI_API_KEY'):
@@ -80,7 +94,18 @@ class SettingsManager:
             settings_dict['llm']['provider'] = os.getenv('LLM_PROVIDER')
         if os.getenv('LLM_MODEL'):
             settings_dict['llm']['model'] = os.getenv('LLM_MODEL')
-        # Add more overrides as needed
+
+        # Neo4j environment overrides
+        if 'neo4j' not in settings_dict:
+            settings_dict['neo4j'] = {}
+        if os.getenv('NEO4J_URI'):
+            settings_dict['neo4j']['uri'] = os.getenv('NEO4J_URI')
+        if os.getenv('NEO4J_USERNAME'):
+            settings_dict['neo4j']['username'] = os.getenv('NEO4J_USERNAME')
+        if os.getenv('NEO4J_PASSWORD'):
+            settings_dict['neo4j']['password'] = os.getenv('NEO4J_PASSWORD')
+        if os.getenv('NEO4J_DATABASE'):
+            settings_dict['neo4j']['database'] = os.getenv('NEO4J_DATABASE')
 
     def save_settings(self):
         with open(self.config_path, 'w') as f:

@@ -33,6 +33,26 @@ class SearchResult(BaseModel):
     description: Optional[str] = None
     url: Optional[str] = None
 
+class NeighborExplorationResult(BaseModel):
+    """Result from exploring an entity's neighbors."""
+    entity: WikidataEntity
+    neighbors: Dict[str, WikidataEntity]  # entity_id -> WikidataEntity
+    relationships: Dict[str, List[str]]  # property_id -> list of entity_ids
+    property_names: Dict[str, str]  # property_id -> property_name
+    total_properties: int
+    neighbor_count: int
+
+class LocalGraphResult(BaseModel):
+    """Result from building a local graph around an entity."""
+    nodes: Dict[str, WikidataEntity]  # entity_id -> WikidataEntity
+    edges: List[Dict[str, str]]  # list of edge dictionaries
+    center: str  # center entity ID
+    depth: int
+    properties: List[str]  # properties that were followed
+    property_names: Dict[str, str]  # property_id -> property_name
+    total_nodes: int
+    total_edges: int
+
 def convert_api_entity_to_model(api_data: Dict[str, Any]) -> WikidataEntity:
     """Convert wikidata API response to WikidataEntity model."""
     # Get primary label (prefer English)

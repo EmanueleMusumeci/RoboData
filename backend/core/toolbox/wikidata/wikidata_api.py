@@ -211,6 +211,29 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"   Error: {e}")
         
+
+        # Test 7: Test getting non existing entity
+        print("7. Testing with non existing entity...")
+        try:
+            result = await api.get_entity('Q99999999')
+            print(f"   Results for non existing entity: {len(result)}")
+            pprint.pp(result)
+        except Exception as e:
+            #Print type of exception
+            print(f"   Error: {e.__class__.__name__} - {str(e)}")
+            #Print the error message
+            print(f"   Error: {e}")
+
+
+        print("8. Getting property info for non-existing property P9999999...")
+        try:
+            result = await api.get_property('P9999999')
+            print(f"   Property ID: {result['id']}")
+            print(f"   English label: {result['labels'].get('en', 'N/A')}")
+            print(f"   Data type: {result['datatype']}")
+        except Exception as e:
+            print(f"   Error: {e}")
+
         print("\n=== All tests completed ===")
     
     # Run the main function

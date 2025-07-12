@@ -9,6 +9,7 @@ class ToolParameter(BaseModel):
     description: str
     required: bool = True
     default: Any = None
+    items: Optional[Dict[str, Any]] = None  # For array types
 
 class ToolDefinition(BaseModel):
     name: str
@@ -35,18 +36,29 @@ class Tool(ABC):
         """Get the tool's definition for registration."""
         pass
     
-    def to_openai_format(self) -> Dict:
+    def to_openai_format(self) -> Dict[str, Any]:
         """Convert tool definition to OpenAI function calling format."""
         definition = self.get_definition()
         
-        properties = {}
+        properties: Dict[str, Any] = {}
         required = []
         
         for param in definition.parameters:
-            properties[param.name] = {
+            param_schema: Dict[str, Any] = {
                 "type": param.type,
                 "description": param.description
             }
+            
+            # Handle array types with items schema
+            if param.type == "array":
+                if param.items:
+                    param_schema["items"] = param.items
+                else:
+                    # Default items schema for arrays without specification
+                    param_schema["items"] = {"type": "string"}
+            
+            properties[param.name] = param_schema
+            
             if param.required:
                 required.append(param.name)
         

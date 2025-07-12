@@ -1,6 +1,6 @@
 from typing import Dict, Any, List, Optional
 from ..toolbox import Tool, ToolDefinition, ToolParameter
-from ...knowledge_base.graph import get_graph_db
+from ...knowledge_base.graph import get_knowledge_graph
 import json
 
 class AddNodeTool(Tool):
@@ -18,27 +18,36 @@ class AddNodeTool(Tool):
             description=self.description,
             parameters=[
                 ToolParameter(
-                    name="label",
+                    name="entity_id",
                     type="string",
-                    description="Node label/type"
+                    description="Unique ID for the entity"
+                ),
+                ToolParameter(
+                    name="entity_type",
+                    type="string",
+                    description="Type of the entity (e.g. 'WikidataEntity')"
                 ),
                 ToolParameter(
                     name="properties",
                     type="object",
-                    description="Node properties as JSON object"
+                    description="Entity properties as JSON object"
                 )
             ],
             return_type="string",
-            return_description="ID of the created node"
+            return_description="ID of the created entity"
         )
     
-    async def execute(self, label: str, properties: Dict[str, Any]) -> str:
-        """Add a node to the graph."""
-        db = get_graph_db()
-        if not db.driver:
-            await db.connect()
+    async def execute(self, **kwargs) -> str:
+        """Add an entity to the knowledge graph."""
+        entity_id = kwargs.get("entity_id")
+        entity_type = kwargs.get("entity_type")
+        properties = kwargs.get("properties", {})
         
-        return await db.add_node(label, properties)
+        graph = get_knowledge_graph()
+        if not await graph.is_connected():
+            await graph.connect()
+        
+        return await graph.add_entity(entity_id, entity_type, properties)
 
 class AddEdgeTool(Tool):
     """Tool for adding edges to the graph database."""
@@ -46,7 +55,7 @@ class AddEdgeTool(Tool):
     def __init__(self):
         super().__init__(
             name="add_edge",
-            description="Add a new edge/relationship between two nodes"
+            description="Add a new edge/relationship between two entities"
         )
     
     def get_definition(self) -> ToolDefinition:
@@ -57,12 +66,12 @@ class AddEdgeTool(Tool):
                 ToolParameter(
                     name="from_node_id",
                     type="string",
-                    description="ID of the source node"
+                    description="ID of the source entity"
                 ),
                 ToolParameter(
                     name="to_node_id",
                     type="string",
-                    description="ID of the target node"
+                    description="ID of the target entity"
                 ),
                 ToolParameter(
                     name="relationship_type",
@@ -81,13 +90,18 @@ class AddEdgeTool(Tool):
             return_description="ID of the created edge"
         )
     
-    async def execute(self, from_node_id: str, to_node_id: str, relationship_type: str, properties: Dict[str, Any] = None) -> str:
-        """Add an edge to the graph."""
-        db = get_graph_db()
-        if not db.driver:
-            await db.connect()
+    async def execute(self, **kwargs) -> str:
+        """Add a relationship to the knowledge graph."""
+        from_node_id = kwargs.get("from_node_id")
+        to_node_id = kwargs.get("to_node_id")
+        relationship_type = kwargs.get("relationship_type")
+        properties = kwargs.get("properties", {})
         
-        return await db.add_edge(from_node_id, to_node_id, relationship_type, properties or {})
+        graph = get_knowledge_graph()
+        if not await graph.is_connected():
+            await graph.connect()
+        
+        return await graph.add_relationship(from_node_id, to_node_id, relationship_type, properties)
 
 class GetNodeTool(Tool):
     """Tool for retrieving nodes from the graph database."""
@@ -113,13 +127,15 @@ class GetNodeTool(Tool):
             return_description="Node data including properties and labels"
         )
     
-    async def execute(self, node_id: str) -> Optional[Dict[str, Any]]:
-        """Get a node from the graph."""
-        db = get_graph_db()
-        if not db.driver:
-            await db.connect()
+    async def execute(self, **kwargs) -> Optional[Dict[str, Any]]:
+        """Get an entity from the knowledge graph."""
+        node_id = kwargs.get("node_id")
         
-        return await db.get_node(node_id)
+        graph = get_knowledge_graph()
+        if not await graph.is_connected():
+            await graph.connect()
+        
+        return await graph.get_entity(node_id)
 
 class GetEdgeTool(Tool):
     """Tool for retrieving edges from the graph database."""
@@ -145,13 +161,15 @@ class GetEdgeTool(Tool):
             return_description="Edge data including properties and connected nodes"
         )
     
-    async def execute(self, edge_id: str) -> Optional[Dict[str, Any]]:
-        """Get an edge from the graph."""
-        db = get_graph_db()
-        if not db.driver:
-            await db.connect()
+    async def execute(self, **kwargs) -> Optional[Dict[str, Any]]:
+        """Get a relationship from the knowledge graph."""
+        edge_id = kwargs.get("edge_id")
         
-        return await db.get_edge(edge_id)
+        graph = get_knowledge_graph()
+        if not await graph.is_connected():
+            await graph.connect()
+        
+        return await graph.get_relationship(edge_id)
 
 class RemoveNodeTool(Tool):
     """Tool for removing nodes from the graph database."""
@@ -174,16 +192,18 @@ class RemoveNodeTool(Tool):
                 )
             ],
             return_type="boolean",
-            return_description="True if node was removed, False otherwise"
+            return_description="True if node was successfully removed"
         )
     
-    async def execute(self, node_id: str) -> bool:
-        """Remove a node from the graph."""
-        db = get_graph_db()
-        if not db.driver:
-            await db.connect()
+    async def execute(self, **kwargs) -> bool:
+        """Remove an entity from the knowledge graph."""
+        node_id = kwargs.get("node_id")
         
-        return await db.remove_node(node_id)
+        graph = get_knowledge_graph()
+        if not await graph.is_connected():
+            await graph.connect()
+        
+        return await graph.remove_entity(node_id)
 
 class RemoveEdgeTool(Tool):
     """Tool for removing edges from the graph database."""
@@ -206,16 +226,18 @@ class RemoveEdgeTool(Tool):
                 )
             ],
             return_type="boolean",
-            return_description="True if edge was removed, False otherwise"
+            return_description="True if edge was successfully removed"
         )
     
-    async def execute(self, edge_id: str) -> bool:
-        """Remove an edge from the graph."""
-        db = get_graph_db()
-        if not db.driver:
-            await db.connect()
+    async def execute(self, **kwargs) -> bool:
+        """Remove a relationship from the knowledge graph."""
+        edge_id = kwargs.get("edge_id")
         
-        return await db.remove_edge(edge_id)
+        graph = get_knowledge_graph()
+        if not await graph.is_connected():
+            await graph.connect()
+        
+        return await graph.remove_relationship(edge_id)
 
 class QueryGraphTool(Tool):
     """Tool for executing custom queries on the graph database."""
@@ -248,13 +270,25 @@ class QueryGraphTool(Tool):
             return_description="Query results as array of objects"
         )
     
-    async def execute(self, query: str, parameters: Dict[str, Any] = None) -> List[Dict[str, Any]]:
-        """Execute a custom query on the graph."""
-        db = get_graph_db()
-        if not db.driver:
-            await db.connect()
+    async def execute(self, **kwargs) -> List[Dict[str, Any]]:
+        """Execute a custom query on the knowledge graph."""
+        query = kwargs.get("query")
+        parameters = kwargs.get("parameters", {})
         
-        return await db.query(query, parameters or {})
+        if not query:
+            return []
+        
+        try:
+            graph = get_knowledge_graph()
+            if not await graph.is_connected():
+                await graph.connect()
+            
+            results = await graph.execute_custom_query(query, parameters)
+            return results if results else []
+        except Exception as e:
+            # Log error but return empty results rather than failing
+            print(f"Query execution failed: {e}")
+            return []
 
 class FindNodesTool(Tool):
     """Tool for finding nodes in the graph database."""
@@ -262,7 +296,7 @@ class FindNodesTool(Tool):
     def __init__(self):
         super().__init__(
             name="find_nodes",
-            description="Find nodes in the graph database by label and/or properties"
+            description="Find nodes in the graph database by type and properties"
         )
     
     def get_definition(self) -> ToolDefinition:
@@ -271,9 +305,9 @@ class FindNodesTool(Tool):
             description=self.description,
             parameters=[
                 ToolParameter(
-                    name="label",
+                    name="entity_type",
                     type="string",
-                    description="Node label to search for",
+                    description="Entity type to filter by",
                     required=False
                 ),
                 ToolParameter(
@@ -282,22 +316,32 @@ class FindNodesTool(Tool):
                     description="Properties to match as JSON object",
                     required=False,
                     default={}
+                ),
+                ToolParameter(
+                    name="limit",
+                    type="integer",
+                    description="Maximum number of results to return",
+                    required=False
                 )
             ],
             return_type="array",
-            return_description="List of matching nodes"
+            return_description="Array of matching nodes"
         )
     
-    async def execute(self, label: str = None, properties: Dict[str, Any] = None) -> List[Dict[str, Any]]:
-        """Find nodes in the graph."""
-        db = get_graph_db()
-        if not db.driver:
-            await db.connect()
+    async def execute(self, **kwargs) -> List[Dict[str, Any]]:
+        """Find entities in the knowledge graph."""
+        entity_type = kwargs.get("entity_type")
+        properties = kwargs.get("properties", {})
+        limit = kwargs.get("limit")
         
-        return await db.find_nodes(label, properties or {})
+        graph = get_knowledge_graph()
+        if not await graph.is_connected():
+            await graph.connect()
+        
+        return await graph.find_entities(entity_type, properties, limit)
 
 class GetNeighborsTool(Tool):
-    """Tool for getting neighboring nodes."""
+    """Tool for getting neighboring nodes in the graph database."""
     
     def __init__(self):
         super().__init__(
@@ -318,25 +362,210 @@ class GetNeighborsTool(Tool):
                 ToolParameter(
                     name="relationship_type",
                     type="string",
-                    description="Type of relationship to follow",
+                    description="Filter by relationship type",
                     required=False
                 ),
                 ToolParameter(
                     name="direction",
                     type="string",
-                    description="Direction of relationships (incoming, outgoing, both)",
+                    description="Direction of relationships ('incoming', 'outgoing', 'both')",
                     required=False,
                     default="both"
                 )
             ],
             return_type="array",
-            return_description="List of neighboring nodes with relationship info"
+            return_description="Array of neighboring nodes with relationship info"
         )
     
-    async def execute(self, node_id: str, relationship_type: str = None, direction: str = "both") -> List[Dict[str, Any]]:
-        """Get neighboring nodes."""
-        db = get_graph_db()
-        if not db.driver:
-            await db.connect()
+    async def execute(self, **kwargs) -> List[Dict[str, Any]]:
+        """Get neighbors of an entity in the knowledge graph."""
+        node_id = kwargs.get("node_id")
+        relationship_type = kwargs.get("relationship_type")
+        direction = kwargs.get("direction", "both")
         
-        return await db.get_node_neighbors(node_id, relationship_type, direction)
+        graph = get_knowledge_graph()
+        if not await graph.is_connected():
+            await graph.connect()
+        
+        return await graph.get_neighbors(node_id, relationship_type, direction)
+
+class GetSubgraphTool(Tool):
+    """Tool for getting a subgraph around specified nodes."""
+    
+    def __init__(self):
+        super().__init__(
+            name="get_subgraph",
+            description="Get a subgraph containing specified nodes and their connections"
+        )
+    
+    def get_definition(self) -> ToolDefinition:
+        return ToolDefinition(
+            name=self.name,
+            description=self.description,
+            parameters=[
+                ToolParameter(
+                    name="node_ids",
+                    type="array",
+                    description="Array of node IDs to include in the subgraph",
+                    items={"type": "string"}
+                ),
+                ToolParameter(
+                    name="max_depth",
+                    type="integer",
+                    description="Maximum depth of connections to include",
+                    required=False,
+                    default=1
+                )
+            ],
+            return_type="object",
+            return_description="Subgraph containing nodes and relationships"
+        )
+    
+    async def execute(self, **kwargs) -> Dict[str, Any]:
+        """Get a subgraph from the knowledge graph."""
+        node_ids = kwargs.get("node_ids", [])
+        max_depth = kwargs.get("max_depth", 1)
+        
+        graph = get_knowledge_graph()
+        if not await graph.is_connected():
+            await graph.connect()
+        
+        return await graph.get_subgraph(node_ids, max_depth)
+
+class GetGraphStatsTool(Tool):
+    """Tool for getting graph database statistics."""
+    
+    def __init__(self):
+        super().__init__(
+            name="get_graph_stats",
+            description="Get statistics about the graph database"
+        )
+    
+    def get_definition(self) -> ToolDefinition:
+        return ToolDefinition(
+            name=self.name,
+            description=self.description,
+            parameters=[],
+            return_type="object",
+            return_description="Graph statistics including node count, relationship count, etc."
+        )
+    
+    async def execute(self, **kwargs) -> Dict[str, Any]:
+        """Get statistics from the knowledge graph."""
+        graph = get_knowledge_graph()
+        if not await graph.is_connected():
+            await graph.connect()
+        
+        return await graph.get_graph_statistics()
+
+class CypherQueryTool(Tool):
+    """Tool for executing custom Cypher queries on the graph database with enhanced error handling."""
+    
+    def __init__(self):
+        super().__init__(
+            name="cypher_query",
+            description="Execute a custom Cypher query on the graph database with enhanced error handling and result formatting"
+        )
+    
+    def get_definition(self) -> ToolDefinition:
+        return ToolDefinition(
+            name=self.name,
+            description=self.description,
+            parameters=[
+                ToolParameter(
+                    name="cypher_query",
+                    type="string",
+                    description="Cypher query to execute (e.g., 'MATCH (n:Person) RETURN n LIMIT 10')"
+                ),
+                ToolParameter(
+                    name="parameters",
+                    type="object",
+                    description="Query parameters as JSON object",
+                    required=False,
+                    default={}
+                ),
+                ToolParameter(
+                    name="timeout",
+                    type="integer",
+                    description="Query timeout in seconds",
+                    required=False,
+                    default=30
+                )
+            ],
+            return_type="object",
+            return_description="Query results with metadata including execution time and record count"
+        )
+    
+    async def execute(self, **kwargs) -> Dict[str, Any]:
+        """Execute a Cypher query with enhanced error handling and result formatting."""
+        import time
+        
+        cypher_query = kwargs.get("cypher_query")
+        parameters = kwargs.get("parameters", {})
+        timeout = kwargs.get("timeout", 30)
+        
+        if not cypher_query:
+            return {
+                "success": False,
+                "error": "cypher_query is required",
+                "results": [],
+                "metadata": {
+                    "record_count": 0,
+                    "execution_time_seconds": 0,
+                    "query": "",
+                    "parameters": {}
+                }
+            }
+        
+        graph = get_knowledge_graph()
+        if not await graph.is_connected():
+            await graph.connect()
+        
+        start_time = time.time()
+        
+        try:
+            # Execute the query
+            results = await graph.execute_custom_query(cypher_query, parameters)
+            
+            execution_time = time.time() - start_time
+            
+            return {
+                "success": True,
+                "results": results,
+                "metadata": {
+                    "record_count": len(results),
+                    "execution_time_seconds": round(execution_time, 3),
+                    "query": cypher_query,
+                    "parameters": parameters
+                }
+            }
+            
+        except Exception as e:
+            execution_time = time.time() - start_time
+            return {
+                "success": False,
+                "error": str(e),
+                "results": [],
+                "metadata": {
+                    "record_count": 0,
+                    "execution_time_seconds": round(execution_time, 3),
+                    "query": cypher_query,
+                    "parameters": parameters
+                }
+            }
+
+# Export all tools for registration
+GRAPH_TOOLS = [
+    AddNodeTool,
+    AddEdgeTool,
+    GetNodeTool,
+    GetEdgeTool,
+    RemoveNodeTool,
+    RemoveEdgeTool,
+    QueryGraphTool,
+    FindNodesTool,
+    GetNeighborsTool,
+    GetSubgraphTool,
+    GetGraphStatsTool,
+    CypherQueryTool
+]

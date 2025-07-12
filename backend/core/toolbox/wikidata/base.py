@@ -1,9 +1,142 @@
 from typing import Dict, Any, List, Optional
 import requests
 import asyncio
+import traceback
+from ..toolbox import Tool, ToolDefinition, ToolParameter
 from .datamodel import WikidataEntity, WikidataProperty, SearchResult, WikidataStatement, convert_api_entity_to_model, convert_api_property_to_model, convert_api_search_to_model
 from .wikidata_api import wikidata_api
 
+class GetEntityInfoTool(Tool):
+    """Tool for getting basic information about a Wikidata entity."""
+    
+    def __init__(self):
+        super().__init__(
+            name="get_entity_info",
+            description="Get basic information about a Wikidata entity"
+        )
+    
+    def get_definition(self) -> ToolDefinition:
+        return ToolDefinition(
+            name=self.name,
+            description=self.description,
+            parameters=[
+                ToolParameter(
+                    name="entity_id",
+                    type="string",
+                    description="Wikidata entity ID (e.g., Q42)"
+                )
+            ],
+            return_type="object",
+            return_description="WikidataEntity with labels, descriptions, aliases, and statements"
+        )
+    
+    async def execute(self, **kwargs) -> Dict[str, Any]:
+        """Get basic information about a Wikidata entity."""
+        entity_id = kwargs.get("entity_id")
+        if not entity_id:
+            raise ValueError("entity_id is required")
+            
+        api_data = await wikidata_api.get_entity(entity_id)
+        entity = convert_api_entity_to_model(api_data)
+        
+
+        return {
+            "id": entity.id,
+            "label": entity.label,
+            "description": entity.description,
+            "aliases": entity.aliases,
+            "statement_count": len(entity.statements),
+            "link": entity.link
+        }
+
+class GetPropertyInfoTool(Tool):
+    """Tool for getting information about a Wikidata property."""
+    
+    def __init__(self):
+        super().__init__(
+            name="get_property_info",
+            description="Get information about a Wikidata property"
+        )
+    
+    def get_definition(self) -> ToolDefinition:
+        return ToolDefinition(
+            name=self.name,
+            description=self.description,
+            parameters=[
+                ToolParameter(
+                    name="property_id",
+                    type="string",
+                    description="Wikidata property ID (e.g., P31)"
+                )
+            ],
+            return_type="object",
+            return_description="WikidataProperty with label, description, and datatype"
+        )
+    
+    async def execute(self, **kwargs) -> Dict[str, Any]:
+        """Get information about a Wikidata property."""
+        property_id = kwargs.get("property_id")
+        if not property_id:
+            raise ValueError("property_id is required")
+            
+        api_data = await wikidata_api.get_property(property_id)
+        prop = convert_api_property_to_model(api_data)
+        return {
+            "id": prop.id,
+            "label": prop.label,
+            "description": prop.description,
+            "datatype": prop.datatype,
+            "link": prop.link
+        }
+
+class SearchEntitiesTool(Tool):
+    """Tool for searching Wikidata entities by text query."""
+    
+    def __init__(self):
+        super().__init__(
+            name="search_entities",
+            description="Search for Wikidata entities by text query"
+        )
+    
+    def get_definition(self) -> ToolDefinition:
+        return ToolDefinition(
+            name=self.name,
+            description=self.description,
+            parameters=[
+                ToolParameter(
+                    name="query",
+                    type="string",
+                    description="Text query to search for"
+                )
+            ],
+            return_type="array",
+            return_description="List of search results with IDs, labels, and descriptions"
+        )
+    
+    async def execute(self, **kwargs) -> List[Dict[str, Any]]:
+        """Search for Wikidata entities by text query."""
+        query = kwargs.get("query")
+        limit = kwargs.get("limit", 10)
+
+        # Force at least 5 results
+        
+        if not query:
+            raise ValueError("query is required")
+            
+        api_data = await wikidata_api.search_entities(query, limit)
+        print(api_data)
+        results = convert_api_search_to_model(api_data)
+        return [
+            {
+                "id": result.id,
+                "label": result.label,
+                "description": result.description,
+                "url": result.url
+            }
+            for result in results
+        ]
+
+# Legacy sync wrapper functions for backward compatibility
 async def get_entity_info_async(entity_id: str) -> WikidataEntity:
     """Get basic information about a Wikidata entity using the async API."""
     api_data = await wikidata_api.get_entity(entity_id)
@@ -55,6 +188,7 @@ if __name__ == "__main__":
             print(f"   Entity references: {entity_refs}")
         except Exception as e:
             print(f"   Error: {e}")
+            traceback.print_exc()
         
         print()
         
@@ -67,6 +201,7 @@ if __name__ == "__main__":
             print(f"   Datatype: {result.datatype}")
         except Exception as e:
             print(f"   Error: {e}")
+            traceback.print_exc()
         
         print()
         
@@ -80,6 +215,7 @@ if __name__ == "__main__":
                 print(f"   First result: {first.id} - {first.label}")
         except Exception as e:
             print(f"   Error: {e}")
+            traceback.print_exc()
         
         print()
         
@@ -96,6 +232,7 @@ if __name__ == "__main__":
             print(f"   ✓ Sync search: {len(results)} results")
         except Exception as e:
             print(f"   Error: {e}")
+            traceback.print_exc()
         
         print()
         
@@ -114,6 +251,7 @@ if __name__ == "__main__":
             print("   ✓ Conversion consistency verified")
         except Exception as e:
             print(f"   Error: {e}")
+            traceback.print_exc()
         
         print("\n=== All tests completed ===")
     

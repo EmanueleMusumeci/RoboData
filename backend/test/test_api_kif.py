@@ -10,7 +10,7 @@ from unittest.mock import patch, MagicMock, AsyncMock
 # Add the backend directory to the Python path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.toolbox.wikidata.wikidata_kif_api import WikidataKIFAPI, wikidata_kif_api
+from ..core.toolbox.wikidata.wikidata_kif_api import WikidataKIFAPI, wikidata_kif_api
 
 #TODO: finish debugging the KIF API
 
