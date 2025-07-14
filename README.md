@@ -24,6 +24,14 @@ RoboData/
 │   │   │   ├── __init__.py
 │   │   │   ├── agent.py          # Abstract base agent
 │   │   │   └── gemini.py         # Gemini implementation with tool calling
+│   │   ├── memory/
+│   │   │   ├── __init__.py
+│   │   │   └── memory.py         # Conversation and context memory
+│   │   ├── orchestrator/
+│   │   │   ├── __init__.py
+│   │   │   ├── orchestrator.py   # Main query orchestrator
+│   │   │   └── multi_stage/
+│   │   │       └── __init__.py   # Multi-stage query planning
 │   │   ├── toolbox/
 │   │   │   ├── __init__.py
 │   │   │   ├── toolbox.py        # Dynamic tool management system
@@ -40,7 +48,11 @@ RoboData/
 │   │   │       └── exploration.py    # Graph exploration tools
 │   │   └── knowledge_base/
 │   │       ├── __init__.py
-│   │       └── graph.py          # Neo4j database abstraction
+│   │       ├── graph.py          # Neo4j database abstraction
+│   │       ├── schema.py         # Local graph data models (Node, Edge, Graph)
+│   │       └── interfaces/
+│   │           ├── __init__.py
+│   │           └── neo4j_interface.py # Neo4j connection interface
 │   ├── test/
 │   │   ├── __init__.py
 │   │   ├── test_tools.py         # Comprehensive tool tests
@@ -145,14 +157,6 @@ cd backend
 python main.py
 ```
 
-### Example Queries
-
-```
-🎤 You: What are the subclasses of Q35120?
-🎤 You: Explore entity Q5
-🎤 You: Find instances of Q16521
-🎤 You: Build a local graph around Q1
-🎤 You: Find path between Q5 and Q35120
 ```
 
 ### Available Commands
@@ -167,22 +171,39 @@ python main.py
 
 The system includes comprehensive tool sets for different domains:
 
-### Wikidata Query Tools
-- **SPARQLQueryTool**: Execute custom SPARQL queries with result formatting
-- **SubclassQueryTool**: Find subclasses of an entity with hierarchy depth
-- **SuperclassQueryTool**: Find superclasses and parent classifications
-- **InstanceQueryTool**: Find instances of a class with filtering options
+### Graph Tools
+- **AddNodeTool**: Adds nodes to the graph database.
+- **AddEdgeTool**: Adds edges to the graph database.
+- **GetNodeTool**: Retrieves a node from the graph database by ID.
+- **GetEdgeTool**: Retrieves an edge from the graph database.
+- **RemoveNodeTool**: Removes a node from the graph database.
+- **RemoveEdgeTool**: Removes an edge from the graph database.
+- **FindNodesTool**: Finds nodes of a given type in the graph database.
+- **FindEdgesTool**: Finds edges of a given type in the graph database.
+- **GetNeighborsTool**: Retrieves neighboring nodes of a given node.
+- **GetSubgraphTool**: Retrieves a subgraph around a given node.
+- **GetGraphStatsTool**: Retrieves statistics about the graph.
+- **CypherQueryTool**: Executes a Cypher query on the graph database.
 
-### Exploration Tools
-- **NeighborsExplorationTool**: Deep dive into entity properties and relationships
-- **LocalGraphTool**: Build neighborhood graphs with configurable depth
+### Wikidata Tools
 
-### Graph Database Tools (Optional)
-- **Add/RemoveNodeTool**: Add nodes to local graph database
-- **Add/RemoveEdgeTool**: Create relationships between nodes
-- **QueryGraphTool**: Execute Cypher queries on local graph
-- **GetNeighborsTool**: Find neighboring nodes with relationship filtering
+#### Base Tools
+- **GetEntityInfoTool**: Gets basic information about a Wikidata entity.
+- **GetEntityPropertiesTool**: Gets all properties of a Wikidata entity.
+- **GetPropertyInfoTool**: Gets information about a Wikidata property.
+- **SearchEntitiesTool**: Searches for Wikidata entities by a text query.
 
+#### Query Tools
+- **SPARQLQueryTool**: Executes a raw SPARQL query.
+- **SubclassQueryTool**: Finds subclasses of a Wikidata entity.
+- **SuperclassQueryTool**: Finds superclasses of a Wikidata entity.
+- **InstanceQueryTool**: Finds all instances of a given class.
+- **InstanceOfQueryTool**: Finds what classes a given entity is an instance of.
+- **PropertyQueryTool**: Finds entities that have a specific property with a specific value.
+
+#### Exploration Tools
+- **NeighborsExplorationTool**: Explores the neighbors and relationships of an entity.
+- **LocalGraphTool**: Builds a local graph around a central entity.
 
 ## ⚙️ Configuration
 
@@ -229,10 +250,14 @@ interactive:
 
 ## 📊 Data Models
 
-The system uses strongly typed data models for all Wikidata structures:
+The project employs two distinct types of data models: one for handling data from the remote Wikidata source and another for representing the local knowledge graph.
+
+### Wikidata Data Models
+
+The system uses strongly typed Pydantic models for all Wikidata structures, ensuring data consistency and validation when interacting with Wikidata APIs.
 
 ```python
-# Example entity model
+# Example entity model from Wikidata
 WikidataEntity(
     id="Q42",
     label="Douglas Adams",
@@ -246,10 +271,36 @@ WikidataEntity(
 ```
 
 Models include:
-- **WikidataEntity**: Complete entity representation
-- **WikidataProperty**: Property definitions and constraints
-- **WikidataStatement**: Individual claims with qualifiers
-- **SearchResult**: Search result metadata
+- **WikidataEntity**: Complete entity representation from Wikidata.
+- **WikidataProperty**: Property definitions and constraints from Wikidata.
+- **WikidataStatement**: Individual claims with qualifiers.
+- **SearchResult**: Search result metadata.
+
+### Knowledge Graph Abstraction
+
+For building, visualizing, and storing local graphs (e.g., in Neo4j), a simpler, more generic graph abstraction is used. This decouples the local graph representation from the complex structure of the Wikidata source.
+
+```python
+# Example local graph node and edge
+Node(
+    id="Q42",
+    type="entity",
+    label="Douglas Adams",
+    description="British author and humorist"
+)
+
+Edge(
+    source_id="Q42",
+    target_id="Q5",
+    type="P31", # instance of
+    label="instance of"
+)
+```
+
+This abstraction includes:
+- **Node**: Represents any entity in the local graph.
+- **Edge**: Represents a relationship between two nodes.
+- **Graph**: A container for nodes and edges, built on `networkx`, with methods for manipulation and export (e.g., to JSON or RDF).
 
 ## 🤝 Contributing
 

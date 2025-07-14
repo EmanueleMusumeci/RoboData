@@ -5,7 +5,6 @@ from .graph_tools import (
     GetEdgeTool,
     RemoveNodeTool,
     RemoveEdgeTool,
-    QueryGraphTool,
     FindNodesTool,
     GetNeighborsTool,
     CypherQueryTool
@@ -27,7 +26,6 @@ __all__ = [
     'GetEdgeTool',
     'RemoveNodeTool',
     'RemoveEdgeTool',
-    'QueryGraphTool',
     'FindNodesTool',
     'GetNeighborsTool',
     'CypherQueryTool',

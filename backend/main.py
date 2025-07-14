@@ -10,7 +10,7 @@ from settings import settings_manager
 from core.agents.gemini import GeminiAgent, Query
 from core.toolbox.toolbox import Toolbox
 from core.toolbox.wikidata import (
-    SPARQLQueryTool, SubclassQueryTool, SuperclassQueryTool, InstanceQueryTool,
+    SPARQLQueryTool, SubclassQueryTool, SuperclassQueryTool, GetInstancesQueryTool,
     NeighborsExplorationTool, PathFindingTool, LocalGraphTool
 )
 
@@ -52,7 +52,7 @@ class RoboDataApp:
             SPARQLQueryTool(),
             SubclassQueryTool(),
             SuperclassQueryTool(),
-            InstanceQueryTool(),
+            GetInstancesQueryTool(),
             NeighborsExplorationTool(),
             PathFindingTool(),
             LocalGraphTool()

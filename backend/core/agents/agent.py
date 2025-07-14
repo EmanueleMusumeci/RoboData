@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 class Query(BaseModel):
     text: str
-    entity_id: str = None
+    entity_id: Optional[str] = None
     type: str = "general"  # general, property, navigation, query
 
 class LLMMessage(BaseModel):
@@ -42,9 +42,9 @@ class BaseAgent(ABC):
             raise ValueError("No toolbox available for tool execution")
         return self.toolbox.execute_tool(tool_name, **parameters)
     
-    def add_message(self, role: str, content: str, tool_calls: Optional[List[Dict]] = None):
+    def add_message(self, role: str, content: str, tool_calls: Optional[List[Dict]] = None, tool_call_id: Optional[str] = None):
         """Add a message to conversation history."""
-        message = LLMMessage(role=role, content=content, tool_calls=tool_calls)
+        message = LLMMessage(role=role, content=content, tool_calls=tool_calls, tool_call_id=tool_call_id)
         self.conversation_history.append(message)
     
     def clear_history(self):

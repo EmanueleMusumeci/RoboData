@@ -41,6 +41,8 @@ class NeighborExplorationResult(BaseModel):
     property_names: Dict[str, str]  # property_id -> property_name
     total_properties: int
     neighbor_count: int
+    limit: int
+    order_by_degree: bool
 
 class LocalGraphResult(BaseModel):
     """Result from building a local graph around an entity."""
@@ -52,6 +54,8 @@ class LocalGraphResult(BaseModel):
     property_names: Dict[str, str]  # property_id -> property_name
     total_nodes: int
     total_edges: int
+    limit: int
+    order_by_degree: bool
 
 def convert_api_entity_to_model(api_data: Dict[str, Any]) -> WikidataEntity:
     """Convert wikidata API response to WikidataEntity model."""

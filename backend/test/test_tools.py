@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from ..core.toolbox.toolbox import Toolbox, Tool, ToolDefinition, ToolParameter
 from ..core.toolbox.wikidata import (
     get_entity_info, get_property_info, search_entities,
-    SPARQLQueryTool, SubclassQueryTool, SuperclassQueryTool, InstanceQueryTool
+    SPARQLQueryTool, SubclassQueryTool, SuperclassQueryTool, GetInstancesQueryTool
 )
 
 class MockTool(Tool):
@@ -225,7 +225,7 @@ async def test_integration_toolbox_with_wikidata_tools():
         SPARQLQueryTool(),
         SubclassQueryTool(),
         SuperclassQueryTool(),
-        InstanceQueryTool()
+        GetInstancesQueryTool()
     ]
     
     for tool in tools:

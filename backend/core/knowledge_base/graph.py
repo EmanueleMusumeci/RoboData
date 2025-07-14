@@ -12,6 +12,7 @@ from abc import ABC, abstractmethod
 
 from ...settings import settings_manager
 from .interfaces.neo4j_interface import Neo4jInterface, DatabaseInterface
+from .schema import Node, Edge, Graph
 
 logger = logging.getLogger(__name__)
 
@@ -78,16 +79,18 @@ class KnowledgeGraph:
         """Check if the graph database is connected."""
         return self._connected and await self.db.is_connected()
     
+    async def close(self) -> None:
+        """Alias for disconnect."""
+        await self.disconnect()
+
     # === Entity Management ===
     
-    async def add_entity(self, entity_id: str, entity_type: str, properties: Dict[str, Any]) -> str:
+    async def add_entity(self, node: Node) -> str:
         """
         Add an entity (node) to the knowledge graph.
         
         Args:
-            entity_id: Unique identifier for the entity
-            entity_type: Type of the entity (e.g., "Person", "WikidataEntity")
-            properties: Additional properties for the entity
+            node: The Node object to add.
             
         Returns:
             str: The entity ID
@@ -95,16 +98,17 @@ class KnowledgeGraph:
         if not await self.is_connected():
             raise RuntimeError("Graph database not connected")
         
-        # Ensure entity has an ID
-        properties['id'] = entity_id
-        properties['entity_type'] = entity_type
+        labels = ["Entity", node.type]
+        properties = node.properties
+        properties['id'] = node.id
+        properties['label'] = node.label
+        properties['description'] = node.description
         
-        labels = ["Entity", entity_type]
         node_id = await self.db.create_node(labels, properties)
-        logger.info(f"Added entity {entity_id} of type {entity_type}")
-        return node_id or entity_id
+        logger.info(f"Added entity {node.id} of type {node.type}")
+        return node_id or node.id
     
-    async def get_entity(self, entity_id: str) -> Optional[Dict[str, Any]]:
+    async def get_entity(self, entity_id: str) -> Optional[Node]:
         """
         Get an entity by its ID.
         
@@ -112,7 +116,7 @@ class KnowledgeGraph:
             entity_id: The entity ID
             
         Returns:
-            Dict containing entity data or None if not found
+            Node object or None if not found
         """
         if not await self.is_connected():
             raise RuntimeError("Graph database not connected")
@@ -158,7 +162,7 @@ class KnowledgeGraph:
     
     async def find_entities(self, entity_type: Optional[str] = None, 
                           properties: Optional[Dict[str, Any]] = None,
-                          limit: Optional[int] = None) -> List[Dict[str, Any]]:
+                          limit: Optional[int] = None) -> List[Node]:
         """
         Find entities by type and/or properties.
         
@@ -168,7 +172,7 @@ class KnowledgeGraph:
             limit: Maximum number of results
             
         Returns:
-            List of matching entities
+            List of matching Node objects
         """
         if not await self.is_connected():
             raise RuntimeError("Graph database not connected")
@@ -181,16 +185,12 @@ class KnowledgeGraph:
     
     # === Relationship Management ===
     
-    async def add_relationship(self, from_entity_id: str, to_entity_id: str, 
-                             relationship_type: str, properties: Optional[Dict[str, Any]] = None) -> str:
+    async def add_relationship(self, edge: Edge) -> str:
         """
         Add a relationship between two entities.
         
         Args:
-            from_entity_id: Source entity ID
-            to_entity_id: Target entity ID
-            relationship_type: Type of relationship
-            properties: Additional properties for the relationship
+            edge: The Edge object to add.
             
         Returns:
             str: The relationship ID
@@ -198,14 +198,16 @@ class KnowledgeGraph:
         if not await self.is_connected():
             raise RuntimeError("Graph database not connected")
         
-        if properties is None:
-            properties = {}
-        
-        rel_id = await self.db.create_relationship(from_entity_id, to_entity_id, relationship_type, properties)
-        logger.info(f"Added relationship {relationship_type} from {from_entity_id} to {to_entity_id}")
-        return rel_id or f"{from_entity_id}_{relationship_type}_{to_entity_id}"
+        rel_id = await self.db.create_relationship(
+            edge.source_id, 
+            edge.target_id, 
+            edge.type, 
+            edge.properties
+        )
+        logger.info(f"Added relationship {edge.type} from {edge.source_id} to {edge.target_id}")
+        return rel_id or f"{edge.source_id}_{edge.type}_{edge.target_id}"
     
-    async def get_relationship(self, relationship_id: str) -> Optional[Dict[str, Any]]:
+    async def get_relationship(self, relationship_id: str) -> Optional[Edge]:
         """Get a relationship by its ID."""
         if not await self.is_connected():
             raise RuntimeError("Graph database not connected")
@@ -223,7 +225,7 @@ class KnowledgeGraph:
         return success
     
     async def get_entity_relationships(self, entity_id: str, direction: str = "both",
-                                     relationship_type: Optional[str] = None) -> List[Dict[str, Any]]:
+                                     relationship_type: Optional[str] = None) -> List[Edge]:
         """
         Get all relationships for an entity.
         
@@ -233,50 +235,172 @@ class KnowledgeGraph:
             relationship_type: Filter by relationship type
             
         Returns:
-            List of relationships with neighbor information
+            List of Edge objects
         """
         if not await self.is_connected():
             raise RuntimeError("Graph database not connected")
         
         return await self.db.get_node_relationships(entity_id, direction, relationship_type)
     
+    async def find_relationships(self, relationship_type: Optional[str] = None, 
+                                 properties: Optional[Dict[str, Any]] = None,
+                                 limit: Optional[int] = None) -> List[Edge]:
+        """
+        Find relationships by type and/or properties.
+        
+        Args:
+            relationship_type: Relationship type to filter by
+            properties: Properties to match
+            limit: Maximum number of results
+            
+        Returns:
+            List of matching Edge objects
+        """
+        if not await self.is_connected():
+            raise RuntimeError("Graph database not connected")
+        
+        return await self.db.find_relationships(relationship_type, properties, limit)
+
     # === Graph Operations ===
     
-    async def get_neighbors(self, entity_id: str, relationship_type: Optional[str] = None,
-                          direction: str = "both") -> List[Dict[str, Any]]:
+    async def get_neighbors(self, entity_id: str, 
+                          relationship_type: Optional[str] = None,
+                          limit: Optional[int] = None) -> List[Node]:
         """
         Get neighboring entities of a given entity.
         
         Args:
             entity_id: The entity ID
             relationship_type: Filter by relationship type
-            direction: "incoming", "outgoing", or "both"
+            limit: Maximum number of neighbors to return
             
         Returns:
-            List of neighboring entities
+            List of neighboring Node objects
         """
-        relationships = await self.get_entity_relationships(entity_id, direction, relationship_type)
+        if not await self.is_connected():
+            raise RuntimeError("Graph database not connected")
+
+        rel_pattern = f":`{relationship_type}`" if relationship_type else ""
+        
+        match_clause = f"MATCH (n {{id: $entity_id}})-[r{rel_pattern}]-(neighbor)"
+
+        return_clause = "RETURN DISTINCT neighbor"
+        
+        query_parts = [match_clause, return_clause]
+
+        if limit:
+            limit_clause = f"LIMIT {limit}"
+            query_parts.append(limit_clause)
+
+        query = " ".join(filter(None, query_parts))
+        
+        params = {'entity_id': entity_id}
+        
+        result = await self.db.execute_query(query, params)
+        
         neighbors = []
-        for rel_data in relationships:
-            neighbor = rel_data.get('neighbor')
-            if neighbor:
-                neighbor['relationship_info'] = rel_data.get('relationship')
-                neighbors.append(neighbor)
+        if result:
+            for record in result:
+                node_data = record.get('neighbor')
+                if node_data:
+
+                    # Assuming Node can be constructed from a dict of its properties
+                    neighbors.append(Node(
+                        node_id=node_data.get('id'),
+                        node_type=next((label for label in node_data.get('labels', []) if label != 'Entity'), 'Entity'),
+                        label=node_data.get('label', ''),
+                        description=node_data.get('properties', {}).get('description', ''),
+                        properties=node_data.get('properties', {})
+                    ))
         return neighbors
     
-    async def get_whole_graph(self) -> Dict[str, Any]:
+    async def get_whole_graph(self) -> Graph:
         """
-        Get the entire knowledge graph as nodes and relationships.
+        Get the entire knowledge graph as a Graph object.
         
         Returns:
-            Dict containing all nodes and relationships
+            Graph object containing all nodes and relationships
         """
         if not await self.is_connected():
             raise RuntimeError("Graph database not connected")
         
         return await self.db.get_all_nodes_and_relationships()
 
-    async def get_subgraph(self, entity_ids: List[str], max_depth: int = 1) -> Dict[str, Any]:
+    async def to_triples(self) -> Optional[List[Dict[str, Any]]]:
+        """
+        Get local graph data as a list of triples.
+        
+        Returns:
+            A list of dictionaries, where each dictionary represents a triple, or None if the graph is empty.
+        """
+        graph_data = await self.get_whole_graph()
+        
+        if not graph_data:
+            return None
+        
+        triples = []
+        
+        # Process nodes
+        nodes = graph_data.nodes
+        if not nodes:
+            return None  # Empty graph
+            
+        for node in nodes:
+            if not node:  # Skip null nodes
+                continue
+                
+            # Add node properties as triples
+            node_id = node.id
+            if not node_id:
+                continue
+                
+            labels = [node.type] # In schema.py, Node has a single 'type'
+            for label in labels:
+                if label:  # Skip empty labels
+                    triples.append({
+                        'subject': node_id,
+                        'predicate': 'rdf:type',
+                        'object': label
+                    })
+            
+            # Add properties
+            for key, value in node.properties.items():
+                if key not in ['id', 'labels', 'type', 'label', 'description'] and value is not None:
+                    triples.append({
+                        'subject': node_id,
+                        'predicate': key,
+                        'object': value
+                    })
+        
+        # Process relationships
+        relationships = graph_data.edges
+        for rel in relationships:
+            if not rel:  # Skip null relationships
+                continue
+                
+            source_id = rel.source_id
+            target_id = rel.target_id
+            rel_type = rel.type
+            
+            if source_id and target_id and rel_type:
+                triples.append({
+                    'subject': source_id,
+                    'predicate': rel_type,
+                    'object': target_id
+                })
+                
+                # Add relationship properties as additional triples
+                for key, value in rel.properties.items():
+                    if key not in ['source_id', 'target_id', 'type', 'label', 'id'] and value is not None:
+                        triples.append({
+                            'subject': f"{source_id}_{rel_type}_{target_id}",
+                            'predicate': key,
+                            'object': value
+                        })
+        
+        return triples if triples else None
+
+    async def get_subgraph(self, entity_ids: List[str], max_depth: int = 1) -> Graph:
         """
         Get a subgraph containing specified entities and their connections.
         
@@ -285,7 +409,7 @@ class KnowledgeGraph:
             max_depth: Maximum depth of connections to include
             
         Returns:
-            Dict containing nodes and relationships
+            Graph object containing nodes and relationships
         """
         if not await self.is_connected():
             raise RuntimeError("Graph database not connected")
@@ -321,16 +445,16 @@ class KnowledgeGraph:
         if result:
             path_data = result[0]
             path = []
-            nodes = path_data['nodes']
-            relationships = path_data['relationships']
+            nodes_data = path_data.get('nodes', [])
+            relationships_data = path_data.get('relationships', [])
             
-            for i, node in enumerate(nodes):
-                path_item = {'node': dict(node)}
-                if i < len(relationships):
-                    path_item['relationship'] = dict(relationships[i])
+            for i, node_data in enumerate(nodes_data):
+                path_item = {'node': dict(node_data)}
+                if i < len(relationships_data):
+                    path_item['relationship'] = dict(relationships_data[i])
                 path.append(path_item)
             
-            logger.info(f"Found path from {from_entity_id} to {to_entity_id} with {len(nodes)} nodes")
+            logger.info(f"Found path from {from_entity_id} to {to_entity_id} with {len(nodes_data)} nodes")
             return path
         
         return None
@@ -430,32 +554,30 @@ if __name__ == "__main__":
             async with KnowledgeGraph() as graph:
                 # Test 1: Add entities
                 print("1. Adding entities...")
-                person_id = await graph.add_entity("person_alice", "Person", {
-                    "name": "Alice",
-                    "age": 30,
-                    "occupation": "Engineer"
+                person_node = Node("person_alice", "Person", label="Alice", properties={
+                    "name": "Alice", "age": 30, "occupation": "Engineer"
                 })
-                company_id = await graph.add_entity("company_techcorp", "Company", {
-                    "name": "TechCorp",
-                    "industry": "Technology",
-                    "founded": 2010
+                company_node = Node("company_techcorp", "Company", label="TechCorp", properties={
+                    "name": "TechCorp", "industry": "Technology", "founded": 2010
                 })
+                person_id = await graph.add_entity(person_node)
+                company_id = await graph.add_entity(company_node)
                 print(f"   Added person: {person_id}")
                 print(f"   Added company: {company_id}")
                 
                 # Test 2: Add relationship
                 print("\n2. Adding relationship...")
-                rel_id = await graph.add_relationship(person_id, company_id, "WORKS_FOR", {
-                    "since": "2020",
-                    "role": "Senior Engineer"
+                work_edge = Edge(person_id, company_id, "WORKS_FOR", label="Works For", properties={
+                    "since": "2020", "role": "Senior Engineer"
                 })
+                rel_id = await graph.add_relationship(work_edge)
                 print(f"   Added relationship: {rel_id}")
                 
                 # Test 3: Get entity
                 print("\n3. Getting entity...")
                 person = await graph.get_entity(person_id)
                 if person:
-                    print(f"   Retrieved: {person['name']}, age: {person['age']}")
+                    print(f"   Retrieved: {person.label}, age: {person.properties.get('age')}")
                 
                 # Test 4: Find entities
                 print("\n4. Finding entities...")
@@ -467,7 +589,7 @@ if __name__ == "__main__":
                 neighbors = await graph.get_neighbors(person_id)
                 print(f"   Found {len(neighbors)} neighbors")
                 if neighbors:
-                    print(f"   First neighbor: {neighbors[0]['name']}")
+                    print(f"   First neighbor: {neighbors[0].label}")
                 
                 # Test 6: Get statistics
                 print("\n6. Getting graph statistics...")

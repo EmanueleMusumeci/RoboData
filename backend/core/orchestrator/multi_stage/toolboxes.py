@@ -6,9 +6,8 @@ def create_local_exploration_toolbox() -> Toolbox:
     toolbox = Toolbox()
     
     # Graph database tools for local exploration
-    from ...toolbox.graph.graph_tools import GetNodeTool, QueryGraphTool, CypherQueryTool
+    from ...toolbox.graph.graph_tools import GetNodeTool, CypherQueryTool
     toolbox.register_tool(GetNodeTool())
-    toolbox.register_tool(QueryGraphTool())
     toolbox.register_tool(CypherQueryTool())
     
     return toolbox
@@ -24,11 +23,11 @@ def create_remote_exploration_toolbox() -> Toolbox:
     toolbox.register_tool(SearchEntitiesTool())
     
     # Wikidata query tools
-    from ...toolbox.wikidata.queries import SPARQLQueryTool, SubclassQueryTool, SuperclassQueryTool, InstanceQueryTool, InstanceOfQueryTool
+    from ...toolbox.wikidata.queries import SPARQLQueryTool, SubclassQueryTool, SuperclassQueryTool, GetInstancesQueryTool, InstanceOfQueryTool
     toolbox.register_tool(SPARQLQueryTool())
     toolbox.register_tool(SubclassQueryTool())
     toolbox.register_tool(SuperclassQueryTool())
-    toolbox.register_tool(InstanceQueryTool())
+    toolbox.register_tool(GetInstancesQueryTool())
     toolbox.register_tool(InstanceOfQueryTool())
     
     # Wikidata exploration tools
@@ -43,11 +42,10 @@ def create_graph_update_toolbox() -> Toolbox:
     toolbox = Toolbox()
     
     # Graph database tools for adding/updating data
-    from ...toolbox.graph.graph_tools import AddNodeTool, AddEdgeTool, GetNodeTool, QueryGraphTool
+    from ...toolbox.graph.graph_tools import AddNodeTool, AddEdgeTool, GetNodeTool
     toolbox.register_tool(AddNodeTool())
     toolbox.register_tool(AddEdgeTool())
     toolbox.register_tool(GetNodeTool())
-    toolbox.register_tool(QueryGraphTool())
     
     return toolbox
 
@@ -56,8 +54,7 @@ def create_evaluation_toolbox() -> Toolbox:
     toolbox = Toolbox()
     
     # Basic query tools for checking local data
-    from ...toolbox.graph.graph_tools import GetNodeTool, QueryGraphTool
+    from ...toolbox.graph.graph_tools import GetNodeTool
     toolbox.register_tool(GetNodeTool())
-    toolbox.register_tool(QueryGraphTool())
     
     return toolbox

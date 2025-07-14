@@ -1,6 +1,6 @@
 from .base import WikidataEntity, WikidataProperty, get_entity_info, get_property_info, search_entities
 from .wikidata_api import WikidataRestAPI, wikidata_api
-from .queries import SPARQLQueryTool, SubclassQueryTool, SuperclassQueryTool, InstanceQueryTool
+from .queries import SPARQLQueryTool, SubclassQueryTool, SuperclassQueryTool, GetInstancesQueryTool
 from .exploration import NeighborsExplorationTool, LocalGraphTool
 
 __all__ = [
@@ -14,7 +14,7 @@ __all__ = [
     'SPARQLQueryTool',
     'SubclassQueryTool',
     'SuperclassQueryTool',
-    'InstanceQueryTool',
+    'GetInstancesQueryTool',
     'NeighborsExplorationTool',
     'LocalGraphTool'
 ]

@@ -6,18 +6,27 @@ abstracting away the low-level database interactions and providing a clean API
 for the graph.py module.
 """
 
-from typing import Dict, Any, List, Optional, Union, TYPE_CHECKING
+from typing import Dict, Any, List, Optional, Union, TYPE_CHECKING, cast
 import logging
 from abc import ABC, abstractmethod
 
+from ..schema import Node, Edge, Graph
+
 if TYPE_CHECKING:
-    from neo4j import AsyncDriver
+    from neo4j import AsyncDriver, Query
+    from typing_extensions import LiteralString
 
 try:
-    from neo4j import GraphDatabase, Driver, AsyncGraphDatabase
+    from neo4j import GraphDatabase, Driver, AsyncGraphDatabase, Query
+    from typing_extensions import LiteralString
     NEO4J_AVAILABLE = True
 except ImportError:
     NEO4J_AVAILABLE = False
+    # Define dummy classes for type hinting if neo4j is not installed
+    class AsyncGraphDatabase: pass
+    class Query: pass
+    class Driver: pass
+    class LiteralString: pass
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +61,7 @@ class DatabaseInterface(ABC):
         pass
     
     @abstractmethod
-    async def get_node_by_id(self, node_id: str) -> Optional[Dict[str, Any]]:
+    async def get_node_by_id(self, node_id: str) -> Optional[Node]:
         """Get a node by its ID."""
         pass
     
@@ -68,7 +77,7 @@ class DatabaseInterface(ABC):
     
     @abstractmethod
     async def find_nodes(self, labels: Optional[List[str]] = None, properties: Optional[Dict[str, Any]] = None, 
-                        limit: Optional[int] = None) -> List[Dict[str, Any]]:
+                        limit: Optional[int] = None) -> List[Node]:
         """Find nodes by labels and/or properties."""
         pass
     
@@ -80,7 +89,7 @@ class DatabaseInterface(ABC):
         pass
     
     @abstractmethod
-    async def get_relationship_by_id(self, rel_id: str) -> Optional[Dict[str, Any]]:
+    async def get_relationship_by_id(self, rel_id: str) -> Optional[Edge]:
         """Get a relationship by its ID."""
         pass
     
@@ -91,18 +100,25 @@ class DatabaseInterface(ABC):
     
     @abstractmethod
     async def get_node_relationships(self, node_id: str, direction: str = "both", 
-                                   relationship_type: Optional[str] = None) -> List[Dict[str, Any]]:
+                                   relationship_type: Optional[str] = None) -> List[Edge]:
         """Get relationships for a node."""
+        pass
+    
+    @abstractmethod
+    async def find_relationships(self, relationship_type: Optional[str] = None, 
+                                 properties: Optional[Dict[str, Any]] = None, 
+                                 limit: Optional[int] = None) -> List[Edge]:
+        """Find relationships by type and/or properties."""
         pass
     
     # Graph operations
     @abstractmethod
-    async def get_subgraph(self, node_ids: List[str], max_depth: int = 1) -> Dict[str, Any]:
+    async def get_subgraph(self, node_ids: List[str], max_depth: int = 1) -> Graph:
         """Get a subgraph containing specified nodes and their connections."""
         pass
     
     @abstractmethod
-    async def get_all_nodes_and_relationships(self) -> Dict[str, Any]:
+    async def get_all_nodes_and_relationships(self) -> Graph:
         """Get all nodes and relationships in the database."""
         pass
     
@@ -181,7 +197,8 @@ class Neo4jInterface(DatabaseInterface):
             
         async with self.driver.session(database=self.database) as session:
             try:
-                result = await session.run(query, parameters)
+                literal_query = cast(LiteralString, query)
+                result = await session.run(literal_query, parameters)
                 records = []
                 async for record in result:
                     records.append(dict(record))
@@ -231,7 +248,7 @@ class Neo4jInterface(DatabaseInterface):
         result = await self.execute_query(query, {'properties': properties})
         return result[0]['node_id'] if result else None
     
-    async def get_node_by_id(self, node_id: str) -> Optional[Dict[str, Any]]:
+    async def get_node_by_id(self, node_id: str) -> Optional[Node]:
         """Get a node by its ID."""
         query = """
         MATCH (n {id: $node_id})
@@ -240,9 +257,18 @@ class Neo4jInterface(DatabaseInterface):
         
         result = await self.execute_query(query, {'node_id': node_id})
         if result:
-            node = dict(result[0]['n'])
-            node['labels'] = result[0]['labels']
-            return node
+            node_data = dict(result[0]['n'])
+            labels = result[0].get('labels') or []
+            node_id_val = node_data.get('id', node_id)
+            if not node_id_val:
+                return None
+            return Node(
+                node_id=node_id_val,
+                node_type=next((l for l in labels if l != 'Entity'), 'Entity'),
+                label=node_data.get('label', ''),
+                description=node_data.get('description', ''),
+                properties=node_data
+            )
         return None
     
     async def update_node(self, node_id: str, properties: Dict[str, Any]) -> bool:
@@ -271,7 +297,7 @@ class Neo4jInterface(DatabaseInterface):
         return result[0]['deleted_count'] > 0 if result else False
     
     async def find_nodes(self, labels: Optional[List[str]] = None, properties: Optional[Dict[str, Any]] = None, 
-                        limit: Optional[int] = None) -> List[Dict[str, Any]]:
+                        limit: Optional[int] = None) -> List[Node]:
         """Find nodes by labels and/or properties."""
         # Build query dynamically
         if labels:
@@ -300,9 +326,18 @@ class Neo4jInterface(DatabaseInterface):
         result = await self.execute_query(query, parameters)
         nodes = []
         for record in result:
-            node = dict(record['n'])
-            node['labels'] = record['labels']
-            nodes.append(node)
+            node_data = dict(record['n'])
+            labels = record.get('labels') or []
+            node_id_val = node_data.get('id')
+            if not node_id_val:
+                continue
+            nodes.append(Node(
+                node_id=node_id_val,
+                node_type=next((l for l in labels if l != 'Entity'), 'Entity'),
+                label=node_data.get('label', ''),
+                description=node_data.get('description', ''),
+                properties=node_data
+            ))
         return nodes
     
     # === Relationship Operations ===
@@ -331,7 +366,7 @@ class Neo4jInterface(DatabaseInterface):
         })
         return result[0]['rel_id'] if result else None
     
-    async def get_relationship_by_id(self, rel_id: str) -> Optional[Dict[str, Any]]:
+    async def get_relationship_by_id(self, rel_id: str) -> Optional[Edge]:
         """Get a relationship by its ID."""
         query = """
         MATCH (a)-[r {id: $rel_id}]->(b)
@@ -340,11 +375,14 @@ class Neo4jInterface(DatabaseInterface):
         
         result = await self.execute_query(query, {'rel_id': rel_id})
         if result:
-            relationship = dict(result[0]['r'])
-            relationship['type'] = result[0]['type']
-            relationship['from_id'] = result[0]['from_id']
-            relationship['to_id'] = result[0]['to_id']
-            return relationship
+            rel_data = dict(result[0]['r'])
+            return Edge(
+                source_id=result[0]['from_id'],
+                target_id=result[0]['to_id'],
+                relationship_type=result[0]['type'],
+                label=rel_data.get('label', result[0]['type']),
+                properties=rel_data
+            )
         return None
     
     async def delete_relationship(self, rel_id: str) -> bool:
@@ -359,7 +397,7 @@ class Neo4jInterface(DatabaseInterface):
         return result[0]['deleted_count'] > 0 if result else False
     
     async def get_node_relationships(self, node_id: str, direction: str = "both", 
-                                   relationship_type: Optional[str] = None) -> List[Dict[str, Any]]:
+                                   relationship_type: Optional[str] = None) -> List[Edge]:
         """Get relationships for a node."""
         # Build query based on direction
         if direction == "incoming":
@@ -378,87 +416,204 @@ class Neo4jInterface(DatabaseInterface):
             else:
                 query = "MATCH (n {id: $node_id})-[r]-(neighbor)"
         
-        query += " RETURN r, type(r) as rel_type, neighbor, labels(neighbor) as neighbor_labels"
+        query += " RETURN r, type(r) as rel_type, startNode(r).id as from_id, endNode(r).id as to_id"
         
         result = await self.execute_query(query, {'node_id': node_id})
         relationships = []
         for record in result:
-            rel = dict(record['r'])
-            rel['type'] = record['rel_type']
-            
-            neighbor = dict(record['neighbor'])
-            neighbor['labels'] = record['neighbor_labels']
-            
-            relationships.append({
-                'relationship': rel,
-                'neighbor': neighbor
-            })
+            rel_data = dict(record['r'])
+            relationships.append(Edge(
+                source_id=record['from_id'],
+                target_id=record['to_id'],
+                relationship_type=record['rel_type'],
+                label=rel_data.get('label', record['rel_type']),
+                properties=rel_data
+            ))
         return relationships
     
+    async def find_relationships(self, relationship_type: Optional[str] = None, 
+                                 properties: Optional[Dict[str, Any]] = None, 
+                                 limit: Optional[int] = None) -> List[Edge]:
+        """Find relationships by type and/or properties."""
+        # Build query dynamically
+        rel_type_str = f":`{relationship_type}`" if relationship_type else ""
+        query = f"MATCH (a)-[r{rel_type_str}]->(b)"
+        
+        where_conditions = []
+        parameters = {}
+        
+        if properties:
+            for key, value in properties.items():
+                param_name = f"prop_{key}"
+                where_conditions.append(f"r.{key} = ${param_name}")
+                parameters[param_name] = value
+        
+        if where_conditions:
+            query += " WHERE " + " AND ".join(where_conditions)
+        
+        query += " RETURN r, type(r) as rel_type, startNode(r).id as from_id, endNode(r).id as to_id"
+        
+        if limit:
+            query += f" LIMIT {limit}"
+        
+        result = await self.execute_query(query, parameters)
+        relationships = []
+        for record in result:
+            rel_data = dict(record['r'])
+            relationships.append(Edge(
+                source_id=record['from_id'],
+                target_id=record['to_id'],
+                relationship_type=record['rel_type'],
+                label=rel_data.get('label', record['rel_type']),
+                properties=rel_data
+            ))
+        return relationships
+
+    async def get_neighbors(self, node_id: str, relationship_type: Optional[str] = None, limit: int = 20) -> List['Node']:
+        """Get neighbors of a node."""
+        query = f"""
+        MATCH (n)-[r]-(neighbor)
+        WHERE n.id = $node_id
+        { "AND type(r) = $relationship_type" if relationship_type else "" }
+        RETURN neighbor, r as relationship
+        ORDER BY r.weight DESC, r.rank DESC
+        LIMIT $limit
+        """
+        parameters = {"node_id": node_id, "limit": limit}
+        if relationship_type:
+            parameters["relationship_type"] = relationship_type
+            
+        results = await self.execute_query(query, parameters)
+        
+        neighbors = []
+        for record in results:
+            node_data = record['neighbor']
+            relationship_data = record['relationship']
+            
+            # Add relationship properties to the node properties for context
+            props = dict(node_data.items())
+            props['relationship_properties'] = dict(relationship_data.items())
+
+            neighbors.append(Node(
+                node_id=node_data.get('id'),
+                node_type=list(node_data.labels)[0] if node_data.labels else 'Unknown',
+                label=node_data.get('label', ''),
+                description=node_data.get('description', ''),
+                properties=props
+            ))
+        return neighbors
+
     # === Graph Operations ===
     
-    async def get_all_nodes_and_relationships(self) -> Dict[str, Any]:
+    async def get_all_nodes_and_relationships(self) -> Graph:
         """Get all nodes and relationships in the database."""
         query = """
         MATCH (n)
         OPTIONAL MATCH (n)-[r]-(m)
-        RETURN COLLECT(DISTINCT n) AS nodes, COLLECT(DISTINCT r) AS relationships
+        RETURN COLLECT(DISTINCT {data: n, labels: labels(n)}) AS nodes, COLLECT(DISTINCT {data: r, type: type(r), from: startNode(r).id, to: endNode(r).id}) AS relationships
         """
         result = await self.execute_query(query)
+        
+        graph = Graph()
+        
         if result and result[0]:
-            # Handle case where nodes/relationships might be null or empty
             nodes_raw = result[0].get('nodes') or []
-            relationships_raw = result[0].get('relationships') or []
-            
-            # Filter out null values and convert to dict
-            nodes = [dict(node) for node in nodes_raw if node is not None]
-            relationships = [dict(rel) for rel in relationships_raw if rel is not None]
-        else:
-            nodes = []
-            relationships = []
-        return {
-            'nodes': nodes,
-            'relationships': relationships
-        }
+            for node_entry in nodes_raw:
+                if node_entry and node_entry.get('data'):
+                    node_data = dict(node_entry['data'])
+                    labels = node_entry.get('labels') or []
+                    node_id_val = node_data.get('id')
+                    if not node_id_val:
+                        continue
+                    graph.add_node(Node(
+                        node_id=node_id_val,
+                        node_type=next((l for l in labels if l != 'Entity'), 'Entity'),
+                        label=node_data.get('label', ''),
+                        description=node_data.get('description', ''),
+                        properties=node_data
+                    ))
 
-    async def get_subgraph(self, node_ids: List[str], max_depth: int = 1) -> Dict[str, Any]:
+            relationships_raw = result[0].get('relationships') or []
+            for rel_entry in relationships_raw:
+                if rel_entry and rel_entry.get('data'):
+                    rel_data = dict(rel_entry['data'])
+                    graph.add_edge(Edge(
+                        source_id=rel_entry['from'],
+                        target_id=rel_entry['to'],
+                        relationship_type=rel_entry['type'],
+                        label=rel_data.get('label', rel_entry['type']),
+                        properties=rel_data
+                    ))
+        return graph
+
+    async def get_subgraph(self, node_ids: List[str], max_depth: int = 1) -> Graph:
         """Get a subgraph containing specified nodes and their connections."""
         if not node_ids:
-            return {'nodes': [], 'relationships': []}
+            return Graph()
         
         # Get nodes and their relationships up to max_depth
+        # Use double curly braces to escape Cypher map syntax for Python .format()
         query = """
-        MATCH path = (start)-[*0..{}]-(connected)
+        MATCH path = (start)-[*0..{max_depth}]-(connected)
         WHERE start.id IN $node_ids
-        WITH DISTINCT start, connected, relationships(path) as rels
-        RETURN DISTINCT start, connected, rels, labels(start) as start_labels, labels(connected) as connected_labels
-        """.format(max_depth)
+        WITH start, connected, relationships(path) as rels, labels(start) as start_labels, labels(connected) as connected_labels
+        UNWIND rels as r
+        RETURN DISTINCT 
+            {{data: start, labels: start_labels}} as start_node,
+            {{data: connected, labels: connected_labels}} as connected_node,
+            {{data: r, type: type(r), from: startNode(r).id, to: endNode(r).id}} as relationship
+        """.format(max_depth=max_depth)
         
         result = await self.execute_query(query, {'node_ids': node_ids})
         
-        nodes = {}
-        relationships = []
+        graph = Graph()
         
         for record in result:
             # Add start node
-            start_node = dict(record['start'])
-            start_node['labels'] = record['start_labels']
-            nodes[start_node['id']] = start_node
-            
+            start_node_entry = record['start_node']
+            if start_node_entry and start_node_entry.get('data'):
+                start_node_data = dict(start_node_entry['data'])
+                start_labels = start_node_entry.get('labels') or []
+                node_id_val = start_node_data.get('id')
+                if not node_id_val:
+                    continue
+                graph.add_node(Node(
+                    node_id=node_id_val,
+                    node_type=next((l for l in start_labels if l != 'Entity'), 'Entity'),
+                    label=start_node_data.get('label', ''),
+                    description=start_node_data.get('description', ''),
+                    properties=start_node_data
+                ))
+
             # Add connected node
-            connected_node = dict(record['connected'])
-            connected_node['labels'] = record['connected_labels']
-            nodes[connected_node['id']] = connected_node
-            
-            # Add relationships
-            for rel in record['rels']:
-                rel_dict = dict(rel)
-                relationships.append(rel_dict)
+            connected_node_entry = record['connected_node']
+            if connected_node_entry and connected_node_entry.get('data'):
+                connected_node_data = dict(connected_node_entry['data'])
+                connected_labels = connected_node_entry.get('labels') or []
+                node_id_val = connected_node_data.get('id')
+                if not node_id_val:
+                    continue
+                graph.add_node(Node(
+                    node_id=node_id_val,
+                    node_type=next((l for l in connected_labels if l != 'Entity'), 'Entity'),
+                    label=connected_node_data.get('label', ''),
+                    description=connected_node_data.get('description', ''),
+                    properties=connected_node_data
+                ))
+
+            # Add relationship
+            rel_entry = record['relationship']
+            if rel_entry and rel_entry.get('data'):
+                rel_data = dict(rel_entry['data'])
+                graph.add_edge(Edge(
+                    source_id=rel_entry['from'],
+                    target_id=rel_entry['to'],
+                    relationship_type=rel_entry['type'],
+                    label=rel_data.get('label', rel_entry['type']),
+                    properties=rel_data
+                ))
         
-        return {
-            'nodes': list(nodes.values()),
-            'relationships': relationships
-        }
+        return graph
     
     async def clear_database(self) -> bool:
         """Clear all nodes and relationships from the database. Use with caution!"""

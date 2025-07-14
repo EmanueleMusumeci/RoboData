@@ -22,8 +22,10 @@ try:
     PYVIS_AVAILABLE = True
 except ImportError:
     PYVIS_AVAILABLE = False
+    class Network: pass  # Dummy class for linter
 
-from ...knowledge_base.graph import get_graph_db
+from ...knowledge_base.graph import get_knowledge_graph
+from ...knowledge_base.schema import Graph, Node, Edge
 
 
 class GraphVisualizer:
@@ -35,8 +37,7 @@ class GraphVisualizer:
     
     def create_static_visualization(
         self, 
-        nodes: Dict[str, Dict[str, Any]], 
-        edges: List[Dict[str, Any]], 
+        graph: Graph, 
         title: str = "Wikidata Graph",
         filename: Optional[str] = None,
         figsize: Tuple[int, int] = (16, 12),
@@ -58,24 +59,15 @@ class GraphVisualizer:
         Returns:
             Path to the generated image file
         """
-        # Create NetworkX graph
-        G = nx.Graph()
-        
-        # Add nodes with attributes
-        for node_id, node_data in nodes.items():
-            G.add_node(node_id, **node_data)
-        
-        # Add edges with attributes
-        for edge in edges:
-            if edge['source'] in nodes and edge['target'] in nodes:
-                G.add_edge(edge['source'], edge['target'], property=edge.get('property', ''))
+        # Use the networkx graph from our Graph object
+        G = graph._graph
         
         # Create figure
         fig, ax = plt.subplots(figsize=figsize)
         ax.set_title(title, fontsize=16, fontweight='bold', pad=20)
         
         # Generate layout
-        if len(G.nodes()) > 50:
+        if len(list(G.nodes())) > 50:
             layout = nx.spring_layout(G, k=3, iterations=50)
         else:
             layout = nx.spring_layout(G, k=2, iterations=100)
@@ -84,14 +76,14 @@ class GraphVisualizer:
         edge_colors = ['#666666' for _ in G.edges()]
         nx.draw_networkx_edges(
             G, layout, 
-            edge_color=edge_colors,
+            edge_color=edge_colors, # type: ignore
             alpha=0.6,
             width=1.5,
             ax=ax
         )
         
         # Calculate node sizes based on degree
-        degrees = dict(G.degree())
+        degrees = dict(G.degree()) # type: ignore
         max_degree = max(degrees.values()) if degrees else 1
         node_sizes = [
             300 + (degrees.get(node, 1) / max_degree) * 1000 * node_size_multiplier 
@@ -101,7 +93,8 @@ class GraphVisualizer:
         # Color nodes by depth if available
         node_colors = []
         for node_id in G.nodes():
-            depth = nodes[node_id].get('depth', 0)
+            node_data = G.nodes[node_id]
+            depth = node_data.get('properties', {}).get('depth', 0)
             if depth == 0:
                 node_colors.append('#FF6B6B')  # Center node - red
             elif depth == 1:
@@ -123,7 +116,7 @@ class GraphVisualizer:
         # Add node labels (entity labels above nodes)
         node_label_pos = {node: (x, y + 0.15) for node, (x, y) in layout.items()}
         node_labels = {
-            node_id: nodes[node_id].get('label', node_id)[:30] + ('...' if len(nodes[node_id].get('label', '')) > 30 else '')
+            node_id: G.nodes[node_id].get('label', node_id)[:30] + ('...' if len(G.nodes[node_id].get('label', '')) > 30 else '')
             for node_id in G.nodes()
         }
         
@@ -146,34 +139,28 @@ class GraphVisualizer:
         
         # Add edge labels (property names and IDs)
         edge_labels = {}
-        for edge in edges:
-            if edge['source'] in nodes and edge['target'] in nodes:
-                prop_id = edge.get('property', '')
-                prop_name = edge.get('property_name', prop_id)
-                if prop_name and prop_name != prop_id:
-                    label = f"{prop_name}\n({prop_id})"
-                else:
-                    label = prop_id
-                edge_labels[(edge['source'], edge['target'])] = label
-        
-        # Draw edge labels
-        edge_label_pos = {}
+        for u, v, data in G.edges(data=True):
+            prop_id = data.get('type', '')
+            prop_name = data.get('label', prop_id)
+            if prop_name and prop_name != prop_id:
+                label = f"{prop_name}\n({prop_id})"
+            else:
+                label = prop_id
+            edge_labels[(u, v)] = label
+
         for (u, v), label in edge_labels.items():
-            x1, y1 = layout[u]
-            x2, y2 = layout[v]
-            edge_label_pos[(u, v)] = ((x1 + x2) / 2, (y1 + y2) / 2)
-        
-        for (u, v), pos in edge_label_pos.items():
-            if (u, v) in edge_labels:
-                ax.text(
-                    pos[0], pos[1], edge_labels[(u, v)],
-                    horizontalalignment='center',
-                    verticalalignment='center',
-                    fontsize=max(6, font_size - 3),
-                    bbox=dict(boxstyle='round,pad=0.2', facecolor='white', alpha=0.8),
-                    style='italic'
-                )
-        
+            pos_u = layout[u]
+            pos_v = layout[v]
+            pos = ((pos_u[0] + pos_v[0]) / 2, (pos_u[1] + pos_v[1]) / 2)
+            ax.text(
+                pos[0], pos[1], label,
+                horizontalalignment='center',
+                verticalalignment='center',
+                fontsize=max(6, font_size - 3),
+                bbox=dict(boxstyle='round,pad=0.2', facecolor='white', alpha=0.8),
+                style='italic'
+            )
+
         # Add legend
         legend_elements = [
             patches.Patch(color='#FF6B6B', label='Center Entity'),
@@ -200,8 +187,7 @@ class GraphVisualizer:
     
     def create_dynamic_visualization(
         self,
-        nodes: Dict[str, Dict[str, Any]],
-        edges: List[Dict[str, Any]],
+        graph: Graph,
         title: str = "Interactive Wikidata Graph",
         filename: Optional[str] = None,
         height: str = "800px",
@@ -211,8 +197,7 @@ class GraphVisualizer:
         Create an interactive, draggable graph visualization using pyvis.
         
         Args:
-            nodes: Dictionary of node data with IDs as keys
-            edges: List of edge dictionaries
+            graph: Graph object to visualize
             title: Graph title
             filename: Output HTML filename
             height: HTML canvas height
@@ -224,13 +209,12 @@ class GraphVisualizer:
         if not PYVIS_AVAILABLE:
             raise ImportError("pyvis not available. Install with: pip install pyvis")
         
-        # Create network
         net = Network(
             height=height,
             width=width,
             bgcolor="#ffffff",
-            font_color="black",
-            directed=False
+            font_color="black", # type: ignore
+            directed=True
         )
         
         # Configure physics for elastic layout
@@ -257,9 +241,10 @@ class GraphVisualizer:
         """)
         
         # Add nodes
-        for node_id, node_data in nodes.items():
-            label = node_data.get('label', node_id)
-            depth = node_data.get('depth', 0)
+        for node in graph.nodes:
+            if node is None: continue
+            label = node.label or node.id
+            depth = node.properties.get('depth', 0)
             
             # Color based on depth
             if depth == 0:
@@ -278,14 +263,14 @@ class GraphVisualizer:
             # Create hover info
             title_text = f"""
             <b>{label}</b><br>
-            ID: {node_id}<br>
+            ID: {node.id}<br>
             Depth: {depth}<br>
-            Description: {(node_data.get('description') or 'No description')[:100]}...
+            Description: {(node.description or 'No description')[:100]}...
             """
             
             net.add_node(
-                node_id,
-                label=f"{label}\n{node_id}",
+                node.id,
+                label=f"{label}\n{node.id}",
                 title=title_text,
                 color=color,
                 size=size,
@@ -293,24 +278,24 @@ class GraphVisualizer:
             )
         
         # Add edges
-        for edge in edges:
-            if edge['source'] in nodes and edge['target'] in nodes:
-                prop_id = edge.get('property', '')
-                prop_name = edge.get('property_name', prop_id)
-                
-                if prop_name and prop_name != prop_id:
-                    edge_label = f"{prop_name} ({prop_id})"
-                else:
-                    edge_label = prop_id
-                
-                net.add_edge(
-                    edge['source'],
-                    edge['target'],
-                    label=edge_label,
-                    color="#666666",
-                    width=2,
-                    font={"size": 10, "color": "black"}
-                )
+        for edge in graph.edges:
+            if edge is None: continue
+            prop_id = edge.type
+            prop_name = edge.label or prop_id
+            
+            if prop_name and prop_name != prop_id:
+                edge_label = f"{prop_name} ({prop_id})"
+            else:
+                edge_label = prop_id
+            
+            net.add_edge(
+                edge.source_id,
+                edge.target_id,
+                label=edge_label,
+                color="#666666",
+                width=2,
+                font={"size": 10, "color": "black"}
+            )
         
         # Generate filename
         if filename is None:
@@ -326,60 +311,41 @@ class GraphVisualizer:
     
     async def store_in_neo4j(
         self,
-        nodes: Dict[str, Dict[str, Any]],
-        edges: List[Dict[str, Any]],
+        graph: Graph,
         clear_existing: bool = False
     ) -> bool:
         """
         Store graph data in Neo4j for advanced visualization and querying.
         
         Args:
-            nodes: Dictionary of node data
-            edges: List of edge data
+            graph: Graph object to store
             clear_existing: Whether to clear existing data first
             
         Returns:
             Success status
         """
         try:
-            db = get_graph_db()
-            if not db.driver:
+            db = get_knowledge_graph()
+            if not await db.is_connected():
                 await db.connect()
             
             # Clear existing data if requested
             if clear_existing:
-                await db.query("MATCH (n) DETACH DELETE n")
+                await db.clear_graph()
                 print("🗑️  Cleared existing Neo4j data")
             
             # Add nodes
             node_count = 0
-            for node_id, node_data in nodes.items():
-                properties = {
-                    'id': node_id,
-                    'label': node_data.get('label', ''),
-                    'description': node_data.get('description', ''),
-                    'depth': node_data.get('depth', 0),
-                    'wikidata_id': node_id
-                }
-                
-                await db.add_node("WikidataEntity", properties)
-                node_count += 1
+            for node in graph.nodes:
+                if node:
+                    await db.add_entity(node)
+                    node_count += 1
             
             # Add edges
             edge_count = 0
-            for edge in edges:
-                if edge['source'] in nodes and edge['target'] in nodes:
-                    properties = {
-                        'property_id': edge.get('property', ''),
-                        'property_name': edge.get('property_name', '')
-                    }
-                    
-                    await db.add_edge(
-                        edge['source'], 
-                        edge['target'], 
-                        "WIKIDATA_RELATION", 
-                        properties
-                    )
+            for edge in graph.edges:
+                if edge:
+                    await db.add_relationship(edge)
                     edge_count += 1
             
             print(f"💾 Stored {node_count} nodes and {edge_count} edges in Neo4j")
@@ -408,46 +374,53 @@ class GraphVisualizer:
         entity = exploration_result['entity']
         neighbors = exploration_result['neighbors']
         
-        # Build nodes dictionary
-        nodes = {entity['id']: {
-            'id': entity['id'],
-            'label': entity['label'],
-            'description': entity['description'],
-            'depth': 0
-        }}
+        graph = Graph()
+        
+        # Add center node
+        center_node = Node(
+            node_id=entity['id'],
+            node_type='WikidataEntity',
+            label=entity['label'],
+            description=entity['description'],
+            properties={'depth': 0}
+        )
+        graph.add_node(center_node)
         
         # Add neighbor nodes
         for neighbor_id, neighbor_data in neighbors.items():
-            nodes[neighbor_id] = {
-                'id': neighbor_id,
-                'label': neighbor_data['label'],
-                'description': neighbor_data['description'],
-                'depth': 1
-            }
+            neighbor_node = Node(
+                node_id=neighbor_id,
+                node_type='WikidataEntity',
+                label=neighbor_data['label'],
+                description=neighbor_data['description'],
+                properties={'depth': 1}
+            )
+            graph.add_node(neighbor_node)
         
         # Build edges from relationships
-        edges = []
         relationships = exploration_result['relationships']
         
         for prop_id, values in relationships.items():
             for value in values:
-                if value in neighbors:
-                    edges.append({
-                        'source': entity['id'],
-                        'target': value,
-                        'property': prop_id
-                    })
+                if graph.get_node(value):
+                    edge = Edge(
+                        source_id=entity['id'],
+                        target_id=value,
+                        relationship_type=prop_id,
+                        label=exploration_result.get('property_names', {}).get(prop_id, prop_id)
+                    )
+                    graph.add_edge(edge)
         
         # Create visualizations
         title = f"{title_prefix}: {entity['label']} ({entity['id']})"
         
         static_path = self.create_static_visualization(
-            nodes, edges, title,
+            graph, title,
             filename=f"exploration_{entity['id']}.png"
         )
         
         dynamic_path = self.create_dynamic_visualization(
-            nodes, edges, title,
+            graph, title,
             filename=f"exploration_{entity['id']}.html"
         )
         
@@ -468,20 +441,38 @@ class GraphVisualizer:
         Returns:
             Tuple of (static_path, dynamic_path)
         """
-        nodes = graph_result['nodes']
-        edges = graph_result['edges']
+        nodes_data = graph_result['nodes']
+        edges_data = graph_result['edges']
         center = graph_result['center']
         depth = graph_result['depth']
         
+        graph = Graph()
+        for node_id, node_info in nodes_data.items():
+            graph.add_node(Node(
+                node_id=node_id,
+                node_type='WikidataEntity',
+                label=node_info.get('label', ''),
+                description=node_info.get('description', ''),
+                properties=node_info
+            ))
+            
+        for edge_info in edges_data:
+            graph.add_edge(Edge(
+                source_id=edge_info['source'],
+                target_id=edge_info['target'],
+                relationship_type=edge_info.get('property', ''),
+                label=edge_info.get('property_name', '')
+            ))
+
         title = f"{title_prefix}: {center} (Depth {depth})"
         
         static_path = self.create_static_visualization(
-            nodes, edges, title,
+            graph, title,
             filename=f"local_graph_{center}_d{depth}.png"
         )
         
         dynamic_path = self.create_dynamic_visualization(
-            nodes, edges, title,
+            graph, title,
             filename=f"local_graph_{center}_d{depth}.html"
         )
         
@@ -497,62 +488,35 @@ if __name__ == "__main__":
         print("=== Testing Graph Visualization ===\n")
         
         # Create sample graph data
-        sample_nodes = {
-            "Q42": {
-                "id": "Q42",
-                "label": "Douglas Adams",
-                "description": "English writer and humorist",
-                "depth": 0
-            },
-            "Q5": {
-                "id": "Q5", 
-                "label": "human",
-                "description": "common name of Homo sapiens",
-                "depth": 1
-            },
-            "Q6581097": {
-                "id": "Q6581097",
-                "label": "male",
-                "description": "male sex or gender",
-                "depth": 1
-            },
-            "Q36180": {
-                "id": "Q36180",
-                "label": "writer",
-                "description": "person who writes books or other texts",
-                "depth": 1
-            }
-        }
+        graph = Graph()
+        graph.add_node(Node(
+            "Q42", "WikidataEntity", "Douglas Adams", "English writer and humorist",
+            properties={'depth': 0}
+        ))
+        graph.add_node(Node(
+            "Q5", "WikidataEntity", "human", "common name of Homo sapiens",
+            properties={'depth': 1}
+        ))
+        graph.add_node(Node(
+            "Q6581097", "WikidataEntity", "male", "male sex or gender",
+            properties={'depth': 1}
+        ))
+        graph.add_node(Node(
+            "Q36180", "WikidataEntity", "writer", "person who writes books or other texts",
+            properties={'depth': 1}
+        ))
         
-        sample_edges = [
-            {
-                "source": "Q42",
-                "target": "Q5", 
-                "property": "P31",
-                "property_name": "instance of"
-            },
-            {
-                "source": "Q42",
-                "target": "Q6581097",
-                "property": "P21",
-                "property_name": "sex or gender"
-            },
-            {
-                "source": "Q42",
-                "target": "Q36180",
-                "property": "P106", 
-                "property_name": "occupation"
-            }
-        ]
-        
+        graph.add_edge(Edge("Q42", "Q5", "P31", "instance of"))
+        graph.add_edge(Edge("Q42", "Q6581097", "P21", "sex or gender"))
+        graph.add_edge(Edge("Q42", "Q36180", "P106", "occupation"))
+
         viz = GraphVisualizer()
         
         # Test static visualization
         print("1. Testing static visualization...")
         try:
             static_path = viz.create_static_visualization(
-                sample_nodes, 
-                sample_edges,
+                graph, 
                 "Sample Wikidata Graph"
             )
             print(f"✓ Static visualization created successfully")
@@ -564,8 +528,7 @@ if __name__ == "__main__":
         try:
             if PYVIS_AVAILABLE:
                 dynamic_path = viz.create_dynamic_visualization(
-                    sample_nodes,
-                    sample_edges, 
+                    graph,
                     "Sample Interactive Graph"
                 )
                 print(f"✓ Dynamic visualization created successfully")
@@ -578,8 +541,7 @@ if __name__ == "__main__":
         print("\n3. Testing Neo4j storage...")
         try:
             success = await viz.store_in_neo4j(
-                sample_nodes,
-                sample_edges,
+                graph,
                 clear_existing=True
             )
             if success:

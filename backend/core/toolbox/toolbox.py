@@ -36,6 +36,11 @@ class Tool(ABC):
         """Get the tool's definition for registration."""
         pass
     
+    @abstractmethod
+    def format_result(self, result: Any) -> str:
+        """Format the result into a readable, concise string."""
+        pass
+    
     def to_openai_format(self) -> Dict[str, Any]:
         """Convert tool definition to OpenAI function calling format."""
         definition = self.get_definition()
@@ -154,11 +159,6 @@ class Toolbox:
         
         return results
 
-    def get_tools_by_category(self, category: str) -> List[Tool]:
-        """Get tools by category (if tools have category metadata)."""
-        # This could be enhanced with category metadata in tools
-        return [tool for tool in self.registry.tools.values() 
-                if hasattr(tool, 'category') and tool.category == category]
 
     def validate_tool_call(self, tool_name: str, parameters: Dict) -> bool:
         """Validate parameters for a tool call."""

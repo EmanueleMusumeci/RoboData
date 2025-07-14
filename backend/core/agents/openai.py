@@ -3,6 +3,7 @@ import openai
 import os
 from dotenv import load_dotenv
 import json
+import pprint
 
 from .agent import BaseAgent, LLMMessage, LLMResponse, Query
 from ..toolbox.toolbox import Toolbox
@@ -14,13 +15,12 @@ load_dotenv()
 class OpenAIAgent(BaseAgent):
     """OpenAI-based LLM agent with native tool calling support."""
     
-    def __init__(self, toolbox: Toolbox, model: str = "gpt-4o"):
+    def __init__(self, toolbox: Optional[Toolbox] = None, model: str = "gpt-4o"):
         super().__init__(toolbox)
         self.client = openai.AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         self.model = model
         
         assert self.client.api_key is not None, "OpenAI API key not found. Check your environment variables."
-        assert self.toolbox is not None, "Toolbox must be provided to OpenAIAgent."
     
     async def query_llm(self, messages: List[LLMMessage], tools: Optional[List[Dict]] = None, **kwargs) -> LLMResponse:
         """Send messages to OpenAI and get response with tool calling support.
@@ -57,7 +57,7 @@ class OpenAIAgent(BaseAgent):
             if tools:
                 request_params["tools"] = tools
                 request_params["tool_choice"] = kwargs.get("tool_choice", "auto")
-            
+
             response = await self.client.chat.completions.create(**request_params)
             
             # Extract response content and tool calls
@@ -77,6 +77,7 @@ class OpenAIAgent(BaseAgent):
                     }
                     for tc in message.tool_calls
                 ]
+
             
             return LLMResponse(
                 content=content,
@@ -121,7 +122,7 @@ class OpenAIAgent(BaseAgent):
         self.add_message("user", query.text)
         
         # Get available tools from the toolbox
-        tools = self.toolbox.get_openai_tools() if self.toolbox else None
+        tools = self.toolbox.get_openai_tools() if self.toolbox is not None and self.toolbox else None
         
         # Query LLM
         response = await self.query_llm(self.conversation_history, tools)

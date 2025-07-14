@@ -1,3 +1,3 @@
-from .memory import Memory, SimpleMemory
+from .memory import Memory, SimpleMemory, SummaryMemory, MemoryEntry
 
-__all__ = ['Memory', 'SimpleMemory']
+__all__ = ['Memory', 'SimpleMemory', 'SummaryMemory', 'MemoryEntry']

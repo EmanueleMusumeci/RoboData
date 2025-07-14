@@ -1,13 +1,17 @@
 from typing import Dict, Any, List, Optional, Set, Tuple
 from abc import abstractmethod
+import asyncio
+import os
+import traceback
+import matplotlib
 from ..toolbox import Tool, ToolDefinition, ToolParameter
 from .wikidata_api import wikidata_api
 from .datamodel import (
     WikidataStatement, WikidataEntity, NeighborExplorationResult, LocalGraphResult,
     convert_api_entity_to_model
 )
-import asyncio
-import traceback
+from ...knowledge_base.schema import Graph as VisGraph, Node as VisNode, Edge as VisEdge
+from .utils import order_properties_by_degree, order_local_graph_edges
 
 
 class ExplorationTool(Tool):
@@ -97,17 +101,16 @@ class ExplorationTool(Tool):
         
         return neighbors
     
-    async def _process_entity_batch(self, entity_batch: List[tuple[str, int]]) -> List[tuple[str, int, Any]]:
+    async def _process_entity_batch(self, entity_batch: List[tuple[str, int]]) -> List[Any]:
         """Process a batch of entities in parallel."""
         async def process_single_entity(entity_id: str, current_depth: int) -> tuple[str, int, Any]:
             try:
                 api_data = await wikidata_api.get_entity(entity_id)
                 entity = convert_api_entity_to_model(api_data)
-                return entity_id, current_depth, entity
+                return (entity_id, current_depth, entity)
             except Exception as e:
-                print(f"    ❌ Error exploring {entity_id}: {e}")
-                traceback.print_exc()
-                return entity_id, current_depth, None
+                print(f"⚠️ Error processing entity {entity_id}: {e}")
+                return (entity_id, current_depth, None)
         
         batch_tasks = [process_single_entity(entity_id, current_depth) for entity_id, current_depth in entity_batch]
         return await asyncio.gather(*batch_tasks, return_exceptions=True)
@@ -121,7 +124,10 @@ class NeighborsExplorationTool(ExplorationTool):
             name="explore_entity_neighbors",
             description="Explore an entity's direct relationships and properties"
         )
-    
+        self.entity_limits = {}
+        self.initial_limit = 20
+        self.increment = 10
+
     def get_definition(self) -> ToolDefinition:
         return ToolDefinition(
             name=self.name,
@@ -146,14 +152,43 @@ class NeighborsExplorationTool(ExplorationTool):
                     description="Maximum values per property",
                     required=False,
                     default=10
+                ),
+                ToolParameter(
+                    name="order_by_degree",
+                    type="boolean",
+                    description="Whether to order results by property degree",
+                    required=False,
+                    default=False
+                ),
+                ToolParameter(
+                    name="increase_limit",
+                    type="boolean",
+                    description=f"Whether to increase the number of results shown (increments by {self.increment})",
+                    required=False,
+                    default=False
                 )
-            ],
+                ],
             return_type="NeighborExplorationResult",
             return_description="Entity information with neighbors and relationships"
         )
     
-    async def execute(self, entity_id: str, include_properties: Optional[List[str]] = None, max_values_per_property: int = -1) -> NeighborExplorationResult:
+    async def execute(self, **kwargs) -> NeighborExplorationResult:
         """Explore an entity's relationships."""
+        entity_id = kwargs.get("entity_id")
+        include_properties = kwargs.get("include_properties")
+        max_values_per_property = kwargs.get("max_values_per_property", -1)
+        order_by_degree = kwargs.get("order_by_degree", False)
+        increase_limit = kwargs.get("increase_limit", False)
+
+        if not entity_id:
+            raise ValueError("entity_id is required")
+
+        # Get progressive limit
+        limit = self.entity_limits.get(entity_id, self.initial_limit)
+        if increase_limit:
+            limit += self.increment
+        self.entity_limits[entity_id] = limit
+
         # Get basic entity info using wikidata_api
         api_data = await wikidata_api.get_entity(entity_id)
         entity = convert_api_entity_to_model(api_data)
@@ -165,10 +200,11 @@ class NeighborsExplorationTool(ExplorationTool):
         print(f"📊 Found {len(entity.statements.items())} properties to analyze")
         
         # Get all property IDs that we'll need to process
-        relevant_props = []
-        for prop_id in entity.statements.keys():
-            if not include_properties or prop_id in include_properties:
-                relevant_props.append(prop_id)
+        all_prop_ids = list(entity.statements.keys())
+        if include_properties:
+            relevant_props = [prop_id for prop_id in all_prop_ids if prop_id in include_properties]
+        else:
+            relevant_props = all_prop_ids
         
         # Fetch property names in parallel
         prop_names = await self._fetch_property_names_parallel(relevant_props)
@@ -222,17 +258,53 @@ class NeighborsExplorationTool(ExplorationTool):
             relationships=relationships,
             property_names=prop_names,
             total_properties=len(entity.statements),
-            neighbor_count=len(neighbors)
+            neighbor_count=len(neighbors),
+            limit=limit,
+            order_by_degree=order_by_degree
         )
     
+    def format_result(self, result: Optional[NeighborExplorationResult]) -> str:
+        """Format the result into a readable, concise string."""
+        if not result:
+            return "No exploration result."
+        
+        entity = result.entity
+        prop_count = len(result.property_names)
+        neighbor_count = result.neighbor_count
+        
+        summary = f"Explored '{entity.label}' ({entity.id}). Found {prop_count} properties and {neighbor_count} neighbors."
+        
+        # Order properties and get top examples based on progressive limit
+        order_by_degree = result.order_by_degree
+        ordered_props = order_properties_by_degree(result.entity.statements, enabled=order_by_degree)
+        limit = result.limit
+        
+        examples = []
+        for prop_id in ordered_props:
+            if len(examples) >= limit:
+                break
+            
+            prop_name = result.property_names.get(prop_id, prop_id)
+            for stmt in result.entity.statements[prop_id]:
+                if stmt.is_entity_ref and stmt.value in result.neighbors:
+                    neighbor_label = result.neighbors[stmt.value].label
+                    examples.append(
+                        f"'{entity.label}' -> '{prop_name} ({prop_id})' -> '{neighbor_label} ({stmt.value})'"
+                    )
+                    if len(examples) >= limit:
+                        break
+        
+        if examples:
+            summary += f" Top {len(examples)} examples (ordered by degree: {order_by_degree}): {'; '.join(examples)}"
+            
+        return summary
+
     def visualize_results(self, result: NeighborExplorationResult, test_identifier: str, test_number: int) -> Tuple[str, str]:
         """Create visualizations for neighbor exploration results."""
         # Set matplotlib backend to avoid threading issues
-        import matplotlib
         matplotlib.use('Agg')
         
         from backend.core.toolbox.graph.visualization import GraphVisualizer
-        import os
         
         # Use home directory for visualizations
         output_dir = os.path.expanduser("~/graph_visualizations")
@@ -243,44 +315,46 @@ class NeighborsExplorationTool(ExplorationTool):
         entity_id = result.entity.id
         title = f"Test {test_number}: Neighbors of {entity_label} ({entity_id})"
         
+        vis_graph = VisGraph()
+
         # Create nodes dictionary for visualization
-        vis_nodes = {
-            result.entity.id: {
-                'id': result.entity.id,
-                'label': result.entity.label,
-                'description': result.entity.description or 'No description available',
-                'depth': 0
-            }
-        }
+        vis_graph.add_node(VisNode(
+            node_id=result.entity.id,
+            node_type='center',
+            label=result.entity.label,
+            description=result.entity.description or 'No description available',
+            properties={'depth': 0}
+        ))
+
         for neighbor_id, neighbor_entity in result.neighbors.items():
-            vis_nodes[neighbor_id] = {
-                'id': neighbor_entity.id,
-                'label': neighbor_entity.label,
-                'description': neighbor_entity.description or 'No description available',
-                'depth': 1
-            }
+            vis_graph.add_node(VisNode(
+                node_id=neighbor_id,
+                node_type='neighbor',
+                label=neighbor_entity.label,
+                description=neighbor_entity.description or 'No description available',
+                properties={'depth': 1}
+            ))
         
         # Create edges list for visualization
-        vis_edges = []
         for prop_id, values in result.relationships.items():
             prop_name = result.property_names.get(prop_id, prop_id)
-            for target in values:
-                if target in result.neighbors:
-                    vis_edges.append({
-                        'source': result.entity.id,
-                        'target': target,
-                        'property': prop_id,
-                        'property_name': prop_name
-                    })
-        
+            for value in values:
+                if value in result.neighbors:
+                    vis_graph.add_edge(VisEdge(
+                        source_id=result.entity.id,
+                        target_id=value,
+                        relationship_type=prop_name,
+                        label=prop_name
+                    ))
+
         # Create static visualization first (more reliable)
         static_path = None
         dynamic_path = None
         
         try:
             static_path = visualizer.create_static_visualization(
-                vis_nodes, vis_edges, title,
-                filename=f"test_{test_number}_{test_identifier}_exploration_static.png"
+                graph=vis_graph, title=title,
+                filename=f"test_{test_number}_{test_identifier}_neighbors_static.png"
             )
         except Exception as e:
             print(f"⚠️ Static visualization failed: {e}")
@@ -290,8 +364,8 @@ class NeighborsExplorationTool(ExplorationTool):
         # Create dynamic visualization with error handling
         try:
             dynamic_path = visualizer.create_dynamic_visualization(
-                vis_nodes, vis_edges, title,
-                filename=f"test_{test_number}_{test_identifier}_exploration_interactive.html"
+                graph=vis_graph, title=title,
+                filename=f"test_{test_number}_{test_identifier}_neighbors_interactive.html"
             )
         except Exception as e:
             print(f"⚠️ Dynamic visualization failed: {e}")
@@ -307,9 +381,12 @@ class LocalGraphTool(ExplorationTool):
     def __init__(self):
         super().__init__(
             name="build_local_graph",
-            description="Build a local graph around an entity up to specified depth"
+            description="Get the local graph around an entity up to specified depth"
         )
-    
+        self.entity_limits = {}
+        self.initial_limit = 10
+        self.increment = 10
+
     def get_definition(self) -> ToolDefinition:
         return ToolDefinition(
             name=self.name,
@@ -341,14 +418,43 @@ class LocalGraphTool(ExplorationTool):
                     description="Maximum nodes in graph",
                     required=False,
                     default=100
+                ),
+                ToolParameter(
+                    name="order_by_degree",
+                    type="boolean",
+                    description="Whether to order the connections by degree",
+                    required=False,
+                    default=False
+                ),
+                ToolParameter(
+                    name="increase_limit",
+                    type="boolean",
+                    description=f"Whether to increase the number of results shown (increments by {self.increment})",
+                    required=False,
+                    default=False
                 )
             ],
             return_type="LocalGraphResult",
             return_description="Graph structure with nodes and edges"
         )
     
-    async def execute(self, center_entity: str, depth: int = 2, properties: Optional[List[str]] = None, max_nodes: int = 100) -> LocalGraphResult:
+    async def execute(self, **kwargs) -> LocalGraphResult:
         """Build local graph around entity."""
+        center_entity = kwargs.get("center_entity")
+        depth = kwargs.get("depth", 2)
+        properties = kwargs.get("properties")
+        max_nodes = kwargs.get("max_nodes", 100)
+        order_by_degree = kwargs.get("order_by_degree", False)
+        increase_limit = kwargs.get("increase_limit", False)
+
+        if not center_entity:
+            raise ValueError("center_entity is required")
+
+        limit = self.entity_limits.get(center_entity, self.initial_limit)
+        if increase_limit:
+            limit += self.increment
+        self.entity_limits[center_entity] = limit
+
         if properties is None:
             properties = ["P279", "P31"]
         
@@ -416,8 +522,8 @@ class LocalGraphTool(ExplorationTool):
                                 if stmt.is_entity_ref and stmt.entity_type == "item":
                                     neighbor = stmt.value
                                     edges.append({
-                                        'source': entity_id,
-                                        'target': neighbor,
+                                        'from': entity_id,
+                                        'to': neighbor,
                                         'property': prop,
                                         'property_name': prop_names.get(prop, prop)
                                     })
@@ -432,6 +538,25 @@ class LocalGraphTool(ExplorationTool):
                     print(f"    ⚠️  Error in batch processing: {result}")
         
         print(f"🎯 Graph building complete: {len(nodes)} nodes, {len(edges)} edges")
+        
+        # Fetch leaf nodes that were not fully explored but are part of edges
+        leaf_node_ids = set(edge['to'] for edge in edges) - set(nodes.keys())
+        if leaf_node_ids:
+            print(f"🍃 Fetching details for {len(leaf_node_ids)} leaf nodes...")
+            # The depth here is just for the call, it won't be used for further exploration
+            leaf_node_results = await self._process_entity_batch([(node_id, depth) for node_id in leaf_node_ids])
+            for result in leaf_node_results:
+                if isinstance(result, tuple):
+                    entity_id, _, entity = result
+                    if entity:
+                        # Add depth as a custom attribute
+                        entity.__dict__['depth'] = depth
+                        nodes[entity_id] = entity
+                        print(f"    🌿 Added leaf node: '{entity.label}' ({entity_id})")
+                else:
+                    # This handles exceptions returned by asyncio.gather
+                    print(f"    ⚠️  Error fetching leaf node details: {result}")
+
         return LocalGraphResult(
             nodes=nodes,
             edges=edges,
@@ -440,17 +565,51 @@ class LocalGraphTool(ExplorationTool):
             properties=properties,
             property_names=prop_names,
             total_nodes=len(nodes),
-            total_edges=len(edges)
+            total_edges=len(edges),
+            limit=limit,
+            order_by_degree=order_by_degree
         )
     
+    def format_result(self, result: Optional[LocalGraphResult]) -> str:
+        """Format the result into a readable, concise string."""
+        if not result:
+            return "No local graph built."
+        
+        center_node = result.nodes.get(result.center)
+        center_label = center_node.label if center_node else result.center
+            
+        summary = (f"Built local graph around '{center_label}' ({result.center}) "
+                   f"with depth {result.depth}. Found {result.total_nodes} nodes and {result.total_edges} edges.")
+
+        order_by_degree = result.order_by_degree
+        ordered_edges = order_local_graph_edges(result, enabled=order_by_degree)
+        limit = result.limit
+        
+        if ordered_edges:
+            summary += f"\nTop {min(limit, len(ordered_edges))} of {len(ordered_edges)} connections (ordered by degree: {order_by_degree}):"
+            for i, edge in enumerate(ordered_edges[:limit]):
+                source_node = result.nodes.get(edge['from'])
+                target_node = result.nodes.get(edge['to'])
+                
+                source_label = source_node.label if source_node else edge['from']
+                target_label = target_node.label if target_node else edge['to']
+                
+                prop_name = edge['property_name']
+                prop_id = edge['property']
+                
+                source_id = edge['from']
+                target_id = edge['to']
+
+                summary += f"\n  {i+1}. '{source_label} ({source_id})' -> '{prop_name} ({prop_id})' -> '{target_label} ({target_id})'"
+                
+        return summary
+
     def visualize_results(self, result: LocalGraphResult, test_identifier: str, test_number: int) -> Tuple[str, str]:
         """Create visualizations for local graph results."""
         # Set matplotlib backend to avoid threading issues
-        import matplotlib
         matplotlib.use('Agg')
         
         from backend.core.toolbox.graph.visualization import GraphVisualizer
-        import os
         
         # Use home directory for visualizations
         output_dir = os.path.expanduser("~/graph_visualizations")
@@ -462,23 +621,32 @@ class LocalGraphTool(ExplorationTool):
         node_count = result.total_nodes
         title = f"Test {test_number}: Local Graph {center_id} (Depth {depth}, {node_count} nodes)"
         
+        vis_graph = VisGraph()
         # Create nodes dictionary for visualization
-        vis_nodes = {}
         for entity_id, entity in result.nodes.items():
-            vis_nodes[entity_id] = {
-                'id': entity.id,
-                'label': entity.label,
-                'description': entity.description or 'No description available',
-                'depth': getattr(entity, 'depth', 0)
-            }
+            vis_graph.add_node(VisNode(
+                node_id=entity.id,
+                node_type='entity',
+                label=entity.label,
+                description=entity.description or 'No description available',
+                properties={'depth': getattr(entity, 'depth', 0)}
+            ))
         
+        for edge in result.edges:
+            vis_graph.add_edge(VisEdge(
+                source_id=edge['from'],
+                target_id=edge['to'],
+                relationship_type=edge['property_name'],
+                label=edge['property_name']
+            ))
+
         # Create static visualization first (more reliable)
         static_path = None
         dynamic_path = None
         
         try:
             static_path = visualizer.create_static_visualization(
-                vis_nodes, result.edges, title,
+                graph=vis_graph, title=title,
                 filename=f"test_{test_number}_{test_identifier}_graph_static.png"
             )
         except Exception as e:
@@ -489,7 +657,7 @@ class LocalGraphTool(ExplorationTool):
         # Create dynamic visualization with error handling
         try:
             dynamic_path = visualizer.create_dynamic_visualization(
-                vis_nodes, result.edges, title,
+                graph=vis_graph, title=title,
                 filename=f"test_{test_number}_{test_identifier}_graph_interactive.html"
             )
         except Exception as e:
@@ -501,10 +669,12 @@ class LocalGraphTool(ExplorationTool):
 
 
 if __name__ == "__main__":
-    import asyncio
     import sys
     import os
-    
+    import asyncio
+    import traceback
+    import matplotlib
+        
     # Add the parent directories to the path for absolute imports
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
     
@@ -513,133 +683,87 @@ if __name__ == "__main__":
         from backend.core.toolbox.toolbox import Tool, ToolDefinition, ToolParameter
         from backend.core.toolbox.wikidata.wikidata_api import wikidata_api
         from backend.core.toolbox.wikidata.datamodel import WikidataStatement, convert_api_entity_to_model
-        from backend.core.toolbox.graph.visualization import GraphVisualizer
     except ImportError:
         print("Error: Could not import required modules. Make sure you're running from the correct directory.")
         print("Try running: python -m backend.core.toolbox.wikidata.exploration")
         sys.exit(1)
     
     async def test_tools():
-        """Test all exploration tools and create visualizations."""
-        print("Testing Wikidata Exploration Tools")
+        """Test all exploration tools and their result formatting."""
+        print("Testing Wikidata Exploration Tools and Result Formatting")
         print("=" * 40)
         
         test_counter = 1
         
-        # Test NeighborsExplorationTool
+        # Test 1: NeighborsExplorationTool
         print(f"\n{test_counter}. Testing NeighborsExplorationTool")
         exploration_tool = NeighborsExplorationTool()
-        print(f"Tool definition: {exploration_tool.get_definition().name}")
         
         try:
-            # Test with Albert Einstein (Q937)
-            result = await exploration_tool.execute("Q937", max_values_per_property=5)
-            print(f"✓ Entity exploration successful: {result.entity.label}")
-            print(f"  - Properties: {result.total_properties}")
-            print(f"  - Neighbors: {result.neighbor_count}")
+            # Test with a valid entity
+            result = await exploration_tool.execute(entity_id="Q937")
+            print(f"  ✓ Entity exploration successful for '{result.entity.label}'.")
             
-            # Create visualization immediately
-            print(f"📊 Creating visualization for test {test_counter}...")
-            static_path, dynamic_path = exploration_tool.visualize_results(
-                result, 'neighbors_basic', test_counter
-            )
-            if "Failed" not in static_path:
-                print(f"✓ Created static visualization: {static_path}")
-            if "Failed" not in dynamic_path:
-                print(f"✓ Created dynamic visualization: {dynamic_path}")
-                
+            # Test result formatting
+            formatted_result = exploration_tool.format_result(result)
+            print(f"  - Formatted result (Success, default ordering): {formatted_result}")
+
+            # Test with degree ordering
+            result_ordered = await exploration_tool.execute(entity_id="Q937", order_by_degree=True)
+            formatted_result_ordered = exploration_tool.format_result(result_ordered)
+            print(f"  - Formatted result (Success, degree ordering): {formatted_result_ordered}")
+
+            # Test again to see if limit increases
+            print("  - Testing again to check for increased limit...")
+            result_increased = await exploration_tool.execute(entity_id="Q937", increase_limit=True)
+            formatted_result_increased = exploration_tool.format_result(result_increased)
+            print(f"  - Formatted result (increased limit): {formatted_result_increased}")
+
+            # Test formatting for an empty/failed result
+            formatted_empty_result = exploration_tool.format_result(None)
+            print(f"  - Formatted result (Empty): {formatted_empty_result}")
+
         except Exception as e:
-            print(f"✗ Entity exploration failed: {e}")
+            print(f"  ✗ Entity exploration failed: {e}")
             traceback.print_exc()
         
         test_counter += 1
         
-        # Test LocalGraphTool - Basic Test
-        print(f"\n{test_counter}. Testing LocalGraphTool - Basic Test")
+        # Test 2: LocalGraphTool
+        print(f"\n{test_counter}. Testing LocalGraphTool")
         graph_tool = LocalGraphTool()
-        print(f"Tool definition: {graph_tool.get_definition().name}")
         
         try:
             # Test with default parameters
-            result = await graph_tool.execute("Q937", depth=2, max_nodes=20)
-            print(f"✓ Local graph building successful")
-            print(f"  - Center: {result.center}")
-            print(f"  - Nodes: {result.total_nodes}")
-            print(f"  - Edges: {result.total_edges}")
+            result = await graph_tool.execute(center_entity="Q5", depth=1, max_nodes=15)
+            print(f"  ✓ Local graph building successful.")
             
-            # Create visualization immediately
-            print(f"📊 Creating visualization for test {test_counter}...")
-            static_path, dynamic_path = graph_tool.visualize_results(
-                result, 'basic_depth2', test_counter
-            )
-            if "Failed" not in static_path:
-                print(f"✓ Created static visualization: {static_path}")
-            if "Failed" not in dynamic_path:
-                print(f"✓ Created dynamic visualization: {dynamic_path}")
-                
+            # Test result formatting
+            formatted_result = graph_tool.format_result(result)
+            print(f"  - Formatted result (Success, default ordering):\n{formatted_result}")
+
+            # Test with degree ordering
+            result_ordered = await graph_tool.execute(center_entity="Q5", depth=1, max_nodes=15, order_by_degree=True)
+            formatted_result_ordered = graph_tool.format_result(result_ordered)
+            print(f"  - Formatted result (Success, degree ordering):\n{formatted_result_ordered}")
+
+            # Test again to see if limit increases
+            print("  - Testing again to check for increased limit...")
+            result_increased = await graph_tool.execute(center_entity="Q5", depth=1, max_nodes=15, increase_limit=True)
+            formatted_result_increased = graph_tool.format_result(result_increased)
+            print(f"  - Formatted result (increased limit):\n{formatted_result_increased}")
+
+            # Test formatting for an empty/failed result
+            formatted_empty_result = graph_tool.format_result(None)
+            print(f"  - Formatted result (Empty): {formatted_empty_result}")
+            
         except Exception as e:
-            print(f"✗ Local graph building failed: {e}")
-            traceback.print_exc()
-        
-        test_counter += 1
-        
-        # Test LocalGraphTool with all properties at depth 2
-        print(f"\n{test_counter}. Testing LocalGraphTool - All Properties (Depth 2)")
-        try:
-            # Get all properties from the entity first
-            api_data = await wikidata_api.get_entity("Q937")
-            entity = convert_api_entity_to_model(api_data)
-            all_props = list(entity.statements.keys())[:10]  # Limit to first 10 for testing
-            
-            result = await graph_tool.execute("Q937", depth=2, properties=all_props, max_nodes=30)
-            print(f"✓ Local graph (all properties) successful")
-            print(f"  - Used properties: {len(all_props)}")
-            print(f"  - Nodes: {result.total_nodes}")
-            print(f"  - Edges: {result.total_edges}")
-            
-            # Create visualization immediately
-            print(f"📊 Creating visualization for test {test_counter}...")
-            static_path, dynamic_path = graph_tool.visualize_results(
-                result, 'all_props_depth2', test_counter
-            )
-            if "Failed" not in static_path:
-                print(f"✓ Created static visualization: {static_path}")
-            if "Failed" not in dynamic_path:
-                print(f"✓ Created dynamic visualization: {dynamic_path}")
-                
-        except Exception as e:
-            print(f"✗ Local graph (all properties) failed: {e}")
-            traceback.print_exc()
-        
-        test_counter += 1
-        
-        # Test LocalGraphTool with default properties at depth 3
-        print(f"\n{test_counter}. Testing LocalGraphTool - Default Properties (Depth 3)")
-        try:
-            result = await graph_tool.execute("Q937", depth=3, max_nodes=50)
-            print(f"✓ Local graph (depth 3) successful")
-            print(f"  - Depth: {result.depth}")
-            print(f"  - Nodes: {result.total_nodes}")
-            print(f"  - Edges: {result.total_edges}")
-            
-            # Create visualization immediately
-            print(f"📊 Creating visualization for test {test_counter}...")
-            static_path, dynamic_path = graph_tool.visualize_results(
-                result, 'default_depth3', test_counter
-            )
-            if "Failed" not in static_path:
-                print(f"✓ Created static visualization: {static_path}")
-            if "Failed" not in dynamic_path:
-                print(f"✓ Created dynamic visualization: {dynamic_path}")
-                
-        except Exception as e:
-            print(f"✗ Local graph (depth 3) failed: {e}")
+            print(f"  ✗ Local graph building failed: {e}")
             traceback.print_exc()
         
         print("\n" + "=" * 40)
-        print("Testing and Visualization completed!")
-        print(f"📁 Visualization files saved to: ~/graph_visualizations")
-        print("=" * 40)
+        print("All formatting tests completed.")
+
     
     # Run the async tests
     asyncio.run(test_tools())
