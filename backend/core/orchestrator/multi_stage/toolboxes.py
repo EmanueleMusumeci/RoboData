@@ -6,9 +6,18 @@ def create_local_exploration_toolbox() -> Toolbox:
     toolbox = Toolbox()
     
     # Graph database tools for local exploration
-    from ...toolbox.graph.graph_tools import GetNodeTool, CypherQueryTool
+    from ...toolbox.graph.graph_tools import (
+        GetNodeTool, GetEdgeTool, CypherQueryTool, FindNodesTool, FindEdgesTool, 
+        GetNeighborsTool, GetSubgraphTool, GetGraphStatsTool
+    )
     toolbox.register_tool(GetNodeTool())
+    toolbox.register_tool(GetEdgeTool())
     toolbox.register_tool(CypherQueryTool())
+    #toolbox.register_tool(FindNodesTool())
+    #toolbox.register_tool(FindEdgesTool())
+    #toolbox.register_tool(GetNeighborsTool())
+    #toolbox.register_tool(GetSubgraphTool())
+    #toolbox.register_tool(GetGraphStatsTool())
     
     return toolbox
 
@@ -25,10 +34,10 @@ def create_remote_exploration_toolbox() -> Toolbox:
     # Wikidata query tools
     from ...toolbox.wikidata.queries import SPARQLQueryTool, SubclassQueryTool, SuperclassQueryTool, GetInstancesQueryTool, InstanceOfQueryTool
     toolbox.register_tool(SPARQLQueryTool())
-    toolbox.register_tool(SubclassQueryTool())
-    toolbox.register_tool(SuperclassQueryTool())
-    toolbox.register_tool(GetInstancesQueryTool())
-    toolbox.register_tool(InstanceOfQueryTool())
+    #toolbox.register_tool(SubclassQueryTool())
+    #toolbox.register_tool(SuperclassQueryTool())
+    #toolbox.register_tool(GetInstancesQueryTool())
+    #toolbox.register_tool(InstanceOfQueryTool())
     
     # Wikidata exploration tools
     from ...toolbox.wikidata.exploration import NeighborsExplorationTool, LocalGraphTool
@@ -42,10 +51,14 @@ def create_graph_update_toolbox() -> Toolbox:
     toolbox = Toolbox()
     
     # Graph database tools for adding/updating data
-    from ...toolbox.graph.graph_tools import AddNodeTool, AddEdgeTool, GetNodeTool
-    toolbox.register_tool(AddNodeTool())
-    toolbox.register_tool(AddEdgeTool())
-    toolbox.register_tool(GetNodeTool())
+    from ...toolbox.graph.graph_tools import (
+        AddNodeTool, AddEdgeTool, GetNodeTool, GetEdgeTool, RemoveNodeTool, 
+        RemoveEdgeTool, FindNodesTool, FindEdgesTool, FetchNodeTool, FetchRelationshipTool
+    )
+    toolbox.register_tool(FetchNodeTool())
+    toolbox.register_tool(FetchRelationshipTool())
+    toolbox.register_tool(RemoveNodeTool())
+    toolbox.register_tool(RemoveEdgeTool())
     
     return toolbox
 
@@ -54,7 +67,9 @@ def create_evaluation_toolbox() -> Toolbox:
     toolbox = Toolbox()
     
     # Basic query tools for checking local data
-    from ...toolbox.graph.graph_tools import GetNodeTool
+    from ...toolbox.graph.graph_tools import GetNodeTool, GetEdgeTool, CypherQueryTool, GetGraphStatsTool
     toolbox.register_tool(GetNodeTool())
+    toolbox.register_tool(GetEdgeTool())
+    toolbox.register_tool(CypherQueryTool())
     
     return toolbox

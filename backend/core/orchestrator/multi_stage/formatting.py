@@ -1,4 +1,25 @@
-"""Formatting utilities for improved readability of debug output."""
+"""
+DEPRECATED: Formatting utilities for improved readability of debug output.
+
+⚠️  WARNING: This module is deprecated!
+⚠️  Please use backend.core.logging instead.
+⚠️  The new logging system provides better functionality including:
+    - File logging to experiments directory
+    - Proper log levels and formatters  
+    - Better separation between turns
+    - Timestamps and structured output
+    
+    Migration guide:
+    - Replace print_prompt() with log_prompt()
+    - Replace print_tool_result() with log_tool_result() 
+    - Replace print_tool_error() with log_tool_error()
+    - Replace print_debug() with log_debug()
+    - Replace print_response() with log_response()
+    - Replace print_memory_entry() with log_memory_entry()
+    - Replace print_tool_results_summary() with log_tool_results_summary()
+    
+    Set up logging with: setup_logger(experiment_id="your_experiment_id")
+"""
 
 import pprint
 from typing import Any, Optional, List

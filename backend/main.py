@@ -1,245 +1,240 @@
 import asyncio
 import sys
-from typing import Dict, Any
+import argparse
+import yaml
+from typing import Dict, Any, Optional
 from pathlib import Path
+from datetime import datetime
 
 # Add the backend directory to the Python path
-sys.path.insert(0, str(Path(__file__).parent))
+backend_dir = Path(__file__).parent
+sys.path.insert(0, str(backend_dir))
 
 from settings import settings_manager
-from core.agents.gemini import GeminiAgent, Query
-from core.toolbox.toolbox import Toolbox
-from core.toolbox.wikidata import (
-    SPARQLQueryTool, SubclassQueryTool, SuperclassQueryTool, GetInstancesQueryTool,
-    NeighborsExplorationTool, PathFindingTool, LocalGraphTool
+from core.agents.gemini import GeminiAgent
+from core.agents.openai import OpenAIAgent
+from core.agents.wattool_slm import WatToolSLMAgent
+from core.knowledge_base.graph import get_knowledge_graph
+from core.orchestrator.multi_stage.multi_stage_orchestrator import MultiStageOrchestrator
+from core.orchestrator.multi_stage.toolboxes import (
+    create_local_exploration_toolbox,
+    create_remote_exploration_toolbox,
+    create_graph_update_toolbox,
+    create_evaluation_toolbox
 )
+from core.logging import log_debug
 
-class RoboDataApp:
-    """Main RoboData application with interactive terminal."""
-    
-    def __init__(self):
-        self.settings = settings_manager.get_settings()
-        self.agent = None
-        self.toolbox = None
-        self._initialize_components()
-    
-    def _initialize_components(self):
-        """Initialize all application components."""
-        print("🚀 Initializing RoboData...")
-        
-        # Initialize toolbox first
-        self.toolbox = Toolbox()
-        
-        # Register default Wikidata tools if enabled
-        if self.settings.toolbox.auto_register_wikidata_tools:
-            self._register_wikidata_tools()
-        
-        # Initialize LLM agent with the toolbox
-        if self.settings.llm.provider == "gemini":
-            self.agent = GeminiAgent(toolbox=self.toolbox)
-            print(f"✅ Initialized Gemini agent with model: {self.settings.llm.model}")
-        else:
-            raise ValueError(f"Unsupported LLM provider: {self.settings.llm.provider}")
-        
-        print(f"✅ Registered {len(self.toolbox.list_tools())} tools")
-        print("✅ RoboData initialized successfully!")
-    
-    def _register_wikidata_tools(self):
-        """Register all Wikidata tools in the main toolbox."""
-        print("🔧 Registering Wikidata tools...")
-        
-        tools = [
-            SPARQLQueryTool(),
-            SubclassQueryTool(),
-            SuperclassQueryTool(),
-            GetInstancesQueryTool(),
-            NeighborsExplorationTool(),
-            PathFindingTool(),
-            LocalGraphTool()
-        ]
-        
-        for tool in tools:
-            self.toolbox.register_tool(tool)
-            print(f"  ✓ Registered: {tool.name}")
-    
-    async def process_user_query(self, user_input: str) -> Dict[str, Any]:
-        """Process a user query with detailed logging."""
-        if self.settings.interactive.show_intermediate_steps:
-            print(f"\n🔍 Processing query: '{user_input}'")
-        
-        # Extract entity ID if present in the input
-        entity_id = self._extract_entity_id(user_input)
-        
-        # Create query object
-        query = Query(text=user_input, entity_id=entity_id)
-        
-        if self.settings.interactive.show_intermediate_steps:
-            if entity_id:
-                print(f"🎯 Detected entity ID: {entity_id}")
-            else:
-                print("🔎 No entity ID detected in query")
-        
-        try:
-            # Process query through agent
-            result = await self.agent.process_query(query)
-            
-            if self.settings.interactive.show_tool_calls:
-                print(f"⚡ Tool execution completed")
-            
-            return result
-        
-        except Exception as e:
-            error_result = {"error": str(e), "type": "processing_error"}
-            print(f"❌ Error processing query: {e}")
-            return error_result
-    
-    def _extract_entity_id(self, text: str) -> str:
-        """Extract Wikidata entity ID from user input."""
-        import re
-        # Look for Wikidata entity IDs (Q followed by numbers)
-        match = re.search(r'\bQ\d+\b', text)
-        return match.group(0) if match else None
-    
-    def _format_result(self, result: Dict[str, Any]) -> str:
-        """Format result for display."""
-        if "error" in result:
-            return f"❌ Error: {result['error']}"
-        
-        if "message" in result:
-            return f"💬 {result['message']}"
-        
-        if isinstance(result, list):
-            if len(result) == 0:
-                return "📭 No results found"
-            
-            formatted = "📊 Results:\n"
-            for i, item in enumerate(result[:10], 1):  # Limit to 10 items
-                if isinstance(item, dict):
-                    if 'label' in item and 'id' in item:
-                        formatted += f"  {i}. {item['label']} ({item['id']})\n"
-                    else:
-                        formatted += f"  {i}. {item}\n"
-                else:
-                    formatted += f"  {i}. {item}\n"
-            
-            if len(result) > 10:
-                formatted += f"  ... and {len(result) - 10} more results\n"
-            
-            return formatted
-        
-        if isinstance(result, dict):
-            if 'nodes' in result and 'edges' in result:
-                return f"🕸️  Graph: {result.get('total_nodes', 0)} nodes, {result.get('total_edges', 0)} edges"
-            elif 'entity' in result:
-                entity = result['entity']
-                return f"🏷️  Entity: {entity.get('label', 'Unknown')} ({entity.get('id', 'Unknown')})\n   📝 {entity.get('description', 'No description')}"
-        
-        return f"📄 {result}"
-    
-    def show_help(self):
-        """Show help information."""
-        help_text = """
-🤖 RoboData Interactive Terminal
+def get_default_config() -> Dict[str, Any]:
+    """Get default configuration values."""
+    return {
+        "experiment_id": "",
+        "orchestrator": {
+            "type": "multi_stage",
+            "context_length": 8000,
+            "model": "gpt-4o",
+            "memory": {
+                "use_summary_memory": True,
+                "max_memory_slots": 50
+            },
+            "max_turns": 20,
+            "toolboxes": {
+                "local_exploration": [],
+                "remote_exploration": [],
+                "graph_update": [],
+                "evaluation": []
+            }
+        },
+        "log_level": "DEBUG",
+        "memory": "",
+        "dataset": "",
+        "query": ""
+    }
 
-Available commands:
-  help                    - Show this help message
-  tools                   - List all available tools
-  settings                - Show current settings
-  clear                   - Clear conversation history
-  exit/quit               - Exit the application
 
-Query examples:
-  "What are the subclasses of Q35120?"
-  "Explore entity Q5"
-  "Find instances of Q16521"
-  "Build a local graph around Q1"
-  "Find path between Q5 and Q35120"
+def load_experiment_config(config_path: str) -> Dict[str, Any]:
+    """Load experiment configuration from YAML file."""
+    if not Path(config_path).exists():
+        raise FileNotFoundError(f"Configuration file not found: {config_path}")
+    
+    with open(config_path, 'r') as f:
+        config = yaml.safe_load(f) or {}
+    
+    # Set defaults
+    defaults = get_default_config()
+    
+    # Merge with defaults
+    for key, value in defaults.items():
+        if key not in config:
+            config[key] = value
+        elif isinstance(value, dict) and isinstance(config[key], dict):
+            for subkey, subvalue in value.items():
+                if subkey not in config[key]:
+                    config[key][subkey] = subvalue
+    
+    return config
 
-Tips:
-  - Include Wikidata entity IDs (like Q35120) in your queries
-  - Use natural language to describe what you want to explore
-  - The system will show intermediate steps if enabled in settings
-        """
-        print(help_text)
+
+def create_agent(model_name: str, toolbox=None):
+    """Create the appropriate agent based on model name."""
+    if model_name == "local":
+        print("Using local WatTool SLM Agent")
+        return WatToolSLMAgent(toolbox=toolbox)
+    elif model_name.startswith("gpt"):
+        print(f"Using OpenAI Agent with model: {model_name}")
+        return OpenAIAgent(model=model_name)
+    elif model_name.startswith("gemini"):
+        print(f"Using Gemini Agent with model: {model_name}")
+        # Gemini agent needs a toolbox, create empty one if none provided
+        if toolbox is None:
+            from core.toolbox.toolbox import Toolbox
+            toolbox = Toolbox()
+        return GeminiAgent(toolbox=toolbox)
+    else:
+        # Default to OpenAI
+        print(f"Using OpenAI Agent with model: {model_name}")
+        return OpenAIAgent(model=model_name)
+
+
+async def run_multi_stage_orchestrator(config: Dict[str, Any], query: str) -> Dict[str, Any]:
+    """Run the multi-stage orchestrator with the given configuration and query."""
     
-    def show_tools(self):
-        """Show available tools."""
-        tools = self.toolbox.list_tools()
-        print(f"\n🔧 Available tools ({len(tools)}):")
-        for tool_name in tools:
-            tool_def = self.toolbox.get_tool_definition(tool_name)
-            print(f"  • {tool_name}: {tool_def.description}")
+    # Generate experiment ID if not provided
+    experiment_id = config.get("experiment_id") or f"query_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     
-    def show_settings(self):
-        """Show current settings."""
-        print(f"\n⚙️  Current settings:")
-        print(f"  LLM Provider: {self.settings.llm.provider}")
-        print(f"  LLM Model: {self.settings.llm.model}")
-        print(f"  Show tool calls: {self.settings.interactive.show_tool_calls}")
-        print(f"  Show steps: {self.settings.interactive.show_intermediate_steps}")
-        print(f"  Max results: {self.settings.wikidata.max_results}")
+    # Create toolboxes
+    local_exploration_toolbox = create_local_exploration_toolbox()
+    remote_exploration_toolbox = create_remote_exploration_toolbox()
+    graph_update_toolbox = create_graph_update_toolbox()
+    evaluation_toolbox = create_evaluation_toolbox()
     
-    async def run_interactive(self):
-        """Run the interactive terminal session."""
-        print("\n" + "="*60)
-        print("🤖 Welcome to RoboData Interactive Terminal!")
-        print("="*60)
-        print("Type 'help' for commands or start asking questions about Wikidata!")
-        print("Example: 'What are the subclasses of Q35120?'")
-        print("="*60)
-        
-        while True:
-            try:
-                # Get user input
-                user_input = input("\n🎤 You: ").strip()
-                
-                if not user_input:
-                    continue
-                
-                # Handle commands
-                if user_input.lower() in ['exit', 'quit']:
-                    print("👋 Goodbye!")
-                    break
-                elif user_input.lower() == 'help':
-                    self.show_help()
-                    continue
-                elif user_input.lower() == 'tools':
-                    self.show_tools()
-                    continue
-                elif user_input.lower() == 'settings':
-                    self.show_settings()
-                    continue
-                elif user_input.lower() == 'clear':
-                    self.agent.clear_history()
-                    print("🧹 Conversation history cleared!")
-                    continue
-                
-                # Process the query
-                result = await self.process_user_query(user_input)
-                
-                # Format and display result
-                formatted_result = self._format_result(result)
-                print(f"\n🤖 RoboData: {formatted_result}")
-                
-            except KeyboardInterrupt:
-                print("\n\n👋 Goodbye!")
-                break
-            except Exception as e:
-                print(f"\n❌ Unexpected error: {e}")
+    # Create agent
+    orchestrator_config = config["orchestrator"]
+    model_name = orchestrator_config.get("model", "gpt-4o")
+    
+    # Create agent based on model type
+    if model_name == "local":
+        agent = create_agent(model_name, remote_exploration_toolbox)
+    elif model_name.startswith("gemini"):
+        agent = create_agent(model_name, remote_exploration_toolbox)
+    else:
+        agent = create_agent(model_name)
+    
+    # Get knowledge graph instance
+    knowledge_graph = get_knowledge_graph()
+    
+    # Create orchestrator
+    orchestrator = MultiStageOrchestrator(
+        agent, 
+        knowledge_graph,
+        context_length=orchestrator_config.get("context_length", 8000),
+        local_exploration_toolbox=local_exploration_toolbox,
+        remote_exploration_toolbox=remote_exploration_toolbox,
+        graph_update_toolbox=graph_update_toolbox,
+        evaluation_toolbox=evaluation_toolbox,
+        use_summary_memory=orchestrator_config["memory"].get("use_summary_memory", True),
+        memory_max_slots=orchestrator_config["memory"].get("max_memory_slots", 50),
+        max_turns=orchestrator_config.get("max_turns", 20),
+        experiment_id=experiment_id
+    )
+    
+    # Process the query
+    print(f"� Processing query: {query}")
+    result = await orchestrator.process_user_query(query)
+    
+    # Log results
+    log_debug(f"Answer: {result['answer']}")
+    log_debug(f"Attempts: {result['attempts']}")
+    log_debug(f"Turns taken: {result['turns_taken']} / {result['max_turns'] if result['max_turns'] > 0 else 'unlimited'}")
+    
+    return result
+
+
+def parse_arguments():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(
+        description="RoboData - AI-powered knowledge exploration system",
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    
+    parser.add_argument(
+        "-c", "--config",
+        type=str,
+        help="Path to experiment configuration YAML file"
+    )
+    
+    parser.add_argument(
+        "-q", "--query",
+        type=str,
+        help="Natural language query to process"
+    )
+    
+    parser.add_argument(
+        "-o", "--orchestrator",
+        type=str,
+        default="multi_stage",
+        choices=["multi_stage"],
+        help="Orchestrator type to use (default: multi_stage)"
+    )
+    
+    return parser.parse_args()
+
 
 async def main():
     """Main entry point."""
+    args = parse_arguments()
+    
+    # If no arguments provided, show help
+    if not any([args.config, args.query]):
+        print("🤖 RoboData - AI-powered knowledge exploration system")
+        print("\nUsage examples:")
+        print("  python main.py -q 'What is climate change?'")
+        print("  python main.py -c experiment.yaml")
+        print("  python main.py -c experiment.yaml -q 'Who was Albert Einstein?'")
+        print("\nUse -h for detailed help.")
+        return
+    
     try:
-        app = RoboDataApp()
-        await app.run_interactive()
+        # Load configuration
+        config = {}
+        if args.config:
+            config = load_experiment_config(args.config)
+            print(f"✅ Loaded configuration from: {args.config}")
+        else:
+            config = get_default_config()
+            print("✅ No config file provided, using default configuration.")
+        
+        # Determine query
+        query = args.query or config.get("query", "")
+        if not query:
+            print("❌ No query specified. Use -q option or specify 'query' in config file.")
+            return
+        
+        # Run orchestrator
+        if args.orchestrator == "multi_stage":
+            result = await run_multi_stage_orchestrator(config, query)
+        else:
+            print(f"❌ Unsupported orchestrator: {args.orchestrator}")
+            return
+        
+        # Display final results
+        print("\n" + "="*60)
+        print("🎯 FINAL RESULT")
+        print("="*60)
+        print(f"Query: {query}")
+        print(f"Answer: {result['answer']}")
+        print(f"Turns taken: {result['turns_taken']}")
+        print(f"Remote explorations: {result['attempts']['remote_explorations']}")
+        print(f"Local explorations: {result['attempts']['local_explorations']}")
+        if result['attempts']['failures']:
+            print(f"Failures: {len(result['attempts']['failures'])}")
+        print("="*60)
+        
     except Exception as e:
-        print(f"❌ Failed to start RoboData: {e}")
+        print(f"❌ Error: {e}")
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
 
 if __name__ == "__main__":
-    # Comment out API and webapp components for now
-    # print("Starting FastAPI server...")
-    # print("Starting WebSocket server...")
-    
     asyncio.run(main())
 

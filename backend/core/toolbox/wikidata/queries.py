@@ -1,6 +1,9 @@
 from typing import Dict, Any, List, Optional
 import aiohttp
 import asyncio
+import traceback
+import sys
+import os
 from ..toolbox import Tool, ToolDefinition, ToolParameter
 import requests
 
@@ -10,9 +13,16 @@ class SPARQLQueryTool(Tool):
     def __init__(self):
         super().__init__(
             name="sparql_query",
-            description="Execute SPARQL queries on Wikidata"
+            description="Execute SPARQL queries on Wikidata, where SPARQL is a query language for databases, able to retrieve and manipulate data stored in Resource Description Framework (RDF) format." \
+            "This tool should be preferred if we wish to retrieve sets of data with a common property. It is generally faster than the other tools, as it can retrieve multiple data in a single query." \
+            "USEFUL FOR: retrieving structured data from Wikidata, such as entities, properties, and relationships." \
+            "Retrieving data with complex relationships, such as subclasses, superclasses, instances, and properties of entities or even property chains." \
+            "Retrievin data with specific conditions, such as entities or properties with a certain property value or instances of a class." \
         )
         self.endpoint = "https://query.wikidata.org/sparql"
+        self.query_limits = {}
+        self.initial_limit = 10
+        self.increment = 10
     
     def get_definition(self) -> ToolDefinition:
         return ToolDefinition(
@@ -30,19 +40,34 @@ class SPARQLQueryTool(Tool):
                     description="Query timeout in seconds",
                     required=False,
                     default=30
+                ),
+                ToolParameter(
+                    name="increase_limit",
+                    type="boolean",
+                    description=f"Whether to increase the number of results shown (increments by {self.increment})",
+                    required=False,
+                    default=False
                 )
             ],
             return_type="dict",
-            return_description="Query results in JSON format"
+            return_description="Query results in JSON format with enhanced display formatting"
         )
     
     async def execute(self, **kwargs) -> Dict[str, Any]:
         """Execute a SPARQL query."""
         query = kwargs.get("query")
         timeout = kwargs.get("timeout", 30)
+        increase_limit = kwargs.get("increase_limit", False)
 
         if not query:
             raise ValueError("SPARQL query string is required")
+
+        # Manage display limits
+        query_hash = hash(query) 
+        display_limit = self.query_limits.get(query_hash, self.initial_limit)
+        if increase_limit:
+            display_limit += self.increment
+        self.query_limits[query_hash] = display_limit
 
         headers = {
             'Accept': 'application/sparql-results+json',
@@ -51,63 +76,103 @@ class SPARQLQueryTool(Tool):
         
         try:
             response = requests.get(
-            self.endpoint,
-            params={'query': query},
-            headers=headers,
-            timeout=timeout
+                self.endpoint,
+                params={'query': query},
+                headers=headers,
+                timeout=timeout
             )
             if response.status_code == 200:
-                return response.json()
+                result = response.json()
+                # Add metadata for better formatting
+                result['_metadata'] = {
+                    'query': query,
+                    'display_limit': display_limit,
+                    'total_results': len(result.get('results', {}).get('bindings', []))
+                }
+                return result
             else:
                 raise ValueError(f"SPARQL query failed: {response.status_code}")
         except requests.RequestException as e:
             raise ValueError(f"SPARQL query error: {e}")
 
     def format_result(self, result: Optional[Dict[str, Any]], query: Optional[str] = None) -> str:
-        """Format the result into a readable, concise string."""
+        """Format the result into a readable, extensive string."""
         if not result:
             return "SPARQL query returned no result."
         
-        summary = ""
-        if query:
-            summary += f"Query:\n```sparql\n{query}\n```\n"
-
+        # Extract metadata
+        metadata = result.get('_metadata', {})
+        query_text = metadata.get('query') or query
+        display_limit = metadata.get('display_limit', self.initial_limit)
+        total_results = metadata.get('total_results', 0)
+        
         bindings = result.get('results', {}).get('bindings', [])
         count = len(bindings)
         
         if count == 0:
-            summary += "SPARQL query returned 0 results."
+            summary = "SPARQL query returned 0 results.\n"
+            if query_text:
+                summary += f"\nQuery:\n```sparql\n{query_text}\n```"
             return summary
             
+        # Start building the summary
+        summary = f"SPARQL query returned {count} results. Showing top {min(display_limit, count)}:\n"
+        
+        # Add query if available
+        if query_text:
+            # Truncate very long queries for readability
+            query_display = query_text if len(query_text) <= 200 else query_text[:197] + "..."
+            summary += f"\nQuery: {query_display}\n"
+        
         # Extract headers from the first result if available
         headers = list(bindings[0].keys()) if bindings else []
+        if headers:
+            summary += f"Columns: {', '.join(headers)}\n\n"
         
-        # Format a few results for preview
-        preview_items = []
-        for binding in bindings[:5]:  # Preview first 5 results
-            item_parts = []
+        # Display results in detail, similar to SearchEntitiesTool
+        results_to_show = bindings[:display_limit]
+        
+        for i, binding in enumerate(results_to_show):
+            summary += f"{i+1}. "
+            
+            # Format each column for this result
+            column_parts = []
             for header in headers:
                 value_data = binding.get(header, {})
-                value = value_data.get('value', 'N/A')
-                value_label = value_data.get('label', None) # Check for a label
-
-                # Shorten long URLs and prefer labels
-                if value.startswith("http://www.wikidata.org/entity/"):
-                    entity_id = value.split('/')[-1]
-                    display_value = f"'{value_label}' ({entity_id})" if value_label else entity_id
+                raw_value = value_data.get('value', 'N/A')
+                value_type = value_data.get('type', 'literal')
+                
+                # Process different types of values
+                if value_type == 'uri' and raw_value.startswith("http://www.wikidata.org/entity/"):
+                    # Wikidata entity - extract ID
+                    entity_id = raw_value.split('/')[-1]
+                    formatted_value = entity_id
+                elif value_type == 'uri':
+                    # Other URI - show last part or full if short
+                    if len(raw_value) > 50:
+                        formatted_value = "..." + raw_value[-47:]
+                    else:
+                        formatted_value = raw_value
                 else:
-                    display_value = value
-
-                item_parts.append(f"{header}: {display_value}")
-            preview_items.append(f"{{{', '.join(item_parts)}}}")
+                    # Literal value
+                    if len(raw_value) > 100:
+                        formatted_value = raw_value[:97] + "..."
+                    else:
+                        formatted_value = raw_value
+                
+                column_parts.append(f"{header}: {formatted_value}")
             
-        preview_str = "; ".join(preview_items)
+            summary += " | ".join(column_parts) + "\n"
+            
+            # Add spacing between results for readability
+            if i < len(results_to_show) - 1:
+                summary += "\n"
         
-        summary += f"SPARQL query returned {count} results. Headers: {', '.join(headers)}. Preview: {preview_str}"
-        if count > 5:
-            summary += "..."
+        # Add footer information
+        if count > display_limit:
+            summary += f"\n... and {count - display_limit} more results"
             
-        return summary
+        return summary.strip()
 
 class SubclassQueryTool(Tool):
     """Tool for querying subclasses of an entity."""

@@ -51,6 +51,11 @@ class Memory(ABC):
         """Get current memory size."""
         pass
 
+    @abstractmethod
+    def get_last_llm_response(self) -> Optional[str]:
+        """Get the last response from the LLM agent."""
+        pass
+
 class SimpleMemory(Memory):
     """Simple FIFO memory implementation with max_slots limit and role tracking."""
     
@@ -69,6 +74,13 @@ class SimpleMemory(Memory):
         self._memory.append(entry)
         print_memory_entry(content, role)
     
+    def get_last_llm_response(self) -> Optional[str]:
+        """Get the last response from the LLM agent."""
+        for entry in reversed(self._memory):
+            if entry.role == "LLM_Agent":
+                return entry.content
+        return None
+
     def read(self, max_characters: Optional[int] = None) -> str:
         """Read from memory, newest to oldest, up to max_characters.
         
@@ -330,6 +342,13 @@ class SummaryMemory(Memory):
         """Get current memory size."""
         return len(self._memory)
     
+    def get_last_llm_response(self) -> Optional[str]:
+        """Get the last response from the LLM agent."""
+        for entry in reversed(self._memory):
+            if entry.role == "LLM_Agent":
+                return entry.content
+        return None
+
     def get_recent(self, count: int) -> List[MemoryEntry]:
         """Get the most recent N entries."""
         if count <= 0:

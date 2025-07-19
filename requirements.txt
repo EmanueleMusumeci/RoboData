@@ -30,4 +30,3 @@ wikidata
 kif
 pyvis
 google-generativeai
-

@@ -2,7 +2,11 @@ from typing import Dict, Any, List, Optional
 from ..toolbox import Tool, ToolDefinition, ToolParameter
 from ...knowledge_base.graph import get_knowledge_graph
 from ...knowledge_base.schema import Node, Edge
+# Add imports for Wikidata integration
+from ..wikidata.wikidata_api import wikidata_api
+from ..wikidata.datamodel import convert_api_entity_to_model, convert_api_property_to_model
 import json
+import time
 
 class AddNodeTool(Tool):
     """Tool for adding nodes to the graph database."""
@@ -153,10 +157,10 @@ class AddEdgeTool(Tool):
             target_id=to_node_id,
             relationship_type=relationship_type,
             label=properties.get('label', relationship_type),
+            description=description,
             properties=properties
         )
         edge.properties['id'] = edge_id
-        edge.properties['description'] = description
         
         await graph.add_relationship(edge)
         return edge_id
@@ -173,7 +177,8 @@ class GetNodeTool(Tool):
     def __init__(self):
         super().__init__(
             name="get_node",
-            description="Get a node from the graph database by ID"
+            description="Get a node from the local knowledge graph by ID" \
+            "USEFUL FOR: retrieving node details to understand its properties and relationships in the local graph."
         )
     
     def get_definition(self) -> ToolDefinition:
@@ -266,7 +271,8 @@ class GetEdgeTool(Tool):
     def __init__(self):
         super().__init__(
             name="get_edge",
-            description="Get an edge from the graph database by ID"
+            description="Get an edge from the local knowledge graph by ID." \
+            "USEFUL FOR: retrieving edges to understand relationships between entities in the local graph. Navigate the local knowledge graph effectively."
         )
     
     def get_definition(self) -> ToolDefinition:
@@ -281,7 +287,7 @@ class GetEdgeTool(Tool):
                 )
             ],
             return_type="object",
-            return_description="Edge data including properties and connected nodes"
+            return_description="If the edge is present, a structured representation of the retrieved edge, including source and target nodes, relationship type, and properties."
         )
     
     async def execute(self, **kwargs) -> Optional[Dict[str, Any]]:
@@ -317,7 +323,7 @@ class GetEdgeTool(Tool):
         source_type = result.get('source_type')
         target_type = result.get('target_type')
         rel_type = result.get('type')
-        description = result.get('properties', {}).get('description')
+        description = result.get('description', '')
         
         source_str = f"{source_id} [{source_type}]"
         target_str = f"{target_id} [{target_type}]"
@@ -330,9 +336,640 @@ class GetEdgeTool(Tool):
         if properties:
             output += "Properties:\n"
             for key, value in properties.items():
-                if key not in ['id', 'description']: # Don't repeat properties
+                if key not in ['id', 'description', 'source_id', 'target_id', 'type', 'label']: # Don't repeat core fields
                     output += f"  - {key}: {value}\n"
                 
+        return output.strip()
+
+class FetchNodeTool(Tool):
+    """Tool for fetching a Wikidata entity and adding it to the local graph."""
+    
+    def __init__(self):
+        super().__init__(
+            name="fetch_node",
+            description="Fetch a Wikidata entity by ID and add it to the local graph database." \
+            "USEFUL FOR: fetching entities from Wikidata and adding them to the local graph for further exploration. Minimizes the chance of hallucinations when adding an entity to the local graph."
+
+        )
+    
+    def get_definition(self) -> ToolDefinition:
+        return ToolDefinition(
+            name=self.name,
+            description=self.description,
+            parameters=[
+                ToolParameter(
+                    name="entity_id",
+                    type="string",
+                    description="Wikidata entity ID (e.g., Q42 for Douglas Adams)"
+                )
+            ],
+            return_type="string",
+            return_description="ID of the created entity in the local graph. Side-effect: adds the entity to the local graph."
+        )
+    
+    async def execute(self, **kwargs) -> str:
+        """Fetch a Wikidata entity and add it to the local graph."""
+        entity_id = kwargs.get("entity_id")
+        if not entity_id:
+            raise ValueError("entity_id is required")
+        
+        # Fetch from Wikidata
+        api_data = await wikidata_api.get_entity(entity_id)
+        entity = convert_api_entity_to_model(api_data)
+        
+        # Connect to local graph
+        graph = get_knowledge_graph()
+        if not await graph.is_connected():
+            await graph.connect()
+        
+        # Check if entity already exists
+        existing_entity = await graph.get_entity(entity_id)
+        if existing_entity:
+            return f"Entity {entity_id} already exists in the local graph"
+        
+        # Convert to local graph schema
+        node = Node(
+            node_id=entity.id,
+            node_type="WikidataEntity",
+            label=entity.label,
+            description=entity.description or "",
+            properties={
+                "wikidata_link": entity.link
+            }
+        )
+        
+        return await graph.add_entity(node)
+
+    def format_result(self, result: str) -> str:
+        """Format the result into a readable, concise string."""
+        if "already exists" in result:
+            return result
+        return f"Wikidata entity successfully fetched and added to local graph. Node ID: {result}"
+
+class FetchRelationshipTool(Tool):
+    """Tool for fetching all Wikidata statements for a specific property from a subject entity and adding them to the local graph."""
+    
+    def __init__(self):
+        super().__init__(
+            name="fetch_relationship",
+            description="Fetch ALL Wikidata statements for a specific property from a subject entity and add them to the local graph database. " \
+            "This tool fetches the subject entity, retrieves all statements for the specified property, then fetches all object entities " \
+            "and creates relationships between the subject and each object in the local graph. " \
+            "USEFUL FOR: comprehensively fetching all relationships of a specific type from Wikidata and adding them to the local graph for exploration. " \
+            "Eliminates hallucinations by only adding relationships that actually exist in Wikidata."
+        )
+    
+    def get_definition(self) -> ToolDefinition:
+        return ToolDefinition(
+            name=self.name,
+            description=self.description,
+            parameters=[
+                ToolParameter(
+                    name="subject_id",
+                    type="string",
+                    description="Wikidata subject entity ID (e.g., Q42 for Douglas Adams)"
+                ),
+                ToolParameter(
+                    name="property_id",
+                    type="string",
+                    description="Wikidata property ID (e.g., P31 for 'instance of')"
+                )
+            ],
+            return_type="object",
+            return_description="Result of the property fetch operation with details about created/merged entities and all relationships."
+        )
+    
+    async def execute(self, **kwargs) -> Dict[str, Any]:
+        """Fetch all Wikidata statements for a property and add them to the local graph."""
+        subject_id = kwargs.get("subject_id")
+        property_id = kwargs.get("property_id")
+        
+        if not subject_id or not property_id:
+            raise ValueError("subject_id and property_id are required")
+        
+        # Connect to local graph
+        graph = get_knowledge_graph()
+        if not await graph.is_connected():
+            await graph.connect()
+        
+        result = {
+            "subject_id": subject_id,
+            "property_id": property_id,
+            "operations": [],
+            "relationships_created": [],
+            "relationships_skipped": []
+        }
+        
+        # First, fetch the subject entity to get its label
+        try:
+            api_data = await wikidata_api.get_entity(subject_id)
+            subject_entity = convert_api_entity_to_model(api_data)
+            result["subject_label"] = subject_entity.label
+            result["operations"].append(f"Subject {subject_id} ({subject_entity.label}) fetched from Wikidata")
+        except Exception as e:
+            result["operations"].append(f"Failed to fetch subject {subject_id}: {str(e)}")
+            return result
+        
+        # Get all statements for the specified property
+        try:
+            statements = await wikidata_api.get_entity_statements(subject_id, property_id)
+            
+            # Check if the property exists in the statements
+            if property_id not in statements:
+                result["operations"].append(f"Subject {subject_id} has no statements for property {property_id}")
+                result["statements_found"] = False
+                return result
+            
+            property_statements = statements[property_id]
+            object_ids = list(property_statements.keys())
+            result["operations"].append(f"Found {len(object_ids)} statements for property {property_id}: {object_ids}")
+            result["statements_found"] = True
+            result["object_ids"] = object_ids
+            
+        except Exception as e:
+            result["operations"].append(f"Failed to get statements for property {property_id}: {str(e)}")
+            return result
+        
+        # Add/merge subject entity to local graph
+        existing_subject = await graph.get_entity(subject_id)
+        if existing_subject:
+            result["operations"].append(f"Subject {subject_id} already exists in local graph, skipping")
+        else:
+            try:
+                # Add to local graph
+                subject_node = Node(
+                    node_id=subject_entity.id,
+                    node_type="WikidataEntity",
+                    label=subject_entity.label,
+                    description=subject_entity.description or "",
+                    properties={
+                        "wikidata_link": subject_entity.link,
+                    }
+                )
+                
+                await graph.add_entity(subject_node)
+                result["operations"].append(f"Subject {subject_id} ({subject_entity.label}) added to local graph")
+            except Exception as e:
+                result["operations"].append(f"Failed to add subject to local graph: {str(e)}")
+                return result
+        
+        # Fetch property information
+        try:
+            api_data = await wikidata_api.get_property(property_id)
+            prop = convert_api_property_to_model(api_data)
+            result["property_label"] = prop.label
+            result["property_description"] = prop.description
+        except Exception as e:
+            result["operations"].append(f"Failed to fetch property {property_id}: {str(e)}")
+            result["property_label"] = property_id
+            result["property_description"] = ""
+        
+        # Process each object in the statements
+        for object_key in object_ids:
+            try:
+                # Get the statement data for this object
+                statement_data = property_statements[object_key]
+                datavalue = statement_data.get("datavalue")
+                datatype = statement_data.get("datatype")
+                
+                # Determine if this is an entity reference or a literal value
+                is_entity = datavalue and datavalue.get("type") == "wikibase-entityid"
+                
+                if is_entity:
+                    # This is an entity reference - treat as before
+                    object_id = object_key  # object_key is the entity ID
+                    object_label = object_id  # Default label
+                    
+                    # Check if relationship already exists in local graph
+                    existing_relationships = await graph.get_entity_relationships(subject_id)
+                    relationship_exists = False
+                    for rel in existing_relationships:
+                        if (rel.source_id == subject_id and rel.target_id == object_id and 
+                            rel.type == property_id):
+                            relationship_exists = True
+                            break
+                    
+                    if relationship_exists:
+                        result["relationships_skipped"].append({
+                            "object_id": object_id,
+                            "reason": "already exists in local graph"
+                        })
+                        continue
+                    
+                    # Fetch and add/merge object entity
+                    existing_object = await graph.get_entity(object_id)
+                    if existing_object:
+                        object_label = existing_object.label
+                        result["operations"].append(f"Object {object_id} already exists in local graph, skipping")
+                    else:
+                        try:
+                            # Fetch object from Wikidata
+                            api_data = await wikidata_api.get_entity(object_id)
+                            object_entity = convert_api_entity_to_model(api_data)
+                            object_label = object_entity.label
+                            
+                            # Add to local graph
+                            object_node = Node(
+                                node_id=object_entity.id,
+                                node_type="WikidataEntity",
+                                label=object_entity.label,
+                                description=object_entity.description or "",
+                                properties={
+                                    "wikidata_link": object_entity.link,
+                                }
+                            )
+                            
+                            await graph.add_entity(object_node)
+                            result["operations"].append(f"Object {object_id} ({object_entity.label}) added to local graph")
+                        except Exception as e:
+                            result["operations"].append(f"Failed to fetch/add object {object_id}: {str(e)}")
+                            result["relationships_skipped"].append({
+                                "object_id": object_id,
+                                "reason": f"failed to fetch object: {str(e)}"
+                            })
+                            continue
+                    
+                    # Create the relationship to entity
+                    edge = Edge(
+                        source_id=subject_id,
+                        target_id=object_id,
+                        relationship_type=property_id,
+                        label=result["property_label"],
+                        description=result["property_description"] or "",
+                        properties={
+                            "wikidata_link": f"https://www.wikidata.org/wiki/Property:{property_id}"
+                        }
+                    )
+                    
+                    edge_id = await graph.add_relationship(edge)
+                    result["relationships_created"].append({
+                        "object_id": object_id,
+                        "object_label": object_label,
+                        "edge_id": edge_id,
+                        "value_type": "entity"
+                    })
+                    result["operations"].append(f"Relationship {subject_id} -[{property_id}]-> {object_id} created with ID: {edge_id}")
+                    
+                else:
+                    # This is a literal value (date, string, number, etc.)
+                    literal_value = object_key
+                    literal_node_id = f"{subject_id}_{property_id}_{hash(literal_value)}"
+                    
+                    # Check if this literal relationship already exists
+                    existing_relationships = await graph.get_entity_relationships(subject_id)
+                    relationship_exists = False
+                    for rel in existing_relationships:
+                        if (rel.source_id == subject_id and rel.target_id == literal_node_id and 
+                            rel.type == property_id):
+                            relationship_exists = True
+                            break
+                    
+                    if relationship_exists:
+                        result["relationships_skipped"].append({
+                            "object_id": literal_node_id,
+                            "reason": "already exists in local graph"
+                        })
+                        continue
+                    
+                    # Create or get literal value node
+                    existing_literal = await graph.get_entity(literal_node_id)
+                    if not existing_literal:
+                        # Create a literal value node
+                        literal_node = Node(
+                            node_id=literal_node_id,
+                            node_type="LiteralValue",
+                            label=str(literal_value),
+                            description=f"{datatype} value: {literal_value}",
+                            properties={
+                                "value": literal_value,
+                                "datatype": datatype,
+                                "wikidata_property": property_id
+                            }
+                        )
+                        
+                        await graph.add_entity(literal_node)
+                        result["operations"].append(f"Literal value node {literal_node_id} created for value: {literal_value}")
+                    
+                    # Create the relationship to literal value
+                    edge = Edge(
+                        source_id=subject_id,
+                        target_id=literal_node_id,
+                        relationship_type=property_id,
+                        label=result["property_label"],
+                        description=result["property_description"] or "",
+                        properties={
+                            "wikidata_link": f"https://www.wikidata.org/wiki/Property:{property_id}",
+                            "literal_value": literal_value,
+                            "datatype": datatype
+                        }
+                    )
+                    
+                    edge_id = await graph.add_relationship(edge)
+                    result["relationships_created"].append({
+                        "object_id": literal_node_id,
+                        "object_label": str(literal_value),
+                        "edge_id": edge_id,
+                        "value_type": "literal",
+                        "datatype": datatype
+                    })
+                    result["operations"].append(f"Relationship {subject_id} -[{property_id}]-> {literal_node_id} (literal: {literal_value}) created with ID: {edge_id}")
+                
+            except Exception as e:
+                result["operations"].append(f"Failed to process object {object_key}: {str(e)}")
+                result["relationships_skipped"].append({
+                    "object_id": object_key,
+                    "reason": f"processing error: {str(e)}"
+                })
+        
+        return result
+
+    def format_result(self, result: Dict[str, Any]) -> str:
+        """Format the result into a readable, concise string."""
+        if not result:
+            return "Failed to fetch property statements."
+        
+        # Check if statements were found
+        if result.get("statements_found") == False:
+            subject_id = result.get("subject_id")
+            property_id = result.get("property_id")
+            operations = result.get("operations", [])
+            
+            output = f"No statements found for property {property_id} on subject {subject_id}\n"
+            output += "Operations performed:\n"
+            for op in operations:
+                output += f"  - {op}\n"
+            
+            return output.strip()
+        
+        subject_id = result.get("subject_id")
+        property_id = result.get("property_id")
+        subject_label = result.get("subject_label", subject_id)
+        property_label = result.get("property_label", property_id)
+        relationships_created = result.get("relationships_created", [])
+        relationships_skipped = result.get("relationships_skipped", [])
+        operations = result.get("operations", [])
+        
+        subject_str = f"{subject_id} ({subject_label})" if subject_label != subject_id else subject_id
+        
+        output = f"Fetched property {property_id} ({property_label}) for {subject_str}\n"
+        output += f"Created {len(relationships_created)} relationships, skipped {len(relationships_skipped)}\n"
+        
+        if relationships_created:
+            output += "\nRelationships created:\n"
+            for rel in relationships_created:
+                object_id = rel.get("object_id")
+                object_label = rel.get("object_label", object_id)
+                value_type = rel.get("value_type", "unknown")
+                datatype = rel.get("datatype")
+                
+                if value_type == "entity":
+                    object_str = f"{object_id} ({object_label})" if object_label != object_id else object_id
+                    output += f"  - {subject_str} -[{property_id}]-> {object_str}\n"
+                elif value_type == "literal":
+                    datatype_str = f" ({datatype})" if datatype else ""
+                    output += f"  - {subject_str} -[{property_id}]-> {object_label}{datatype_str} [literal]\n"
+                else:
+                    object_str = f"{object_id} ({object_label})" if object_label != object_id else object_id
+                    output += f"  - {subject_str} -[{property_id}]-> {object_str}\n"
+        
+        if relationships_skipped:
+            output += "\nRelationships skipped:\n"
+            for rel in relationships_skipped:
+                object_id = rel.get("object_id")
+                reason = rel.get("reason")
+                output += f"  - {object_id}: {reason}\n"
+        
+        # Show summary of operations if not too verbose
+        if len(operations) <= 10:
+            output += "\nOperations performed:\n"
+            for op in operations:
+                output += f"  - {op}\n"
+        else:
+            output += f"\n{len(operations)} operations performed (detailed log available)"
+        
+        return output.strip()
+
+class FetchTripleTool(Tool):
+    """Tool for fetching a Wikidata triple (subject-property-object) and adding it to the local graph."""
+    
+    def __init__(self):
+        super().__init__(
+            name="fetch_triple",
+            description="Fetch a complete Wikidata triple (subject-property-object) and add it to the local graph database ONLY IF IT EXISTS in Wikidata. " \
+            "This tool first fetches the subject entity, then verifies that the specified relationship to the object actually exists in Wikidata by checking the subject's statements. " \
+            "If verified, it will fetch both entities and create the relationship between them, or merge if they already exist. " \
+            "USEFUL FOR: safely fetching a verified triple (subject-property-object) relationship from Wikidata and adding it to the local graph for further exploration. " \
+            "Eliminates hallucinations by ensuring the triple actually exists in Wikidata before adding it to the local graph."
+        )
+    
+    def get_definition(self) -> ToolDefinition:
+        return ToolDefinition(
+            name=self.name,
+            description=self.description,
+            parameters=[
+                ToolParameter(
+                    name="subject_id",
+                    type="string",
+                    description="Wikidata subject entity ID (e.g., Q42 for Douglas Adams)"
+                ),
+                ToolParameter(
+                    name="property_id",
+                    type="string",
+                    description="Wikidata property ID (e.g., P31 for 'instance of')"
+                ),
+                ToolParameter(
+                    name="object_id",
+                    type="string",
+                    description="Wikidata object entity ID (e.g., Q5 for 'human')"
+                )
+            ],
+            return_type="object",
+            return_description="Result of the triple fetch operation with details about created/merged entities and relationship."
+        )
+    
+    async def execute(self, **kwargs) -> Dict[str, Any]:
+        """Fetch a Wikidata triple and add it to the local graph."""
+        subject_id = kwargs.get("subject_id")
+        property_id = kwargs.get("property_id")
+        object_id = kwargs.get("object_id")
+        
+        if not subject_id or not property_id or not object_id:
+            raise ValueError("subject_id, property_id, and object_id are required")
+        
+        # Connect to local graph
+        graph = get_knowledge_graph()
+        if not await graph.is_connected():
+            await graph.connect()
+        
+        result = {
+            "subject_id": subject_id,
+            "property_id": property_id,
+            "object_id": object_id,
+            "operations": []
+        }
+        
+        # First, fetch the subject entity to get its label
+        try:
+            api_data = await wikidata_api.get_entity(subject_id)
+            subject_entity = convert_api_entity_to_model(api_data)
+            result["subject_label"] = subject_entity.label
+            result["operations"].append(f"Subject {subject_id} ({subject_entity.label}) fetched from Wikidata")
+        except Exception as e:
+            result["operations"].append(f"Failed to fetch subject {subject_id}: {str(e)}")
+            return result
+        
+        # Verify the relationship exists in Wikidata by checking the subject's statements
+        try:
+            statements = await wikidata_api.get_entity_statements(subject_id, property_id)
+            
+            # Check if the property exists in the statements
+            if property_id not in statements:
+                result["operations"].append(f"Subject {subject_id} has no statements for property {property_id}")
+                result["relationship_verified"] = False
+                return result
+            
+            # Check if the object_id is among the values for this property
+            property_statements = statements[property_id]
+            if object_id not in property_statements:
+                result["operations"].append(f"Subject {subject_id} property {property_id} does not reference object {object_id}")
+                result["relationship_verified"] = False
+                return result
+            
+            result["operations"].append(f"Verified: {subject_id} -[{property_id}]-> {object_id} exists in Wikidata")
+            result["relationship_verified"] = True
+            
+        except Exception as e:
+            result["operations"].append(f"Failed to verify relationship in Wikidata: {str(e)}")
+            return result
+        
+        # Add/merge subject entity to local graph
+        existing_subject = await graph.get_entity(subject_id)
+        if existing_subject:
+            result["operations"].append(f"Subject {subject_id} already exists in local graph, skipping")
+        else:
+            try:
+                # Add to local graph
+                subject_node = Node(
+                    node_id=subject_entity.id,
+                    node_type="WikidataEntity",
+                    label=subject_entity.label,
+                    description=subject_entity.description or "",
+                    properties={
+                        "wikidata_link": subject_entity.link,
+                    }
+                )
+                
+                await graph.add_entity(subject_node)
+                result["operations"].append(f"Subject {subject_id} ({subject_entity.label}) added to local graph")
+            except Exception as e:
+                result["operations"].append(f"Failed to add subject to local graph: {str(e)}")
+                return result
+        
+        # Fetch and add/merge object entity
+        existing_object = await graph.get_entity(object_id)
+        if existing_object:
+            result["operations"].append(f"Object {object_id} already exists in local graph, skipping")
+            result["object_label"] = existing_object.label
+        else:
+            try:
+                # Fetch object from Wikidata
+                api_data = await wikidata_api.get_entity(object_id)
+                object_entity = convert_api_entity_to_model(api_data)
+                result["object_label"] = object_entity.label
+                
+                # Add to local graph
+                object_node = Node(
+                    node_id=object_entity.id,
+                    node_type="WikidataEntity",
+                    label=object_entity.label,
+                    description=object_entity.description or "",
+                    properties={
+                        "wikidata_link": object_entity.link,
+                    }
+                )
+                
+                await graph.add_entity(object_node)
+                result["operations"].append(f"Object {object_id} ({object_entity.label}) added to local graph")
+            except Exception as e:
+                result["operations"].append(f"Failed to fetch/add object {object_id}: {str(e)}")
+                return result
+        
+        # Fetch property information
+        try:
+            api_data = await wikidata_api.get_property(property_id)
+            prop = convert_api_property_to_model(api_data)
+            result["property_label"] = prop.label
+            result["property_description"] = prop.description
+        except Exception as e:
+            result["operations"].append(f"Failed to fetch property {property_id}: {str(e)}")
+            result["property_label"] = property_id
+            result["property_description"] = ""
+        
+        # Check if relationship already exists in local graph
+        existing_relationships = await graph.get_entity_relationships(subject_id)
+        relationship_exists = False
+        for rel in existing_relationships:
+            if (rel.source_id == subject_id and rel.target_id == object_id and 
+                rel.type == property_id):
+                relationship_exists = True
+                break
+        
+        if relationship_exists:
+            result["operations"].append(f"Relationship {subject_id} -[{property_id}]-> {object_id} already exists in local graph")
+        else:
+            # Create the relationship since it's verified to exist in Wikidata
+            edge = Edge(
+                source_id=subject_id,
+                target_id=object_id,
+                relationship_type=property_id,
+                label=result["property_label"],
+                description=result["property_description"] or "",
+                properties={
+                    "wikidata_link": f"https://www.wikidata.org/wiki/Property:{property_id}"
+                }
+            )
+            
+            edge_id = await graph.add_relationship(edge)
+            result["operations"].append(f"Relationship {subject_id} -[{property_id}]-> {object_id} created with ID: {edge_id}")
+            result["edge_id"] = edge_id
+        
+        return result
+
+    def format_result(self, result: Dict[str, Any]) -> str:
+        """Format the result into a readable, concise string."""
+        if not result:
+            return "Failed to fetch relationship triple."
+        
+        # Check if relationship verification failed
+        if result.get("relationship_verified") == False:
+            subject_id = result.get("subject_id")
+            property_id = result.get("property_id")
+            object_id = result.get("object_id")
+            operations = result.get("operations", [])
+            
+            output = f"Relationship verification failed: {subject_id} -[{property_id}]-> {object_id} does not exist in Wikidata\n"
+            output += "Operations performed:\n"
+            for op in operations:
+                output += f"  - {op}\n"
+            
+            return output.strip()
+        
+        subject_id = result.get("subject_id")
+        property_id = result.get("property_id")
+        object_id = result.get("object_id")
+        subject_label = result.get("subject_label", subject_id)
+        object_label = result.get("object_label", object_id)
+        property_label = result.get("property_label", property_id)
+        operations = result.get("operations", [])
+        
+        subject_str = f"{subject_id} ({subject_label})" if subject_label != subject_id else subject_id
+        object_str = f"{object_id} ({object_label})" if object_label != object_id else object_id
+        
+        output = f"Fetched triple: {subject_str} -[{property_id}:{property_label}]-> {object_str}\n"
+        output += "Operations performed:\n"
+        for op in operations:
+            output += f"  - {op}\n"
+        
         return output.strip()
 
 class RemoveNodeTool(Tool):
@@ -906,8 +1543,24 @@ class CypherQueryTool(Tool):
         
         if record_count == 0:
             return f"Cypher query successful, returned no records. Time: {execution_time}s"
+        
+        # Convert results to JSON-serializable format for preview
+        results_preview = []
+        for record in result.get('results', [])[:2]:
+            serializable_record = {}
+            for key, value in record.items():
+                if hasattr(value, 'to_dict'):
+                    # Handle Node/Edge objects that have to_dict method
+                    serializable_record[key] = value.to_dict()
+                elif isinstance(value, (str, int, float, bool, type(None))):
+                    # Handle primitive types
+                    serializable_record[key] = value
+                else:
+                    # Convert other objects to string representation
+                    serializable_record[key] = str(value)
+            results_preview.append(serializable_record)
             
-        return f"Cypher query successful. Records: {record_count}, Time: {execution_time}s. Preview: {json.dumps(result.get('results', [])[:2])}"
+        return f"Cypher query successful. Records: {record_count}, Time: {execution_time}s. Preview: {json.dumps(results_preview)}"
 
 # Export all tools for registration
 all_tools = [
@@ -922,7 +1575,9 @@ all_tools = [
     GetNeighborsTool,
     GetSubgraphTool,
     GetGraphStatsTool,
-    CypherQueryTool
+    CypherQueryTool,
+    FetchNodeTool,
+    FetchRelationshipTool
 ]
 
 def register_tools():
@@ -1044,6 +1699,91 @@ if __name__ == '__main__':
         subgraph_tool = GetSubgraphTool()
         result = await subgraph_tool.execute(node_ids=['person1', 'city1'], max_depth=1)
         print(f"Get subgraph for p1, c1: {subgraph_tool.format_result(result)}")
+
+        # Test RemoveEdgeTool
+        print("\n--- Testing RemoveEdgeTool ---")
+        remove_edge_tool = RemoveEdgeTool()
+        result = await remove_edge_tool.execute(edge_id=edge2_id)
+        print(f"Remove edge p2-c1: {remove_edge_tool.format_result(result)}")
+
+        # Test RemoveNodeTool
+        print("\n--- Testing RemoveNodeTool ---")
+        remove_node_tool = RemoveNodeTool()
+        result = await remove_node_tool.execute(node_id='person2')
+        print(f"Remove person2: {remove_node_tool.format_result(result)}")
+        result = await remove_node_tool.execute(node_id='person2')
+        print(f"Remove person2 (again): {remove_node_tool.format_result(result)}")
+
+        # Test GetGraphStatsTool at the end
+        print("\n--- Testing GetGraphStatsTool (End) ---")
+        result = await stats_tool.execute()
+        print(f"Final stats: {stats_tool.format_result(result)}")
+
+        # Test FetchNodeTool
+        print("\n--- Testing FetchNodeTool ---")
+        fetch_node_tool = FetchNodeTool()
+        
+        # Test fetching a real Wikidata entity: Albert Einstein (Q937)
+        try:
+            result = await fetch_node_tool.execute(entity_id='Q937')
+            print(f"Fetch Q937: {fetch_node_tool.format_result(result)}")
+        except Exception as e:
+            print(f"Error fetching Q937: {e}")
+        
+        # Test fetching an already existing entity
+        try:
+            result = await fetch_node_tool.execute(entity_id='Q42')
+            print(f"Fetch Q42 (duplicate): {fetch_node_tool.format_result(result)}")
+        except Exception as e:
+            print(f"Error fetching Q42 (duplicate): {e}")
+
+        # Test FetchRelationshipTool
+        print("\n--- Testing FetchRelationshipTool ---")
+        fetch_relationship_tool = FetchRelationshipTool()
+        
+        # Test fetching a real Wikidata triple: Douglas Adams (Q42) - instance of (P31) - human (Q5)
+        try:
+            result = await fetch_relationship_tool.execute(
+                subject_id='Q42',
+                property_id='P31',
+                object_id='Q5'
+            )
+            print(f"Fetch Q42-P31-Q5: {fetch_relationship_tool.format_result(result)}")
+        except Exception as e:
+            print(f"Error fetching Q42-P31-Q5: {e}")
+        
+        # Test fetching another triple with already existing subject
+        try:
+            result = await fetch_relationship_tool.execute(
+                subject_id='Q42',
+                property_id='P106',
+                object_id='Q36180'
+            )
+            print(f"Fetch Q42-P106-Q36180: {fetch_relationship_tool.format_result(result)}")
+        except Exception as e:
+            print(f"Error fetching Q42-P106-Q36180: {e}")
+        
+        # Test with existing relationship
+        try:
+            result = await fetch_relationship_tool.execute(
+                subject_id='Q42',
+                property_id='P31',
+                object_id='Q5'
+            )
+            print(f"Fetch Q42-P31-Q5 (duplicate): {fetch_relationship_tool.format_result(result)}")
+        except Exception as e:
+            print(f"Error fetching Q42-P31-Q5 (duplicate): {e}")
+        
+        # Test with non-existent relationship to verify verification works
+        try:
+            result = await fetch_relationship_tool.execute(
+                subject_id='Q42',
+                property_id='P31',
+                object_id='Q6256'  # country - Douglas Adams is not a country
+            )
+            print(f"Fetch Q42-P31-Q6256 (non-existent): {fetch_relationship_tool.format_result(result)}")
+        except Exception as e:
+            print(f"Error fetching Q42-P31-Q6256 (non-existent): {e}")
 
         # Test RemoveEdgeTool
         print("\n--- Testing RemoveEdgeTool ---")

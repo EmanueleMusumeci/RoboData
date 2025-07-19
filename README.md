@@ -154,10 +154,44 @@ Start the interactive terminal session:
 
 ```bash
 cd backend
-python main.py
+python -m core.orchestrator.multi_stage.multi_stage_orchestrator
 ```
 
-```
+### Using the Local SLM (eaddario/Watt-Tool-8B-GGUF)
+
+To test the performance of the local SLM, follow these steps:
+
+1.  **Download the GGUF model**:
+    You can download the quantized model from [Hugging Face](https://huggingface.co/eaddario/Watt-Tool-8B-GGUF). Choose a quantization level that suits your hardware.
+
+2.  **Install `llama-cpp-python`**:
+    This library is needed to run the GGUF model and serve it through an OpenAI-compatible API.
+    ```bash
+    pip install llama-cpp-python
+    ```
+    For GPU acceleration, refer to the `llama-cpp-python` documentation for installation with specific backends (e.g., cuBLAS for NVIDIA).
+
+3.  **Start the local server**:
+    Run the following command, replacing `<path_to_gguf_model>` with the path to your downloaded model file.
+    ```bash
+    python3 -m llama_cpp.server --model <path_to_gguf_model> --chat_format functionary
+    ```
+    The `functionary` chat format is crucial for tool-calling capabilities.
+
+4.  **Configure the Orchestrator**:
+    In `backend/core/orchestrator/multi_stage/multi_stage_orchestrator.py`, set the `USE_SLM` flag to `True`:
+    ```python
+    # ... inside if __name__ == "__main__":
+    USE_SLM = True
+    ```
+
+5.  **Run the application**:
+    With the local server running, start the orchestrator as usual:
+    ```bash
+    cd backend
+    python -m core.orchestrator.multi_stage.multi_stage_orchestrator
+    ```
+    The orchestrator will now use the local `WatToolSLMAgent` to process queries.
 
 ### Available Commands
 

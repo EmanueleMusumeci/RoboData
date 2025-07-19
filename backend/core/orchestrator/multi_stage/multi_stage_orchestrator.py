@@ -4,22 +4,17 @@ import pprint
 import traceback
 from typing import Any, List, Dict, Optional, Tuple
 from enum import Enum
-
-from .formatting import (
-    Colors,
-    print_prompt, 
-    print_tool_result, 
-    print_tool_error, 
-    print_debug, 
-    print_response,
-    print_tool_results_summary
-)
+import asyncio
+import json
+import traceback
+import pprint
 
 from ..orchestrator import Orchestrator
 from ...memory import Memory, SimpleMemory
 from ...agents.agent import Query
 from ...toolbox.toolbox import Toolbox
 from ...knowledge_base.graph import KnowledgeGraph, get_knowledge_graph
+from ...logging import setup_logger, log_prompt, log_tool_result, log_tool_error, log_debug, log_response, log_turn_separator, log_tool_results_summary
 from .prompts import (
     AttemptHistory,
     PromptStructure,
@@ -71,7 +66,16 @@ class MultiStageOrchestrator(Orchestrator):
                  evaluation_toolbox: Optional[Toolbox] = None,
                  use_summary_memory: bool = False,
                  memory_max_slots: int = 10,
-                 max_turns: int = -1):
+                 max_turns: int = -1,
+                 experiment_id: Optional[str] = None):
+        # Set up logging first
+        from datetime import datetime
+        if experiment_id is None:
+            experiment_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        self.experiment_id = experiment_id
+        self.logger = setup_logger(experiment_id=experiment_id)
+        
         # Use SummaryMemory or SimpleMemory with larger capacity for complex orchestration
         if memory is None:
             if use_summary_memory:
@@ -127,14 +131,14 @@ class MultiStageOrchestrator(Orchestrator):
             toolbox = self.graph_update_toolbox
             
         if response.tool_calls:
-            print_debug(f"Processing tool calls in context: {context_name}")
+            log_debug(f"Processing tool calls in context: {context_name}")
             for tool_call in response.tool_calls:
                 print(tool_call)
                 tool_name = tool_call["function"]["name"]
                 tool_args = json.loads(tool_call["function"]["arguments"])
 
-                print_debug(f"Tool call detected: {tool_name}")
-                print_debug(f"Arguments for {tool_name}: {tool_args}")
+                log_debug(f"Tool call detected: {tool_name}")
+                log_debug(f"Arguments for {tool_name}: {tool_args}")
 
                 try:
                     # Get tool from the appropriate toolbox
@@ -153,10 +157,10 @@ class MultiStageOrchestrator(Orchestrator):
                     
                     # Format and store result
                     formatted_result = tool.format_result(result)
-                    print_tool_result(tool_name, tool_args, formatted_result, context_name)
+                    log_tool_result(tool_name, tool_args, formatted_result, context_name)
                     
                     # Add to memory and results list
-                    self.memory.add(f"Tool {tool_name} executed successfully in context '{context_name}'.", "System")
+                    self.memory.add(f"Tool {tool_name} executed successfully with arguments {tool_args}.", "System")
                     self.tool_call_results.append({
                         "tool_name": tool_name,
                         "arguments": tool_args,
@@ -169,8 +173,8 @@ class MultiStageOrchestrator(Orchestrator):
                 except Exception as e:
                     traceback.print_exc()
                     error_message = f"Error: {str(e)}"
-                    print_tool_error(tool_name, tool_args, error_message, context_name)
-                    self.memory.add(f"Tool {tool_name} failed in context '{context_name}': {error_message}", "System")
+                    log_tool_error(tool_name, tool_args, error_message, context_name)
+                    self.memory.add(f"Tool {tool_name} failed with arguments {tool_args}: {error_message}", "System")
                     self.tool_call_results.append({
                         "tool_name": tool_name,
                         "arguments": tool_args,
@@ -210,7 +214,7 @@ class MultiStageOrchestrator(Orchestrator):
                 # Check max_turns limit
                 if self.max_turns > 0 and self.current_turn >= self.max_turns:
                     self.memory.add(f"Reached maximum turns limit ({self.max_turns}), stopping orchestration", "System")
-                    print_debug(f"Reached maximum turns limit ({self.max_turns}), stopping orchestration")
+                    log_debug(f"Reached maximum turns limit ({self.max_turns}), stopping orchestration")
                     if not self.final_answer:
                         self.final_answer = "Maximum turns limit reached without finding a complete answer"
                     self.state = self.OrchestratorState.FINISHED
@@ -220,7 +224,8 @@ class MultiStageOrchestrator(Orchestrator):
                     await self._handle_ready_state()
                 elif self.state == self.OrchestratorState.AUTONOMOUS:
                     self.current_turn += 1
-                    print_debug(f"Starting turn {self.current_turn}" + (f" of {self.max_turns}" if self.max_turns > 0 else ""))
+                    log_turn_separator(self.current_turn, "ORCHESTRATOR")
+                    log_debug(f"Starting turn {self.current_turn}" + (f" of {self.max_turns}" if self.max_turns > 0 else ""))
                     await self._handle_autonomous_state()
                 elif self.state == self.OrchestratorState.FINISHED:
                     await self._handle_finished_state()
@@ -309,28 +314,39 @@ class MultiStageOrchestrator(Orchestrator):
         """Handle EVAL_LOCAL_DATA substate."""
         
         if not self.current_query:
-            print_debug("No current query available")
+            log_debug("No current query available")
             self.state = self.OrchestratorState.FINISHED
             return
         
         # First, get and analyze local graph data
         local_graph_data = await self.knowledge_graph.to_triples()
-        print_debug(f"Local graph data: {local_graph_data}", "EVAL_LOCAL_DATA")
+        log_debug(f"Local graph data: {local_graph_data}", "EVAL_LOCAL_DATA")
+
+        # If local graph is empty, go straight to remote exploration
+        if not local_graph_data:
+            fictitious_response = f"The local graph is EMPTY. Let's proceed with remote graph exploration to find the necessary information."
+            self.memory.add(f"LLM_Agent: {fictitious_response}", "LLM_Agent")
+            self.substate = self.AutonomousSubstate.REMOTE_GRAPH_EXPLORATION
+            #self.memory.add("Local graph is empty, transitioning to REMOTE_GRAPH_EXPLORATION", "System")
+            return
         
         try:
             # Get evaluation tools
             eval_tools = await self.get_evaluation_tools()
-            
+
             # Create evaluation prompt with attempt history and local graph data
             memory_context = self.memory.read(max_characters=3000)
             eval_prompt = create_local_evaluation_prompt(
                 self.current_query.text, 
                 self.attempt_history, 
                 memory_context,
-                local_graph_data
+                local_graph_data,
+                self.memory.get_last_llm_response(),
+                await self.get_remote_exploration_tools(),
+                self.substate.value if self.substate else "Initial"
             )
             
-            print_prompt(
+            log_prompt(
                 eval_prompt.system, 
                 eval_prompt.user, 
                 eval_prompt.assistant, 
@@ -342,7 +358,7 @@ class MultiStageOrchestrator(Orchestrator):
             messages = eval_prompt.get_messages()
             response = await self.agent.query_llm(messages, tools=eval_tools)
 
-            print_response(response.content, "local_evaluation")
+            log_response(response.content, "local_evaluation")
 
             # Add LLM response to memory if not empty
             if response.content and response.content.strip():
@@ -354,21 +370,16 @@ class MultiStageOrchestrator(Orchestrator):
             # Check if LLM can provide final answer
             if await has_sufficient_local_data({"response": response.content}):
                 self.substate = self.AutonomousSubstate.PRODUCE_ANSWER
-                self.memory.add("Sufficient local data found, transitioning to PRODUCE_ANSWER", "System")
             else:
-                # Check if we should attempt remote exploration
-                if await should_attempt_remote_exploration({"response": response.content}, self.attempt_history.remote_explorations):
+                # Decide whether to do remote exploration or go back to local
+                if "REMOTE_GRAPH_EXPLORATION" in response.content:
                     self.substate = self.AutonomousSubstate.REMOTE_GRAPH_EXPLORATION
-                    self.memory.add("Insufficient local data, transitioning to REMOTE_GRAPH_EXPLORATION", "System")
-                elif not local_graph_data or len(local_graph_data) == 0:
-                    # No local data and decision is to explore locally first
-                    self.substate = self.AutonomousSubstate.REMOTE_GRAPH_EXPLORATION
-                    self.memory.add("Local graph is empty or insufficient, transitioning to REMOTE_GRAPH_EXPLORATION", "System")
+                elif "LOCAL_GRAPH_EXPLORATION" in response.content:
+                    self.substate = self.AutonomousSubstate.LOCAL_GRAPH_EXPLORATION
                 else:
-                    # Provide partial answer or indicate impossibility
-                    self.final_answer = await extract_partial_answer({"response": response.content})
-                    self.state = self.OrchestratorState.FINISHED
-                    self.memory.add("Cannot explore further, providing partial answer or indicating impossibility", "System")
+                    # Could not find sufficient data, produce partial answer
+                    self.memory.add("Could not find sufficient data, producing partial answer.", "System")
+                    self.substate = self.AutonomousSubstate.PRODUCE_ANSWER
                  
         except Exception as e:
             traceback.print_exc()
@@ -396,9 +407,16 @@ class MultiStageOrchestrator(Orchestrator):
             
             # Let LLM decide on exploration using local exploration tools
             memory_context = self.memory.read(max_characters=2000)
-            exploration_prompt = create_local_exploration_prompt(self.current_query.text, memory_context, local_graph_data)
+            exploration_prompt = create_local_exploration_prompt(
+                self.current_query.text, 
+                memory_context, 
+                local_graph_data,
+                self.memory.get_last_llm_response(),
+                self.substate.value if self.substate else "Initial",
+                local_tools
+            )
 
-            print_prompt(
+            log_prompt(
                 exploration_prompt.system,
                 exploration_prompt.user,
                 exploration_prompt.assistant,
@@ -410,7 +428,7 @@ class MultiStageOrchestrator(Orchestrator):
             messages = exploration_prompt.get_messages()
             response = await self.agent.query_llm(messages, tools=local_tools)
             
-            print_response(response.content, "local_exploration")
+            log_response(response.content, "local_exploration")
             
             # Add LLM response to memory if not empty
             if response.content and response.content.strip():
@@ -452,9 +470,16 @@ class MultiStageOrchestrator(Orchestrator):
             
             # Create remote exploration prompt
             memory_context = self.memory.read(max_characters=2000)
-            remote_prompt = create_remote_exploration_prompt(self.current_query.text, memory_context, local_graph_data)
+            remote_prompt = create_remote_exploration_prompt(
+                self.current_query.text, 
+                memory_context, 
+                local_graph_data,
+                self.memory.get_last_llm_response(),
+                await self.get_remote_exploration_tools(),
+                self.substate.value if self.substate else "Initial"
+            )
             
-            print_prompt(
+            log_prompt(
                 remote_prompt.system,
                 remote_prompt.user,
                 remote_prompt.assistant,
@@ -466,7 +491,7 @@ class MultiStageOrchestrator(Orchestrator):
             messages = remote_prompt.get_messages()
             response = await self.agent.query_llm(messages, tools=remote_tools)
 
-            print_response(response.content, "remote_exploration")
+            log_response(response.content, "remote_exploration")
             
             # Add LLM response to memory if not empty
             if response.content and response.content.strip():
@@ -477,18 +502,13 @@ class MultiStageOrchestrator(Orchestrator):
             
             # Print summary of all tool results if any were executed
             if tool_calls_executed > 0:
-                print_tool_results_summary(self.tool_call_results, "remote_exploration")
+                log_tool_results_summary(self.tool_call_results, "remote_exploration")
             
             
-            # Check if remote exploration was successful
-            if await remote_exploration_successful({"response": response.content, "tool_calls_executed": tool_calls_executed}):
-                self.current_remote_data = self.tool_call_results
-                print_debug("Remote data collected:\n" + pprint.pformat(self.current_remote_data), "REMOTE_EXPLORATION")
-                self.substate = self.AutonomousSubstate.EVAL_REMOTE_DATA
-            else:
-                # Failed, go back to local evaluation
-                self.attempt_history.failures.append("Remote exploration failed")
-                self.substate = self.AutonomousSubstate.EVAL_LOCAL_DATA
+            # Now evaluate the retrieved data
+            self.current_remote_data = self.tool_call_results
+            log_debug("Remote data collected:\n" + pprint.pformat(self.current_remote_data), "REMOTE_EXPLORATION")
+            self.substate = self.AutonomousSubstate.EVAL_REMOTE_DATA
                 
         except Exception as e:
             traceback.print_exc()
@@ -504,17 +524,29 @@ class MultiStageOrchestrator(Orchestrator):
             self.state = self.OrchestratorState.FINISHED
             return
             
-        try:
-            # Get local graph data
-            local_graph_data = await self.knowledge_graph.to_triples()
+        if not self.current_remote_data:
+            print("No remote data to evaluate")
+            self.substate = self.AutonomousSubstate.EVAL_LOCAL_DATA
+            return
             
+        try:
             # Get evaluation tools
             eval_tools = await self.get_evaluation_tools()
-            
-            # Create remote data evaluation prompt
-            eval_prompt = create_remote_evaluation_prompt(self.current_query.text, self.current_remote_data or [], local_graph_data)
-            
-            print_prompt(
+
+            memory_context = self.memory.read(max_characters=2000)
+
+            # Create evaluation prompt
+            eval_prompt = create_remote_evaluation_prompt(
+                self.current_query.text,
+                memory_context,
+                self.current_remote_data,
+                await self.knowledge_graph.to_triples(),
+                self.memory.get_last_llm_response(),
+                await self.get_graph_update_tools(),
+                self.substate.value if self.substate else "Initial"
+            )
+
+            log_prompt(
                 eval_prompt.system,
                 eval_prompt.user,
                 eval_prompt.assistant,
@@ -526,7 +558,7 @@ class MultiStageOrchestrator(Orchestrator):
             messages = eval_prompt.get_messages()
             response = await self.agent.query_llm(messages, tools=eval_tools)
 
-            print_response(response.content, "remote_evaluation")
+            log_response(response.content, "remote_evaluation")
             
             # Add LLM response to memory if not empty
             if response.content and response.content.strip():
@@ -539,6 +571,9 @@ class MultiStageOrchestrator(Orchestrator):
             # Check if remote data is relevant
             if await is_remote_data_relevant({"response": response.content}):
                 self.substate = self.AutonomousSubstate.LOCAL_GRAPH_UPDATE
+            elif "REMOTE_GRAPH_EXPLORATION" in response.content:
+                self.current_remote_data = None
+                self.substate = self.AutonomousSubstate.REMOTE_GRAPH_EXPLORATION
             else:
                 # Remote data is irrelevant, go back to local evaluation
                 self.current_remote_data = None
@@ -559,28 +594,36 @@ class MultiStageOrchestrator(Orchestrator):
             return
             
         try:
-            # Get local graph data
-            local_graph_data = await self.knowledge_graph.to_triples()
-            
             # Get graph update tools
             update_tools = await self.get_graph_update_tools()
             
-            # Create update prompt
-            update_prompt = create_graph_update_prompt(self.current_query.text, self.current_remote_data, local_graph_data)
+            memory_context = self.memory.read(max_characters=2000)
+                
+
+            # Create graph update prompt
+            graph_update_prompt = create_graph_update_prompt(
+                self.current_query.text,
+                memory_context,
+                self.current_remote_data,
+                await self.knowledge_graph.to_triples(),
+                self.memory.get_last_llm_response(),
+                await self.get_evaluation_tools(),
+                self.substate.value if self.substate else "Initial"
+            )
             
-            print_prompt(
-                update_prompt.system,
-                update_prompt.user,
-                update_prompt.assistant,
+            log_prompt(
+                graph_update_prompt.system,
+                graph_update_prompt.user,
+                graph_update_prompt.assistant,
                 "graph_update",
                 update_tools
             )
             
             # Use the prompt structure to get properly formatted messages
-            messages = update_prompt.get_messages()
+            messages = graph_update_prompt.get_messages()
             response = await self.agent.query_llm(messages, tools=update_tools)
 
-            print_response(response.content, "graph_update")
+            log_response(response.content, "graph_update")
             
             # Add LLM response to memory if not empty
             if response.content and response.content.strip():
@@ -589,17 +632,10 @@ class MultiStageOrchestrator(Orchestrator):
             # Process tool calls if present
             tool_calls_executed = await self._process_tool_calls(response, "update")
             
-            
-            # Check if graph update was successful using the new robust logic
-            if await graph_update_successful({"response": response.content, "tool_calls_executed": tool_calls_executed}):
-                
-                # Clear remote data and go back to evaluating local data
-                self.current_remote_data = None
-                self.substate = self.AutonomousSubstate.EVAL_LOCAL_DATA
-            else:
-                # If update fails, go back to local evaluation
-                self.attempt_history.failures.append("Graph update failed after remote exploration.")
-                self.substate = self.AutonomousSubstate.EVAL_LOCAL_DATA
+            # Now go to the eval step
+            self.current_remote_data = None
+            self.substate = self.AutonomousSubstate.EVAL_LOCAL_DATA
+            self.current_remote_data = None
             
         except Exception as e:
             traceback.print_exc()
@@ -621,23 +657,27 @@ class MultiStageOrchestrator(Orchestrator):
             # Get local graph data
             local_graph_data = await self.knowledge_graph.to_triples()
             
-            # Use the same tool set as local graph exploration
-            local_tools = await self.get_local_exploration_tools()
-            memory_context = self.memory.read(max_characters=3000)
-            answer_prompt = create_answer_production_prompt(self.current_query.text, memory_context, local_graph_data)
-
-            print_prompt(
+            # Create answer production prompt
+            memory_context = self.memory.read(max_characters=4000)
+            answer_prompt = create_answer_production_prompt(
+                self.current_query.text, 
+                memory_context, 
+                local_graph_data,
+                self.memory.get_last_llm_response(),
+                self.substate.value if self.substate else "Initial"
+            )
+            
+            log_prompt(
                 answer_prompt.system,
                 answer_prompt.user,
                 answer_prompt.assistant,
-                "produce_answer",
-                local_tools
+                "produce_answer"
             )
 
             messages = answer_prompt.get_messages()
-            response = await self.agent.query_llm(messages, tools=local_tools)
+            response = await self.agent.query_llm(messages)
 
-            print_response(response.content, "produce_answer")
+            log_response(response.content, "produce_answer")
 
             # Add LLM response to memory if not empty
             if response.content and response.content.strip():
@@ -698,6 +738,10 @@ if __name__ == "__main__":
     # Get knowledge graph instance
     knowledge_graph = get_knowledge_graph()
     
+    # Create experiment ID for this run
+    from datetime import datetime
+    experiment_id = f"climate_change_query_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    
     orchestrator = MultiStageOrchestrator(
         agent, 
         knowledge_graph,
@@ -708,16 +752,22 @@ if __name__ == "__main__":
         evaluation_toolbox=evaluation_toolbox,
         use_summary_memory=True,  # Enable SummaryMemory
         memory_max_slots=50,  # Customize memory size
-        max_turns=10  # Limit to 10 turns
+        max_turns=20,  # Limit to 20 turns
+        experiment_id=experiment_id  # Pass experiment ID for logging
     )
     
     # Example usage
     async def main():
         #result = await orchestrator.process_user_query("Who was the mother of Douglas Adams?")
         #result = await orchestrator.process_user_query("What is the capital of France?")
-        result = await orchestrator.process_user_query("What is the class of Douglas Adams?")
-        print_debug(f"Answer: {result['answer']}")
-        print_debug(f"Attempts: {result['attempts']}")
-        print_debug(f"Turns taken: {result['turns_taken']} / {result['max_turns'] if result['max_turns'] > 0 else 'unlimited'}")
+        #result = await orchestrator.process_user_query("What is the class of Douglas Adams?")
+        #result = await orchestrator.process_user_query("What is the superclass of Douglas Adams?")
+        #result = await orchestrator.process_user_query("When was Albert Einstein born?")
+        #result = await orchestrator.process_user_query("When were Albert Einstein's children born?")
+        #result = await orchestrator.process_user_query("Find all superclasses of Albert Einstein?")
+        result = await orchestrator.process_user_query("What do you think about climate change?")
+        log_debug(f"Answer: {result['answer']}")
+        log_debug(f"Attempts: {result['attempts']}")
+        log_debug(f"Turns taken: {result['turns_taken']} / {result['max_turns'] if result['max_turns'] > 0 else 'unlimited'}")
     
     asyncio.run(main())

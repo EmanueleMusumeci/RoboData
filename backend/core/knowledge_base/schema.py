@@ -37,14 +37,28 @@ class Node:
             'properties': self.properties
         }
 
+class LiteralNode(Node):
+    """Represents a literal node in the knowledge graph."""
+    
+    def __init__(self, node_id: str, label: str, datatype: str, **kwargs):
+        super().__init__(node_id=node_id, node_type='literal', label=label, **kwargs)
+        self.datatype = datatype
+        self.properties['datatype'] = datatype
+
+    def to_dict(self) -> Dict[str, Any]:
+        data = super().to_dict()
+        data['datatype'] = self.datatype
+        return data
+
 class Edge:
     """Represents an edge in the knowledge graph."""
     
-    def __init__(self, source_id: str, target_id: str, relationship_type: str, label: str = "", properties: Optional[Dict[str, Any]] = None):
+    def __init__(self, source_id: str, target_id: str, relationship_type: str, label: str = "", description: str = "", properties: Optional[Dict[str, Any]] = None):
         self.source_id = source_id
         self.target_id = target_id
         self.type = relationship_type
         self.label = label or relationship_type
+        self.description = description
         self.properties = properties or {}
         
         # Ensure core properties are set
@@ -52,7 +66,8 @@ class Edge:
             'source_id': self.source_id,
             'target_id': self.target_id,
             'type': self.type,
-            'label': self.label
+            'label': self.label,
+            'description': self.description
         })
 
     def __repr__(self) -> str:
@@ -64,6 +79,7 @@ class Edge:
             'target_id': self.target_id,
             'type': self.type,
             'label': self.label,
+            'description': self.description,
             'properties': self.properties
         }
 
@@ -110,6 +126,7 @@ class Graph:
                 target_id=v,
                 relationship_type=key,
                 label=data.get('label', ''),
+                description=data.get('description', ''),
                 properties=data.get('properties', {})
             ))
         return edge_list

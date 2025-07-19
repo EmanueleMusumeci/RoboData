@@ -4,7 +4,7 @@ from pydantic import BaseModel
 class WikidataStatement(BaseModel):
     """Simplified statement representation for LLM consumption."""
     property_id: str
-    value: Union[str, int, float]  # The actual value
+    value: Any  # The actual value, can be str, int, float, or dict for complex types
     datatype: str
     is_entity_ref: bool = False  # True if value is an entity/property ID, False for literals
     entity_type: Optional[str] = None  # "item", "property", or None for literals
@@ -37,7 +37,7 @@ class NeighborExplorationResult(BaseModel):
     """Result from exploring an entity's neighbors."""
     entity: WikidataEntity
     neighbors: Dict[str, WikidataEntity]  # entity_id -> WikidataEntity
-    relationships: Dict[str, List[str]]  # property_id -> list of entity_ids
+    relationships: Dict[str, List[WikidataStatement]]  # property_id -> list of statements
     property_names: Dict[str, str]  # property_id -> property_name
     total_properties: int
     neighbor_count: int
@@ -74,36 +74,93 @@ def convert_api_entity_to_model(api_data: Dict[str, Any]) -> WikidataEntity:
     
     # Convert statements from API format to simplified format
     statements = {}
-    api_statements = api_data.get("statements", {})
+    api_statements = api_data.get("claims", api_data.get("statements", {})) # Support both 'claims' and 'statements'
     
     for prop_id, prop_claims in api_statements.items():
         statements[prop_id] = []
-        for claim_key, claim_data in prop_claims.items():
+
+        # prop_claims is a dictionary where keys are claim IDs and values are claim data
+        for claim_id, claim_data in prop_claims.items():
+            if not isinstance(claim_data, dict):
+                continue
+                
+            # The claim_data contains the actual claim information
             datavalue = claim_data.get("datavalue")
+            if not datavalue:
+                continue
+
+            datatype = claim_data.get("datatype")
+            if not datatype:
+                continue
+                
+            value = None
             is_entity_ref = False
             entity_type = None
-            value = claim_key  # Use the key as the value
+
+            # Handle different types of datavalues
+            datavalue_type = datavalue.get("type")
+            datavalue_value = datavalue.get("value")
             
-            if datavalue and datavalue.get("type") == "wikibase-entityid":
+            if datavalue_type == "wikibase-entityid":
+                # Entity reference (Q items, P properties)
                 is_entity_ref = True
-                if value.startswith("Q"):
-                    entity_type = "item"
-                elif value.startswith("P"):
-                    entity_type = "property"
+                if isinstance(datavalue_value, dict):
+                    value = datavalue_value.get("id")
+                    if value:
+                        if value.startswith("Q"):
+                            entity_type = "item"
+                        elif value.startswith("P"):
+                            entity_type = "property"
+                        else:
+                            entity_type = "unknown_entity"
                 else:
-                    entity_type = "unknown_entity"
-            
-            statement = WikidataStatement(
-                property_id=claim_data["property_id"],
-                value=value,
-                datatype=claim_data["datatype"],
-                is_entity_ref=is_entity_ref,
-                entity_type=entity_type
-            )
-            statements[prop_id].append(statement)
+                    # Fallback if value is directly the ID
+                    value = datavalue_value
+                    if isinstance(value, str):
+                        if value.startswith("Q"):
+                            entity_type = "item"
+                        elif value.startswith("P"):
+                            entity_type = "property"
+                        else:
+                            entity_type = "unknown_entity"
+            else:
+                # Handle literal values (string, time, quantity, monolingualtext, etc.)
+                is_entity_ref = False
+                entity_type = None
+                
+                if datavalue_type == "string":
+                    value = datavalue_value
+                elif datavalue_type == "time":
+                    # Time values are complex objects
+                    value = datavalue_value
+                elif datavalue_type == "quantity":
+                    # Quantity values can be complex objects
+                    value = datavalue_value
+                elif datavalue_type == "monolingualtext":
+                    # Monolingualtext has text and language
+                    if isinstance(datavalue_value, dict):
+                        value = datavalue_value.get("text", datavalue_value)
+                    else:
+                        value = datavalue_value
+                elif datavalue_type == "globecoordinate":
+                    # Geographic coordinates
+                    value = datavalue_value
+                else:
+                    # Generic fallback for other types
+                    value = datavalue_value
+
+            if value is not None:
+                statement = WikidataStatement(
+                    property_id=prop_id,
+                    value=value,
+                    datatype=datatype,
+                    is_entity_ref=is_entity_ref,
+                    entity_type=entity_type
+                )
+                statements[prop_id].append(statement)
     
     return WikidataEntity(
-        id=api_data["id"],
+        id=api_data.get("id", ""),
         label=label,
         description=description,
         aliases=aliases,

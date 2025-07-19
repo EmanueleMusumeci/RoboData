@@ -10,7 +10,7 @@ from .datamodel import (
     WikidataStatement, WikidataEntity, NeighborExplorationResult, LocalGraphResult,
     convert_api_entity_to_model
 )
-from ...knowledge_base.schema import Graph as VisGraph, Node as VisNode, Edge as VisEdge
+from ...knowledge_base.schema import Graph as VisGraph, Node as VisNode, Edge as VisEdge, LiteralNode
 from .utils import order_properties_by_degree, order_local_graph_edges
 
 
@@ -68,12 +68,7 @@ class ExplorationTool(Tool):
         """Fetch a single neighbor entity."""
         try:
             neighbor_api_data = await wikidata_api.get_entity(entity_ref)
-            neighbor = convert_api_entity_to_model(neighbor_api_data)
-            return entity_ref, {
-                'id': neighbor.id,
-                'label': neighbor.label,
-                'description': neighbor.description
-            }
+            return entity_ref, neighbor_api_data
         except Exception as e:
             print(f"      ❌ Failed to load neighbor {entity_ref}: {e}")
             traceback.print_exc()
@@ -94,8 +89,13 @@ class ExplorationTool(Tool):
             if isinstance(result, tuple):
                 entity_ref, neighbor_data = result
                 neighbors[entity_ref] = neighbor_data
-                if neighbor_data['label'] != entity_ref:  # Successfully loaded
-                    print(f"      ✅ Neighbor loaded: '{neighbor_data['label']}'")
+                # Check if we have a valid entity with a label
+                if isinstance(neighbor_data, dict) and 'labels' in neighbor_data:
+                    labels = neighbor_data.get('labels', {})
+                    label = labels.get('en', list(labels.values())[0] if labels else entity_ref)
+                    print(f"      ✅ Neighbor loaded: '{label}' ({entity_ref})")
+                else:
+                    print(f"      ⚠️  Neighbor data incomplete for {entity_ref}")
             else:
                 print(f"    ⚠️  Error fetching neighbor: {result}")
         
@@ -122,7 +122,8 @@ class NeighborsExplorationTool(ExplorationTool):
     def __init__(self):
         super().__init__(
             name="explore_entity_neighbors",
-            description="Explore an entity's direct relationships and properties"
+            description="Explore an entity's direct relationships with neighbors or properties/values of this entity that can not represented as other nodes in the graph. " \
+            "USEFUL FOR: understanding the context and connections of an entity within the knowledge graph. Explores the entity's neighbors and properties, returning a structured result."
         )
         self.entity_limits = {}
         self.initial_limit = 20
@@ -169,7 +170,7 @@ class NeighborsExplorationTool(ExplorationTool):
                 )
                 ],
             return_type="NeighborExplorationResult",
-            return_description="Entity information with neighbors and relationships"
+            return_description="Detailed structured description of the entity's neighboring entities in the knowledge graph, including relationships and value properties."
         )
     
     async def execute(self, **kwargs) -> NeighborExplorationResult:
@@ -202,7 +203,7 @@ class NeighborsExplorationTool(ExplorationTool):
         # Get all property IDs that we'll need to process
         all_prop_ids = list(entity.statements.keys())
         if include_properties:
-            relevant_props = [prop_id for prop_id in all_prop_ids if prop_id in include_properties]
+            relevant_props = [p for p in all_prop_ids if p in include_properties]
         else:
             relevant_props = all_prop_ids
         
@@ -213,43 +214,38 @@ class NeighborsExplorationTool(ExplorationTool):
         entity_refs_to_fetch = set()
         
         for prop_id, statements in entity.statements.items():
-            if include_properties and prop_id not in include_properties:
+            if prop_id not in relevant_props:
                 continue
             
             prop_name = prop_names.get(prop_id, prop_id)
             print(f"  📋 Property {prop_id} ({prop_name}): {len(statements)} statements")
-                
+
             # Limit statements per property
             if max_values_per_property < 0:
-                limited_statements = statements
+                statements_to_process = statements
             else:
-                limited_statements = statements[:max_values_per_property]
+                statements_to_process = statements[:max_values_per_property]
+
+            if len(statements_to_process) < len(statements):
+                print(f"    📏 Limited to {len(statements_to_process)} statements (max: {max_values_per_property})")
             
-            if len(limited_statements) < len(statements):
-                print(f"    📏 Limited to {len(limited_statements)} statements (max: {max_values_per_property})")
+            relationships[prop_id] = []
             
-            relationships[prop_id] = [stmt.value for stmt in limited_statements]
-            
-            # Collect entity references for parallel fetching
-            for stmt in limited_statements:
-                if stmt.is_entity_ref and stmt.entity_type == "item":
-                    entity_refs_to_fetch.add(stmt.value)
-                    print(f"    🔗 Found entity reference: {stmt.value}")
+            for statement in statements_to_process:
+                relationships[prop_id].append(statement)
+                if statement.is_entity_ref:
+                    entity_refs_to_fetch.add(statement.value)
+                    if statement.entity_type == "item":
+                        print(f"    🔗 Found entity reference: {statement.value}")
                 else:
-                    print(f"    📝 Statement value: {stmt.value} (type: {stmt.entity_type})")
-        
+                    print(f"    📝 Statement value: {statement.value} (type: {statement.datatype})")
+
+
         # Fetch neighbor entities in parallel and convert to WikidataEntity objects
         neighbor_data = await self._fetch_neighbors_parallel(entity_refs_to_fetch)
-        for entity_id, neighbor_info in neighbor_data.items():
-            if neighbor_info['label'] != entity_id:  # Successfully loaded
-                neighbors[entity_id] = WikidataEntity(
-                    id=neighbor_info['id'],
-                    label=neighbor_info['label'],
-                    description=neighbor_info['description'],
-                    aliases=[],
-                    statements={},
-                    link=f"https://www.wikidata.org/entity/{neighbor_info['id']}"
-                )
+        for entity_id_val, neighbor_info in neighbor_data.items():
+            if neighbor_info:
+                neighbors[entity_id_val] = convert_api_entity_to_model(neighbor_info)
         
         print(f"🎯 Exploration complete: {len(neighbors)} neighbors found")
         return NeighborExplorationResult(
@@ -336,14 +332,29 @@ class NeighborsExplorationTool(ExplorationTool):
             ))
         
         # Create edges list for visualization
-        for prop_id, values in result.relationships.items():
+        for prop_id, statements in result.relationships.items():
             prop_name = result.property_names.get(prop_id, prop_id)
-            for value in values:
-                if value in result.neighbors:
+            for statement in statements:
+                if statement.is_entity_ref:
+                    if statement.value in result.neighbors:
+                        vis_graph.add_edge(VisEdge(
+                            source_id=result.entity.id,
+                            target_id=statement.value,
+                            relationship_type=prop_id,
+                            label=prop_name
+                        ))
+                else:
+                    # Handle literal nodes
+                    literal_id = f"{prop_id}_{statement.value}"
+                    vis_graph.add_node(LiteralNode(
+                        node_id=literal_id,
+                        label=str(statement.value),
+                        datatype=statement.datatype
+                    ))
                     vis_graph.add_edge(VisEdge(
                         source_id=result.entity.id,
-                        target_id=value,
-                        relationship_type=prop_name,
+                        target_id=literal_id,
+                        relationship_type=prop_id,
                         label=prop_name
                     ))
 
@@ -381,7 +392,8 @@ class LocalGraphTool(ExplorationTool):
     def __init__(self):
         super().__init__(
             name="build_local_graph",
-            description="Get the local graph around an entity up to specified depth"
+            description="Get the local graph around an entity up to specified depth, performing a depth-first search (DFS). " \
+            "USEFUL FOR: understanding the local context and relationships of an entity within the knowledge graph with a focus on depth and breadth of connections."
         )
         self.entity_limits = {}
         self.initial_limit = 10
@@ -435,7 +447,7 @@ class LocalGraphTool(ExplorationTool):
                 )
             ],
             return_type="LocalGraphResult",
-            return_description="Graph structure with nodes and edges"
+            return_description="Detailed structured description of the local graph around the entity, including nodes, edges, properties followed, and total counts, up to a specified depth around the center entity."
         )
     
     async def execute(self, **kwargs) -> LocalGraphResult:
@@ -519,7 +531,7 @@ class LocalGraphTool(ExplorationTool):
                     for prop in properties:
                         if prop in entity.statements:
                             for stmt in entity.statements[prop]:
-                                if stmt.is_entity_ref and stmt.entity_type == "item":
+                                if stmt.is_entity_ref and stmt.value:
                                     neighbor = stmt.value
                                     edges.append({
                                         'from': entity_id,

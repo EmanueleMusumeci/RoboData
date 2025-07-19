@@ -10,7 +10,7 @@ import asyncio
 import logging
 from abc import ABC, abstractmethod
 
-from ...settings import settings_manager
+from backend.settings import settings_manager
 from .interfaces.neo4j_interface import Neo4jInterface, DatabaseInterface
 from .schema import Node, Edge, Graph
 
@@ -325,10 +325,10 @@ class KnowledgeGraph:
             raise RuntimeError("Graph database not connected")
         
         return await self.db.get_all_nodes_and_relationships()
-
+    
     async def to_triples(self) -> Optional[List[Dict[str, Any]]]:
         """
-        Get local graph data as a list of triples.
+        Get local graph data as a list of triples, showing nodes as "ID (label)".
         
         Returns:
             A list of dictionaries, where each dictionary represents a triple, or None if the graph is empty.
@@ -346,28 +346,28 @@ class KnowledgeGraph:
             return None  # Empty graph
             
         for node in nodes:
-            if not node:  # Skip null nodes
+            if not node:
                 continue
                 
-            # Add node properties as triples
             node_id = node.id
+            node_label = node.label or node.type
+            subject_repr = f"{node_id} ({node_label})" if node_id and node_label else node_id or node_label
             if not node_id:
                 continue
                 
-            labels = [node.type] # In schema.py, Node has a single 'type'
+            labels = [node.type]
             for label in labels:
-                if label:  # Skip empty labels
+                if label:
                     triples.append({
-                        'subject': node_id,
+                        'subject': subject_repr,
                         'predicate': 'rdf:type',
                         'object': label
                     })
             
-            # Add properties
             for key, value in node.properties.items():
                 if key not in ['id', 'labels', 'type', 'label', 'description'] and value is not None:
                     triples.append({
-                        'subject': node_id,
+                        'subject': subject_repr,
                         'predicate': key,
                         'object': value
                     })
@@ -375,25 +375,32 @@ class KnowledgeGraph:
         # Process relationships
         relationships = graph_data.edges
         for rel in relationships:
-            if not rel:  # Skip null relationships
+            if not rel:
                 continue
                 
             source_id = rel.source_id
             target_id = rel.target_id
             rel_type = rel.type
-            
+
+            source_label = next((n.label for n in nodes if n.id == source_id), "")
+            target_label = next((n.label for n in nodes if n.id == target_id), "")
+            source_repr = f"{source_id} ({source_label})" if source_id and source_label else source_id
+            target_repr = f"{target_id} ({target_label})" if target_id and target_label else target_id
+
             if source_id and target_id and rel_type:
                 triples.append({
-                    'subject': source_id,
+                    'subject': source_repr,
                     'predicate': rel_type,
-                    'object': target_id
+                    'object': target_repr
                 })
                 
-                # Add relationship properties as additional triples
                 for key, value in rel.properties.items():
                     if key not in ['source_id', 'target_id', 'type', 'label', 'id'] and value is not None:
+                        rel_id = f"{source_id}_{rel_type}_{target_id}"
+                        rel_label = rel.label or rel_type
+                        rel_repr = f"{rel_id} ({rel_label})" if rel_id and rel_label else rel_id
                         triples.append({
-                            'subject': f"{source_id}_{rel_type}_{target_id}",
+                            'subject': rel_repr,
                             'predicate': key,
                             'object': value
                         })
