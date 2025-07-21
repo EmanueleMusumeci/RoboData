@@ -46,8 +46,18 @@ def get_default_config() -> Dict[str, Any]:
         },
         "log_level": "DEBUG",
         "memory": "",
-        "dataset": "",
-        "query": ""
+        "dataset": {
+            "path": "",
+            "type": "auto",  # auto-detect, json, jsonl, lcquad
+            "load_on_start": False
+        },
+        "query": "",
+        "output": {
+            "save_results": True,
+            "export_formats": ["json", "cypher"],
+            "create_visualizations": True,
+            "results_directory": "experiments"
+        }
     }
 
 
@@ -138,7 +148,7 @@ async def run_multi_stage_orchestrator(config: Dict[str, Any], query: str) -> Di
     )
     
     # Process the query
-    print(f"� Processing query: {query}")
+    print(f"🤖 Processing query: {query}")
     result = await orchestrator.process_user_query(query)
     
     # Log results
@@ -146,7 +156,145 @@ async def run_multi_stage_orchestrator(config: Dict[str, Any], query: str) -> Di
     log_debug(f"Attempts: {result['attempts']}")
     log_debug(f"Turns taken: {result['turns_taken']} / {result['max_turns'] if result['max_turns'] > 0 else 'unlimited'}")
     
+    # Save results to files after orchestrator execution (if enabled)
+    if config.get("output", {}).get("save_results", True):
+        await save_orchestrator_results(result, experiment_id, query, knowledge_graph)
+    else:
+        print("ℹ️  Skipping result saving (disabled)")
+    
     return result
+
+
+async def save_orchestrator_results(result: Dict[str, Any], experiment_id: str, query: str, knowledge_graph) -> None:
+    """
+    Save orchestrator results to files including answer, graph export, and visualizations.
+    
+    Args:
+        result: The orchestrator result dictionary
+        experiment_id: The experiment ID for naming files
+        query: The original query
+        knowledge_graph: The knowledge graph instance
+    """
+    from pathlib import Path
+    from datetime import datetime
+    import json
+    
+    # Create results directory
+    results_dir = Path("experiments") / experiment_id
+    results_dir.mkdir(parents=True, exist_ok=True)
+    
+    print(f"💾 Saving results to {results_dir}")
+    
+    try:
+        # 1. Save final answer to text file
+        answer_file = results_dir / "final_answer.txt"
+        with open(answer_file, 'w', encoding='utf-8') as f:
+            f.write(f"Query: {query}\n")
+            f.write(f"Experiment ID: {experiment_id}\n")
+            f.write(f"Timestamp: {datetime.now().isoformat()}\n")
+            f.write(f"Turns taken: {result['turns_taken']}\n")
+            f.write(f"Max turns: {result['max_turns']}\n")
+            f.write("="*60 + "\n")
+            f.write(f"ANSWER:\n{result['answer']}\n")
+            f.write("="*60 + "\n")
+            f.write(f"Remote explorations: {result['attempts']['remote_explorations']}\n")
+            f.write(f"Local explorations: {result['attempts']['local_explorations']}\n")
+            if result['attempts']['failures']:
+                f.write(f"Failures: {len(result['attempts']['failures'])}\n")
+        
+        print(f"✅ Final answer saved to {answer_file}")
+        
+        # 2. Save complete result data as JSON
+        complete_result_file = results_dir / "complete_result.json"
+        with open(complete_result_file, 'w', encoding='utf-8') as f:
+            json.dump({
+                "experiment_id": experiment_id,
+                "timestamp": datetime.now().isoformat(),
+                "query": query,
+                "result": result
+            }, f, indent=2, ensure_ascii=False)
+        
+        print(f"✅ Complete result saved to {complete_result_file}")
+        
+        # 3. Export knowledge graph in multiple formats
+        if await knowledge_graph.is_connected():
+            try:
+                # JSON export
+                graph_json_file = results_dir / "knowledge_graph.json"
+                await knowledge_graph.export_to_file(graph_json_file, "json")
+                print(f"✅ Knowledge graph JSON saved to {graph_json_file}")
+                
+                # Cypher export
+                graph_cypher_file = results_dir / "knowledge_graph.cypher"
+                await knowledge_graph.export_to_file(graph_cypher_file, "cypher")
+                print(f"✅ Knowledge graph Cypher saved to {graph_cypher_file}")
+                
+                # GraphML export (if networkx is available)
+                try:
+                    graph_graphml_file = results_dir / "knowledge_graph.graphml"
+                    await knowledge_graph.export_to_file(graph_graphml_file, "graphml")
+                    print(f"✅ Knowledge graph GraphML saved to {graph_graphml_file}")
+                except Exception as e:
+                    log_debug(f"Could not export GraphML: {e}")
+                
+            except Exception as e:
+                print(f"⚠️  Warning: Could not export knowledge graph: {e}")
+                log_debug(f"Knowledge graph export error: {e}")
+        else:
+            print("⚠️  Warning: Knowledge graph not connected, skipping export")
+        
+        # 4. Create graph visualizations
+        try:
+            from core.toolbox.graph.visualization import visualizer
+            
+            # Get current graph data
+            graph_data = await knowledge_graph.get_whole_graph()
+            
+            if graph_data and (graph_data.nodes or graph_data.edges):
+                # Create static visualization (PNG)
+                static_viz_path = visualizer.create_static_visualization(
+                    graph_data,
+                    title=f"Knowledge Graph: {experiment_id}",
+                    filename=f"{experiment_id}_graph.png"
+                )
+                
+                # Move to results directory
+                import shutil
+                static_target = results_dir / "knowledge_graph_static.png"
+                shutil.move(static_viz_path, static_target)
+                print(f"✅ Static graph visualization saved to {static_target}")
+                
+                # Create interactive visualization (HTML)
+                try:
+                    dynamic_viz_path = visualizer.create_dynamic_visualization(
+                        graph_data,
+                        title=f"Interactive Knowledge Graph: {experiment_id}",
+                        filename=f"{experiment_id}_graph.html"
+                    )
+                    
+                    # Move to results directory
+                    dynamic_target = results_dir / "knowledge_graph_interactive.html"
+                    shutil.move(dynamic_viz_path, dynamic_target)
+                    print(f"✅ Interactive graph visualization saved to {dynamic_target}")
+                    
+                except Exception as e:
+                    print(f"⚠️  Warning: Could not create interactive visualization: {e}")
+                    log_debug(f"Interactive visualization error: {e}")
+                
+            else:
+                print("ℹ️  No graph data to visualize (empty graph)")
+                
+        except Exception as e:
+            print(f"⚠️  Warning: Could not create visualizations: {e}")
+            log_debug(f"Visualization error: {e}")
+        
+        print(f"🎉 All results saved successfully to {results_dir}")
+        
+    except Exception as e:
+        print(f"❌ Error saving results: {e}")
+        log_debug(f"Error in save_orchestrator_results: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 def parse_arguments():
@@ -176,6 +324,26 @@ def parse_arguments():
         help="Orchestrator type to use (default: multi_stage)"
     )
     
+    parser.add_argument(
+        "-d", "--dataset",
+        type=str,
+        help="Path to dataset file (JSON, JSONL, or LC-QUAD format)"
+    )
+    
+    parser.add_argument(
+        "--dataset-type",
+        type=str,
+        choices=["auto", "json", "jsonl", "lcquad"],
+        default="auto",
+        help="Dataset type (auto-detect if not specified)"
+    )
+    
+    parser.add_argument(
+        "--no-save",
+        action="store_true",
+        help="Skip saving results to files"
+    )
+    
     return parser.parse_args()
 
 
@@ -184,12 +352,13 @@ async def main():
     args = parse_arguments()
     
     # If no arguments provided, show help
-    if not any([args.config, args.query]):
+    if not any([args.config, args.query, args.dataset]):
         print("🤖 RoboData - AI-powered knowledge exploration system")
         print("\nUsage examples:")
         print("  python main.py -q 'What is climate change?'")
         print("  python main.py -c experiment.yaml")
         print("  python main.py -c experiment.yaml -q 'Who was Albert Einstein?'")
+        print("  python main.py -d dataset.json --dataset-type lcquad")
         print("\nUse -h for detailed help.")
         return
     
@@ -203,11 +372,54 @@ async def main():
             config = get_default_config()
             print("✅ No config file provided, using default configuration.")
         
+        # Handle dataset loading
+        dataset_loader = None
+        if args.dataset or config.get("dataset", {}).get("path"):
+            dataset_path = args.dataset or config["dataset"]["path"]
+            dataset_type = args.dataset_type if args.dataset_type != "auto" else config["dataset"].get("type", "auto")
+            
+            try:
+                from core.datasets.utils import load_dataset, validate_dataset
+                
+                print(f"📂 Loading dataset from: {dataset_path}")
+                dataset_loader = load_dataset(dataset_path, dataset_type if dataset_type != "auto" else None)
+                
+                # Validate the dataset
+                validation_report = validate_dataset(dataset_loader, sample_size=3)
+                if validation_report['is_valid']:
+                    print(f"✅ Dataset loaded successfully: {validation_report['total_items']} items")
+                    print(f"   Format: {validation_report['metadata'].get('format', 'unknown')}")
+                    if validation_report['metadata'].get('dataset_type'):
+                        print(f"   Type: {validation_report['metadata']['dataset_type']}")
+                else:
+                    print(f"⚠️  Dataset validation warnings: {len(validation_report['errors'])} errors, {len(validation_report['warnings'])} warnings")
+                    for error in validation_report['errors'][:3]:  # Show first 3 errors
+                        print(f"   Error: {error}")
+                
+            except Exception as e:
+                print(f"❌ Error loading dataset: {e}")
+                print("   Continuing without dataset...")
+                dataset_loader = None
+        
         # Determine query
         query = args.query or config.get("query", "")
+        
+        # If we have a dataset but no specific query, we could run evaluation mode
+        if dataset_loader and not query:
+            print("📊 Dataset loaded but no specific query provided.")
+            print("   Use -q to specify a query, or implement batch evaluation mode")
+            # For now, just show dataset info and exit
+            metadata = dataset_loader.get_metadata()
+            print(f"   Dataset info: {metadata}")
+            return
+        
         if not query:
             print("❌ No query specified. Use -q option or specify 'query' in config file.")
             return
+        
+        # Override save setting from command line
+        if args.no_save:
+            config["output"]["save_results"] = False
         
         # Run orchestrator
         if args.orchestrator == "multi_stage":
@@ -227,6 +439,8 @@ async def main():
         print(f"Local explorations: {result['attempts']['local_explorations']}")
         if result['attempts']['failures']:
             print(f"Failures: {len(result['attempts']['failures'])}")
+        if dataset_loader:
+            print(f"Dataset: {dataset_loader.get_metadata().get('total_items', 'unknown')} items")
         print("="*60)
         
     except Exception as e:

@@ -1,0 +1,42 @@
+# Example RoboData Configuration with Dataset Support
+# This file demonstrates how to configure RoboData for working with datasets
+
+# Unique identifier for this experiment
+experiment_id: "lcquad_evaluation_20250119"
+
+# Orchestrator configuration
+orchestrator:
+  type: "multi_stage"
+  context_length: 8000
+  model: "gpt-4o"  # Options: gpt-4o, gpt-3.5-turbo, gemini-pro, local
+  memory:
+    use_summary_memory: true
+    max_memory_slots: 50
+  max_turns: 20
+  toolboxes:
+    local_exploration: []
+    remote_exploration: []
+    graph_update: []
+    evaluation: []
+
+# Logging configuration
+log_level: "DEBUG"
+
+# Dataset configuration
+dataset:
+  path: "data/LC-QuAD/train.json"  # Path to your dataset file
+  type: "lcquad"  # Options: auto, json, jsonl, lcquad
+  load_on_start: true
+
+# Query to process (can be overridden by -q command line argument)
+query: "What is the capital of France?"
+
+# Output configuration
+output:
+  save_results: true
+  export_formats: ["json", "cypher", "graphml"]
+  create_visualizations: true
+  results_directory: "experiments"
+
+# Memory configuration (if using specific memory settings)
+memory: ""
