@@ -11,7 +11,7 @@ import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
 
-from backend.settings import settings_manager
+from settings import settings_manager
 from .interfaces.neo4j_interface import Neo4jInterface, DatabaseInterface
 from .schema import Node, Edge, Graph
 
@@ -407,6 +407,133 @@ class KnowledgeGraph:
                         })
         
         return triples if triples else None
+
+    async def to_readable_format(self) -> Optional[str]:
+        """
+        Get local graph data in a readable format for prompts.
+        
+        Returns:
+            A formatted string with Entities, Relations, and Structure sections, or None if the graph is empty.
+        """
+        graph_data = await self.get_whole_graph()
+        
+        if not graph_data:
+            return None
+        
+        nodes = graph_data.nodes
+        edges = graph_data.edges
+        
+        if not nodes:
+            return None  # Empty graph
+        
+        output_lines = []
+        
+        # === ENTITIES SECTION ===
+        output_lines.append("Entities:")
+        for node in nodes:
+            if not node or not node.id:
+                continue
+            
+            node_id = node.id
+            node_label = node.label or node.type or ""
+            node_desc = node.description or ""
+            
+            if node_desc:
+                entity_line = f"- {node_id} ({node_label}): {node_desc}"
+            else:
+                entity_line = f"- {node_id} ({node_label})"
+            
+            output_lines.append(entity_line)
+        
+        # === RELATIONS SECTION ===
+        output_lines.append("\nRelations:")
+        relation_types = {}
+        
+        # Collect distinct relationship types and their descriptions
+        for edge in edges:
+            if not edge or not edge.type:
+                continue
+                
+            rel_type = edge.type
+            rel_label = edge.label or edge.type
+            rel_desc = edge.description or ""
+            
+            # Use the first description found for each relation type
+            if rel_type not in relation_types:
+                relation_types[rel_type] = {
+                    'label': rel_label,
+                    'description': rel_desc
+                }
+            elif not relation_types[rel_type]['description'] and rel_desc:
+                # Update with description if we didn't have one before
+                relation_types[rel_type]['description'] = rel_desc
+        
+        # Output distinct relation types
+        for rel_type, rel_info in relation_types.items():
+            rel_label = rel_info['label']
+            rel_desc = rel_info['description']
+            
+            if rel_desc:
+                relation_line = f"- {rel_type} ({rel_label}): {rel_desc}"
+            else:
+                relation_line = f"- {rel_type} ({rel_label})"
+            
+            output_lines.append(relation_line)
+        
+        # === STRUCTURE SECTION ===
+        output_lines.append("\nStructure:")
+        
+        for node in nodes:
+            if not node or not node.id:
+                continue
+            
+            node_id = node.id
+            node_label = node.label or node.type or ""
+            node_desc = node.description or ""
+            
+            # Add entity header
+            if node_desc:
+                entity_header = f"- {node_id} ({node_label}): {node_desc}"
+            else:
+                entity_header = f"- {node_id} ({node_label})"
+            
+            output_lines.append(entity_header)
+            
+            # Add RDF triples in proper format - only relationships and properties
+            entity_triples = []
+            
+            # Add other properties (excluding standard ones that are part of the entity definition)
+            #for key, value in node.properties.items():
+            #    if key not in ['id', 'type', 'label', 'description'] and value is not None:
+            #        # For properties, we use the key as property_id and assume key is also the label
+            #        property_label = key  # This could be enhanced to map property IDs to labels
+            #        if isinstance(value, str):
+            #            entity_triples.append(f'  <{node_id}> <{key} ({property_label})> "{value}" .')
+            #        else:
+            #            entity_triples.append(f'  <{node_id}> <{key} ({property_label})> {value} .')
+            
+            # Add outgoing relationships
+            for edge in edges:
+                if edge.source_id == node_id:
+                    target_label = next((n.label for n in nodes if n.id == edge.target_id), "")
+                    rel_label = edge.label or edge.type
+                    entity_triples.append(f"  <{node_id}> <{edge.type} ({rel_label})> <{edge.target_id} ({target_label})> .")
+            
+            # Add incoming relationships as comments for context
+            incoming_rels = [edge for edge in edges if edge.target_id == node_id]
+            if incoming_rels:
+                entity_triples.append("  # Incoming relationships:")
+                for edge in incoming_rels:
+                    source_label = next((n.label for n in nodes if n.id == edge.source_id), "")
+                    rel_label = edge.label or edge.type
+                    entity_triples.append(f"  # <{edge.source_id} ({source_label})> <{edge.type} ({rel_label})> <{node_id}> .")
+            
+            if entity_triples:
+                output_lines.extend(entity_triples)
+            else:
+                output_lines.append("  # No additional triples")
+        
+        return "\n".join(output_lines) if output_lines else None
 
     async def get_subgraph(self, entity_ids: List[str], max_depth: int = 1) -> Graph:
         """

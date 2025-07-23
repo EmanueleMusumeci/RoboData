@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 
 class LLMSettings:
-    def __init__(self, provider="gemini", api_key=None, model="gemini-pro", temperature=0.7, max_tokens=4096):
+    def __init__(self, provider="openai", api_key=None, model="openai-pro", temperature=0.7, max_tokens=4096):
         self.provider = provider
         self.api_key = api_key
         self.model = model
@@ -78,6 +78,8 @@ class SettingsManager:
                 config_data = yaml.safe_load(f)
                 if config_data:
                     settings_dict.update(config_data)
+        else:
+            raise FileNotFoundError(f"Configuration file {self.config_path} not found.")
         self._load_env_overrides(settings_dict)
         return Settings.from_dict(settings_dict)
 
@@ -86,8 +88,6 @@ class SettingsManager:
             settings_dict['llm'] = {}
 
         # LLM environment overrides
-        if os.getenv('GEMINI_API_KEY'):
-            settings_dict['llm']['api_key'] = os.getenv('GEMINI_API_KEY')
         if os.getenv('OPENAI_API_KEY'):
             settings_dict['llm']['api_key'] = os.getenv('OPENAI_API_KEY')
         if os.getenv('LLM_PROVIDER'):
@@ -130,4 +130,4 @@ class SettingsManager:
         self.settings = Settings.from_dict(settings_dict)
 
 # Global settings manager instance
-settings_manager = SettingsManager()
+settings_manager = SettingsManager(config_path="config.yaml")

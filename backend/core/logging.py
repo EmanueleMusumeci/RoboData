@@ -304,15 +304,18 @@ class RoboDataLogger:
         """Log a summary of tool call results."""
         prefix = f"[{context.upper()}] " if context else ""
         
-        message_parts = [f"{prefix}TOOL RESULTS SUMMARY ({len(results)} tools executed):"]
+        # For debug mode, only show last 2 results
+        debug_results = results[-2:] if len(results) > 2 else results
+        
+        message_parts = [f"{prefix}TOOL RESULTS SUMMARY ({len(results)} tools executed, showing last {len(debug_results)}):"]
         
         # Pretty print results
-        results_str = pprint.pformat(results, width=80, depth=None)
+        results_str = pprint.pformat(debug_results, width=80, depth=None)
         for line in results_str.split('\n'):
             message_parts.append(f"    {line}")
         
         message = '\n'.join(message_parts)
-        self.logger.log(LogLevel.TOOL_RESULT.value, message)
+        self.logger.log(LogLevel.DEBUG.value, message)
 
 
 # Global logger instance

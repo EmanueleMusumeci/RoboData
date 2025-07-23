@@ -1,16 +1,44 @@
-from typing import Dict, List, Optional, Tuple
-from dataclasses import dataclass
+from typing import Dict, List, Optional, Tuple, Union
+from dataclasses import dataclass, field
+
+def format_tool_results_for_prompt(tool_results: List[Dict]) -> str:
+    """Format tool results into a readable format for LLM prompts."""
+    if not tool_results:
+        return "No tool results available."
+    
+    formatted_parts = []
+    for i, result in enumerate(tool_results, 1):
+        tool_name = result.get("tool_name", "Unknown")
+        context = result.get("context", "")
+        
+        # Format the header
+        header = f"TOOL RESULT {i}: {tool_name}"
+        if context:
+            header += f" (Context: {context})"
+        
+        formatted_parts.append(header)
+        formatted_parts.append("=" * len(header))
+        
+        # Add arguments if available
+        if "arguments" in result:
+            formatted_parts.append(f"Arguments: {result['arguments']}")
+        
+        # Add result or error
+        if "result" in result:
+            formatted_parts.append(f"Result:\n{result['result']}")
+        elif "error" in result:
+            formatted_parts.append(f"Error: {result['error']}")
+        
+        formatted_parts.append("")  # Empty line between results
+    
+    return "\n".join(formatted_parts)
 
 @dataclass
 class AttemptHistory:
     """Track previous attempts and their outcomes."""
     remote_explorations: int = 0
     local_explorations: int = 0
-    failures: List[str] = None
-    
-    def __post_init__(self):
-        if self.failures is None:
-            self.failures = []
+    failures: List[str] = field(default_factory=list)
 
 @dataclass
 class PromptStructure:
@@ -37,7 +65,7 @@ class PromptStructure:
         
         return messages
 
-def create_local_exploration_prompt(query_text: str, memory_context: str, local_graph_data: Optional[List] = None, last_llm_response: Optional[str] = None, last_stage_name: str = "Initial", next_step_tools: Optional[List] = None) -> PromptStructure:
+def create_local_exploration_prompt(query_text: str, memory_context: str, local_graph_data: Optional[str] = None, last_llm_response: Optional[str] = None, last_stage_name: str = "Initial", next_step_tools: Optional[List] = None, local_exploration_results: Optional[List] = None) -> PromptStructure:
     """Create prompt for local graph exploration."""
     
     tools_text = ""
@@ -93,6 +121,14 @@ IF YOU HAVE CHOSEN AGAIN "REMOTE_GRAPH_EXPLORATION" or "LOCAL_GRAPH_EXPLORATION"
     else:
         graph_data_text = "\n\nCURRENT LOCAL GRAPH DATA:\n##############\nNo local graph data available (empty graph).\n##############\n"
     
+    # Include local exploration results if available
+    local_exploration_text = ""
+    if local_exploration_results:
+        formatted_local_results = format_tool_results_for_prompt(local_exploration_results)
+        local_exploration_text = f"\n\nRECENT LOCAL EXPLORATION RESULTS:\n##############\n{formatted_local_results}\n##############\n"
+    else:
+        local_exploration_text = "\n\nRECENT LOCAL EXPLORATION RESULTS:\n##############\nNo recent local exploration results available.\n##############\n"
+    
     assistant_prompt = f"""HI! I AM THE ASSISTANT! I PROVIDE USEFUL DATA!
     PREVIOUS THOUGHT FROM THE {last_stage_name} STAGE:
     <thoughts>
@@ -107,6 +143,10 @@ IF YOU HAVE CHOSEN AGAIN "REMOTE_GRAPH_EXPLORATION" or "LOCAL_GRAPH_EXPLORATION"
     <local_graph_data>
     {graph_data_text}
     </local_graph_data>
+
+    <local_exploration_results>
+    {local_exploration_text}
+    </local_exploration_results>
     """
 
     return PromptStructure(
@@ -115,7 +155,7 @@ IF YOU HAVE CHOSEN AGAIN "REMOTE_GRAPH_EXPLORATION" or "LOCAL_GRAPH_EXPLORATION"
         assistant=assistant_prompt
     )
 
-def create_local_evaluation_prompt(query_text: str, attempt_history: 'AttemptHistory', memory_context: str, local_graph_data: Optional[List] = None, last_llm_response: Optional[str] = None, next_step_tools: Optional[List] = None, last_stage_name: str = "Unknown") -> PromptStructure:
+def create_local_evaluation_prompt(query_text: str, attempt_history: 'AttemptHistory', memory_context: str, local_graph_data: Optional[str] = None, last_llm_response: Optional[str] = None, next_step_tools: Optional[List] = None, last_stage_name: str = "Unknown", local_exploration_results: Optional[List] = None) -> PromptStructure:
     """Create prompt for local data evaluation with optional graph data."""
     
     tools_text = ""
@@ -125,7 +165,12 @@ def create_local_evaluation_prompt(query_text: str, attempt_history: 'AttemptHis
     system_prompt = f"""You are an expert agent evaluating the available data in a local knowledge graph to find information to answer a specific query. 
     You need to evaluate whether the local data is sufficient to answer the user's query.
 
-USING LOCAL GRAPH DATA:
+FIRST, EXTRACT RELEVANT ENTITIES AND RELATIONSHIPS FROM THE QUERY
+- Identify key entities, relationships, and facts mentioned in the query.
+- List them clearly
+- Make sure each entity and relationship is backed by at least one node or edge in the local graph
+
+THEN, USING LOCAL GRAPH DATA:
 - Analyze the current local graph data to understand available entities, relationships, and facts
 - Determine if this data directly answers the query or provides sufficient context
 - Consider the completeness and relevance of the local data for the specific question
@@ -133,9 +178,25 @@ USING LOCAL GRAPH DATA:
 - If the graph is too big, only the entities and relationships relevant to the query will be shown
 
 DECISION CRITERIA:
-If you have sufficient data -> ANSWER "PRODUCE_ANSWER"
+You have sufficient local data to answer the query if:
+- The local graph contains relevant entities and relationships that directly address the query.
+- Each relevant extracted entity and relationship is supported by at least one node or edge in the local graph.
 
-If not, decide whether to:
+If you have sufficient local data -> ANSWER "PRODUCE_ANSWER"
+
+YOU DON'T HAVE SUFFICIENT LOCAL DATA TO ANSWER THE QUERY IF:
+- The local graph lacks relevant entities or relationships to address the query.
+- Key entities or relationships mentioned in the query are absent from the local graph.
+- The supporting evidence in the local graph is incomplete or insufficient.
+- At least one of the relevant entities or relationships is not present in the local graph.
+
+Example:
+    Description of entity A mentions entity B but entity B is not available in the local graph as a node or an edge.
+    Entity B is not present in the local graph as a node or an edge therefore you cannot answer the query. 
+    You need to further explore the remote graph to find entity B.
+
+
+If you don't have sufficient local data, decide whether to:
 A) Give a partial answer with available data -> "PRODUCE_ANSWER"
 B) Attempt remote graph exploration (if previous attempts allow) -> "REMOTE_GRAPH_EXPLORATION"
 C) Go back to local exploration to find more details -> "LOCAL_GRAPH_EXPLORATION"
@@ -162,6 +223,14 @@ IF YOU HAVE CHOSEN AGAIN "REMOTE_GRAPH_EXPLORATION", you should provide a clear 
     else:
         graph_data_text = "\n\nLOCAL GRAPH DATA:\n##############\nNo local graph data available.\n##############\n"
 
+    # Include local exploration results if available
+    local_exploration_text = ""
+    if local_exploration_results:
+        formatted_local_results = format_tool_results_for_prompt(local_exploration_results)
+        local_exploration_text = f"\n\nLOCAL EXPLORATION RESULTS:\n##############\n{formatted_local_results}\n##############\n"
+    else:
+        local_exploration_text = "\n\nLOCAL EXPLORATION RESULTS:\n##############\nNo local exploration results available.\n##############\n"
+
     assistant_data = f"""HI! I AM THE ASSISTANT! I PROVIDE USEFUL DATA!
     PREVIOUS THOUGHT FROM THE {last_stage_name} STAGE:
     <thoughts>
@@ -176,6 +245,10 @@ IF YOU HAVE CHOSEN AGAIN "REMOTE_GRAPH_EXPLORATION", you should provide a clear 
     <local_graph_data>
     {graph_data_text}
     </local_graph_data>
+
+    <local_exploration_results>
+    {local_exploration_text}
+    </local_exploration_results>
 """
     
     return PromptStructure(
@@ -184,7 +257,7 @@ IF YOU HAVE CHOSEN AGAIN "REMOTE_GRAPH_EXPLORATION", you should provide a clear 
         assistant=assistant_data
     )
 
-def create_remote_exploration_prompt(query_text: str, memory_context: str, local_graph_data: Optional[List] = None, last_llm_response: Optional[str] = None, next_step_tools: Optional[List] = None, last_stage_name: str = "Unknown") -> PromptStructure:
+def create_remote_exploration_prompt(query_text: str, memory_context: str, local_graph_data: Optional[str] = None, last_llm_response: Optional[str] = None, next_step_tools: Optional[List] = None, last_stage_name: str = "Unknown") -> PromptStructure:
     """Create prompt for remote graph exploration."""
     
     tools_text = ""
@@ -244,7 +317,7 @@ Your available tools for remote exploration are:
         assistant=assistant_prompt
     )
 
-def create_remote_evaluation_prompt(query_text: str, memory_context: str, remote_data: list, local_graph_data: Optional[List] = None, last_llm_response: Optional[str] = None, next_step_tools: Optional[List] = None, last_stage_name: str = "Unknown") -> PromptStructure:
+def create_remote_evaluation_prompt(query_text: str, memory_context: str, remote_data: list, local_graph_data: Optional[str] = None, last_llm_response: Optional[str] = None, next_step_tools: Optional[List] = None, last_stage_name: str = "Unknown") -> PromptStructure:
     """Create prompt for remote data evaluation."""
     
     tools_text = ""
@@ -294,7 +367,8 @@ IF YOU HAVE CHOSEN "LOCAL_GRAPH_UPDATE" or "REMOTE_GRAPH_EXPLORATION", you shoul
         graph_data_text = "\n\nCURRENT LOCAL GRAPH DATA:\n##############\nNo local graph data available (empty graph).\n##############\n"
 
     if remote_data:
-        remote_graph_data_text = f"REMOTE DATA:\n##############\n{remote_data}\n##############\n" if remote_data else ""
+        formatted_remote_data = format_tool_results_for_prompt(remote_data)
+        remote_graph_data_text = f"REMOTE DATA:\n##############\n{formatted_remote_data}\n##############\n"
     else:
         remote_graph_data_text = "REMOTE DATA:\n##############\nNo remote data available.\n##############\n"
 
@@ -324,7 +398,7 @@ IF YOU HAVE CHOSEN "LOCAL_GRAPH_UPDATE" or "REMOTE_GRAPH_EXPLORATION", you shoul
         assistant=assistant_prompt
     )
 
-def create_graph_update_prompt(query_text: str, memory_context: str, remote_data: Optional[List], local_graph_data: Optional[List] = None, last_llm_response: Optional[str] = None, next_step_tools: Optional[List] = None, last_stage_name: str = "Unknown") -> PromptStructure:
+def create_graph_update_prompt(query_text: str, memory_context: str, remote_data: Optional[List], local_graph_data: Optional[str] = None, last_llm_response: Optional[str] = None, next_step_tools: Optional[List] = None, last_stage_name: str = "Unknown") -> PromptStructure:
     """Create prompt for graph update."""
     
     tools_text = ""
@@ -380,7 +454,8 @@ Your available tools for graph update are:
         graph_data_text = "\n\nCURRENT LOCAL GRAPH DATA:\n##############\nNo local graph data available (empty graph).\n##############\n"
         
     if remote_data:
-        remote_graph_data_text = f"REMOTE DATA:\n##############\n{remote_data}\n##############\n" if remote_data else ""
+        formatted_remote_data = format_tool_results_for_prompt(remote_data)
+        remote_graph_data_text = f"REMOTE DATA:\n##############\n{formatted_remote_data}\n##############\n"
     else:
         remote_graph_data_text = "REMOTE DATA:\n##############\nNo remote data available.\n##############\n"
 
@@ -412,7 +487,7 @@ Your available tools for graph update are:
         assistant=assistant_prompt
     )
 
-def create_answer_production_prompt(query_text: str, memory_context: str, local_graph_data: Optional[List] = None, last_llm_response: Optional[str] = None, last_stage_name: str = "Unknown") -> PromptStructure:
+def create_answer_production_prompt(query_text: str, memory_context: str, local_graph_data: Optional[str] = None, last_llm_response: Optional[str] = None, last_stage_name: str = "Unknown") -> PromptStructure:
     """Create prompt for producing answers with proof sets from local graph data."""
     
     system_prompt = """You are an expert agent that produces comprehensive answers using data from a local knowledge graph. Your task is to create a final answer where each sentence is backed by specific evidence from the local graph.
@@ -481,6 +556,68 @@ CRITICAL INSTRUCTIONS FOR ANSWER CONSTRUCTION:
     <memory>
     {memory_context}
     </memory>
+"""
+    
+    return PromptStructure(
+        system=system_prompt,
+        user=user_prompt,
+        assistant=assistant_prompt
+    )
+
+def create_question_decomposition_prompt(query_text: str, memory_context: str, available_tools: Optional[List] = None) -> PromptStructure:
+    """Create prompt for decomposing complex questions into sub-questions."""
+    
+    tools_text = ""
+    if available_tools:
+        tools_text = "\n".join([f"\t\t- TOOL {tool['function']['name']}: {tool['function']['description']}" for tool in available_tools])
+
+    system_prompt = f"""You are an expert query decomposition agent. Your task is to analyze complex questions and break them down into a sequence of simpler, more focused sub-questions that can be answered individually to build up to a comprehensive answer.
+
+DECOMPOSITION STRATEGY:
+
+1. ANALYZE THE ORIGINAL QUESTION:
+   - Identify the main concepts, entities, and relationships involved
+
+2. BREAK DOWN INTO SUB-QUESTIONS:
+   - Create up to 5 focused sub-questions that together cover all aspects of the original question
+   - Each sub-question should be:
+     * Self-contained and answerable independently
+     * Specific and focused on one particular aspect
+     * Logically ordered to build understanding progressively
+     * Designed to gather information that contributes to the final answer
+
+3. SUB-QUESTION CHARACTERISTICS:
+   - Start with foundational/definitional questions if needed
+   - Progress from simple facts to more complex analysis
+   - Include context-gathering questions before analysis questions
+   - Ensure each question can be answered using the available tools and knowledge sources
+
+
+YOUR AVAILABLE TOOLS AND CAPABILITIES:
+You have access to these tools that can be used to answer sub-questions:
+{tools_text}
+
+Consider these capabilities when designing sub-questions to ensure they can be effectively answered.
+
+OUTPUT FORMAT:
+If decomposition is helpful, provide your sub-questions in this format:
+1. [First sub-question]
+2. [Second sub-question]
+3. [Third sub-question]
+...
+
+"""
+
+    user_prompt = f'Please analyze this question and determine if it should be decomposed into sub-questions: "{query_text}"'
+    
+    assistant_prompt = f"""HI! I AM THE ASSISTANT! I PROVIDE USEFUL DATA!
+
+    RECENT MEMORY:
+    <memory>
+    {memory_context}
+    </memory>
+
+    Let's analyze the complexity and scope of this question to determine if breaking it down into sub-questions would be beneficial for providing a comprehensive answer.
 """
     
     return PromptStructure(

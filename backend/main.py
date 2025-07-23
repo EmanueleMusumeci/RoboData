@@ -11,18 +11,14 @@ backend_dir = Path(__file__).parent
 sys.path.insert(0, str(backend_dir))
 
 from settings import settings_manager
-from core.agents.gemini import GeminiAgent
-from core.agents.openai import OpenAIAgent
-from core.agents.wattool_slm import WatToolSLMAgent
-from core.knowledge_base.graph import get_knowledge_graph
-from core.orchestrator.multi_stage.multi_stage_orchestrator import MultiStageOrchestrator
-from core.orchestrator.multi_stage.toolboxes import (
-    create_local_exploration_toolbox,
-    create_remote_exploration_toolbox,
-    create_graph_update_toolbox,
-    create_evaluation_toolbox
+from utils import (
+    create_multi_stage_orchestrator,
+    create_hil_orchestrator,
+    save_orchestrator_results,
+    validate_environment
 )
 from core.logging import log_debug
+
 
 def get_default_config() -> Dict[str, Any]:
     """Get default configuration values."""
@@ -37,6 +33,7 @@ def get_default_config() -> Dict[str, Any]:
                 "max_memory_slots": 50
             },
             "max_turns": 20,
+            "enable_question_decomposition": False,
             "toolboxes": {
                 "local_exploration": [],
                 "remote_exploration": [],
@@ -84,68 +81,14 @@ def load_experiment_config(config_path: str) -> Dict[str, Any]:
     return config
 
 
-def create_agent(model_name: str, toolbox=None):
-    """Create the appropriate agent based on model name."""
-    if model_name == "local":
-        print("Using local WatTool SLM Agent")
-        return WatToolSLMAgent(toolbox=toolbox)
-    elif model_name.startswith("gpt"):
-        print(f"Using OpenAI Agent with model: {model_name}")
-        return OpenAIAgent(model=model_name)
-    elif model_name.startswith("gemini"):
-        print(f"Using Gemini Agent with model: {model_name}")
-        # Gemini agent needs a toolbox, create empty one if none provided
-        if toolbox is None:
-            from core.toolbox.toolbox import Toolbox
-            toolbox = Toolbox()
-        return GeminiAgent(toolbox=toolbox)
-    else:
-        # Default to OpenAI
-        print(f"Using OpenAI Agent with model: {model_name}")
-        return OpenAIAgent(model=model_name)
-
-
-async def run_multi_stage_orchestrator(config: Dict[str, Any], query: str) -> Dict[str, Any]:
+async def run_multi_stage_orchestrator(config: Dict[str, Any], query: str, enable_question_decomposition: bool = False) -> Dict[str, Any]:
     """Run the multi-stage orchestrator with the given configuration and query."""
     
     # Generate experiment ID if not provided
     experiment_id = config.get("experiment_id") or f"query_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     
-    # Create toolboxes
-    local_exploration_toolbox = create_local_exploration_toolbox()
-    remote_exploration_toolbox = create_remote_exploration_toolbox()
-    graph_update_toolbox = create_graph_update_toolbox()
-    evaluation_toolbox = create_evaluation_toolbox()
-    
-    # Create agent
-    orchestrator_config = config["orchestrator"]
-    model_name = orchestrator_config.get("model", "gpt-4o")
-    
-    # Create agent based on model type
-    if model_name == "local":
-        agent = create_agent(model_name, remote_exploration_toolbox)
-    elif model_name.startswith("gemini"):
-        agent = create_agent(model_name, remote_exploration_toolbox)
-    else:
-        agent = create_agent(model_name)
-    
-    # Get knowledge graph instance
-    knowledge_graph = get_knowledge_graph()
-    
     # Create orchestrator
-    orchestrator = MultiStageOrchestrator(
-        agent, 
-        knowledge_graph,
-        context_length=orchestrator_config.get("context_length", 8000),
-        local_exploration_toolbox=local_exploration_toolbox,
-        remote_exploration_toolbox=remote_exploration_toolbox,
-        graph_update_toolbox=graph_update_toolbox,
-        evaluation_toolbox=evaluation_toolbox,
-        use_summary_memory=orchestrator_config["memory"].get("use_summary_memory", True),
-        memory_max_slots=orchestrator_config["memory"].get("max_memory_slots", 50),
-        max_turns=orchestrator_config.get("max_turns", 20),
-        experiment_id=experiment_id
-    )
+    orchestrator = await create_multi_stage_orchestrator(config, experiment_id, enable_question_decomposition)
     
     # Process the query
     print(f"🤖 Processing query: {query}")
@@ -158,141 +101,37 @@ async def run_multi_stage_orchestrator(config: Dict[str, Any], query: str) -> Di
     
     # Save results to files after orchestrator execution (if enabled)
     if config.get("output", {}).get("save_results", True):
-        await save_orchestrator_results(result, experiment_id, query, knowledge_graph)
+        await save_orchestrator_results(result, experiment_id, query, orchestrator.knowledge_graph)
     else:
         print("ℹ️  Skipping result saving (disabled)")
     
     return result
 
 
-async def save_orchestrator_results(result: Dict[str, Any], experiment_id: str, query: str, knowledge_graph) -> None:
-    """
-    Save orchestrator results to files including answer, graph export, and visualizations.
+async def run_interactive_mode(config: Dict[str, Any], use_experimental_gui: bool = False, enable_question_decomposition: bool = False) -> None:
+    """Run the HIL orchestrator in interactive mode."""
     
-    Args:
-        result: The orchestrator result dictionary
-        experiment_id: The experiment ID for naming files
-        query: The original query
-        knowledge_graph: The knowledge graph instance
-    """
-    from pathlib import Path
-    from datetime import datetime
-    import json
+    # Validate environment
+    if not validate_environment():
+        return
     
-    # Create results directory
-    results_dir = Path("experiments") / experiment_id
-    results_dir.mkdir(parents=True, exist_ok=True)
+    # Generate experiment ID
+    experiment_id = config.get("experiment_id") or f"interactive_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     
-    print(f"💾 Saving results to {results_dir}")
+    print("Creating orchestrator for simple interactive mode...")
     
     try:
-        # 1. Save final answer to text file
-        answer_file = results_dir / "final_answer.txt"
-        with open(answer_file, 'w', encoding='utf-8') as f:
-            f.write(f"Query: {query}\n")
-            f.write(f"Experiment ID: {experiment_id}\n")
-            f.write(f"Timestamp: {datetime.now().isoformat()}\n")
-            f.write(f"Turns taken: {result['turns_taken']}\n")
-            f.write(f"Max turns: {result['max_turns']}\n")
-            f.write("="*60 + "\n")
-            f.write(f"ANSWER:\n{result['answer']}\n")
-            f.write("="*60 + "\n")
-            f.write(f"Remote explorations: {result['attempts']['remote_explorations']}\n")
-            f.write(f"Local explorations: {result['attempts']['local_explorations']}\n")
-            if result['attempts']['failures']:
-                f.write(f"Failures: {len(result['attempts']['failures'])}\n")
+        # Create regular MultiStage orchestrator for simple mode
+        orchestrator = await create_multi_stage_orchestrator(config, experiment_id, enable_question_decomposition)
         
-        print(f"✅ Final answer saved to {answer_file}")
+        # Import and run simple interactive interface
+        from gui.simple_interactive import run_simple_interactive_session
+        await run_simple_interactive_session(orchestrator, config)
         
-        # 2. Save complete result data as JSON
-        complete_result_file = results_dir / "complete_result.json"
-        with open(complete_result_file, 'w', encoding='utf-8') as f:
-            json.dump({
-                "experiment_id": experiment_id,
-                "timestamp": datetime.now().isoformat(),
-                "query": query,
-                "result": result
-            }, f, indent=2, ensure_ascii=False)
-        
-        print(f"✅ Complete result saved to {complete_result_file}")
-        
-        # 3. Export knowledge graph in multiple formats
-        if await knowledge_graph.is_connected():
-            try:
-                # JSON export
-                graph_json_file = results_dir / "knowledge_graph.json"
-                await knowledge_graph.export_to_file(graph_json_file, "json")
-                print(f"✅ Knowledge graph JSON saved to {graph_json_file}")
-                
-                # Cypher export
-                graph_cypher_file = results_dir / "knowledge_graph.cypher"
-                await knowledge_graph.export_to_file(graph_cypher_file, "cypher")
-                print(f"✅ Knowledge graph Cypher saved to {graph_cypher_file}")
-                
-                # GraphML export (if networkx is available)
-                try:
-                    graph_graphml_file = results_dir / "knowledge_graph.graphml"
-                    await knowledge_graph.export_to_file(graph_graphml_file, "graphml")
-                    print(f"✅ Knowledge graph GraphML saved to {graph_graphml_file}")
-                except Exception as e:
-                    log_debug(f"Could not export GraphML: {e}")
-                
-            except Exception as e:
-                print(f"⚠️  Warning: Could not export knowledge graph: {e}")
-                log_debug(f"Knowledge graph export error: {e}")
-        else:
-            print("⚠️  Warning: Knowledge graph not connected, skipping export")
-        
-        # 4. Create graph visualizations
-        try:
-            from core.toolbox.graph.visualization import visualizer
-            
-            # Get current graph data
-            graph_data = await knowledge_graph.get_whole_graph()
-            
-            if graph_data and (graph_data.nodes or graph_data.edges):
-                # Create static visualization (PNG)
-                static_viz_path = visualizer.create_static_visualization(
-                    graph_data,
-                    title=f"Knowledge Graph: {experiment_id}",
-                    filename=f"{experiment_id}_graph.png"
-                )
-                
-                # Move to results directory
-                import shutil
-                static_target = results_dir / "knowledge_graph_static.png"
-                shutil.move(static_viz_path, static_target)
-                print(f"✅ Static graph visualization saved to {static_target}")
-                
-                # Create interactive visualization (HTML)
-                try:
-                    dynamic_viz_path = visualizer.create_dynamic_visualization(
-                        graph_data,
-                        title=f"Interactive Knowledge Graph: {experiment_id}",
-                        filename=f"{experiment_id}_graph.html"
-                    )
-                    
-                    # Move to results directory
-                    dynamic_target = results_dir / "knowledge_graph_interactive.html"
-                    shutil.move(dynamic_viz_path, dynamic_target)
-                    print(f"✅ Interactive graph visualization saved to {dynamic_target}")
-                    
-                except Exception as e:
-                    print(f"⚠️  Warning: Could not create interactive visualization: {e}")
-                    log_debug(f"Interactive visualization error: {e}")
-                
-            else:
-                print("ℹ️  No graph data to visualize (empty graph)")
-                
-        except Exception as e:
-            print(f"⚠️  Warning: Could not create visualizations: {e}")
-            log_debug(f"Visualization error: {e}")
-        
-        print(f"🎉 All results saved successfully to {results_dir}")
+        print("Interactive session completed successfully")
         
     except Exception as e:
-        print(f"❌ Error saving results: {e}")
-        log_debug(f"Error in save_orchestrator_results: {e}")
+        print(f"Error in interactive mode: {e}")
         import traceback
         traceback.print_exc()
 
@@ -344,6 +183,24 @@ def parse_arguments():
         help="Skip saving results to files"
     )
     
+    parser.add_argument(
+        "--interactive",
+        action="store_true",
+        help="Run in interactive mode"
+    )
+    
+    parser.add_argument(
+        "--experimental-gui",
+        action="store_true",
+        help="Use experimental curses-based GUI interface (requires --interactive)"
+    )
+    
+    parser.add_argument(
+        "--enable-question-decomposition",
+        action="store_true",
+        help="Enable question decomposition (breaks complex queries into sub-questions)"
+    )
+    
     return parser.parse_args()
 
 
@@ -352,13 +209,22 @@ async def main():
     args = parse_arguments()
     
     # If no arguments provided, show help
-    if not any([args.config, args.query, args.dataset]):
+    if not any([args.config, args.query, args.dataset, args.interactive]):
         print("🤖 RoboData - AI-powered knowledge exploration system")
         print("\nUsage examples:")
         print("  python main.py -q 'What is climate change?'")
+        print("  python main.py -q 'What is climate change?' --enable-question-decomposition")
         print("  python main.py -c experiment.yaml")
         print("  python main.py -c experiment.yaml -q 'Who was Albert Einstein?'")
         print("  python main.py -d dataset.json --dataset-type lcquad")
+        print("  python main.py --interactive")
+        print("  python main.py --interactive --experimental-gui")
+        print("\nOptions:")
+        print("  --enable-question-decomposition   Break complex queries into sub-questions")
+        print("  --interactive                     Simple interactive mode (default)")
+        print("                                   Shows normal orchestrator feed with input prompts")
+        print("  --interactive --experimental-gui  Experimental curses-based GUI")
+        print("                                   Split-screen interface (may not work in all terminals)")
         print("\nUse -h for detailed help.")
         return
     
@@ -371,6 +237,17 @@ async def main():
         else:
             config = get_default_config()
             print("✅ No config file provided, using default configuration.")
+        
+        # Override save setting from command line
+        if args.no_save:
+            config["output"]["save_results"] = False
+        
+        # Check if interactive mode is requested
+        if args.interactive:
+            # Use command-line argument, or fall back to config setting
+            enable_decomposition = args.enable_question_decomposition or config.get("orchestrator", {}).get("enable_question_decomposition", False)
+            await run_interactive_mode(config, args.experimental_gui, enable_decomposition)
+            return
         
         # Handle dataset loading
         dataset_loader = None
@@ -417,13 +294,11 @@ async def main():
             print("❌ No query specified. Use -q option or specify 'query' in config file.")
             return
         
-        # Override save setting from command line
-        if args.no_save:
-            config["output"]["save_results"] = False
-        
         # Run orchestrator
         if args.orchestrator == "multi_stage":
-            result = await run_multi_stage_orchestrator(config, query)
+            # Use command-line argument, or fall back to config setting
+            enable_decomposition = args.enable_question_decomposition or config.get("orchestrator", {}).get("enable_question_decomposition", False)
+            result = await run_multi_stage_orchestrator(config, query, enable_decomposition)
         else:
             print(f"❌ Unsupported orchestrator: {args.orchestrator}")
             return
@@ -433,6 +308,10 @@ async def main():
         print("🎯 FINAL RESULT")
         print("="*60)
         print(f"Query: {query}")
+        enable_decomposition = args.enable_question_decomposition or config.get("orchestrator", {}).get("enable_question_decomposition", False)
+        print(f"Question decomposition: {'Enabled' if enable_decomposition else 'Disabled'}")
+        if result.get('sub_questions'):
+            print(f"Sub-questions generated: {len(result.get('sub_questions', []))}")
         print(f"Answer: {result['answer']}")
         print(f"Turns taken: {result['turns_taken']}")
         print(f"Remote explorations: {result['attempts']['remote_explorations']}")

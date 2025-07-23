@@ -7,7 +7,7 @@ experiment_id: ""
 orchestrator:
   type: "multi_stage"
   context_length: 8000
-  model: "gpt-4o"  # Options: "gpt-4o", "gpt-3.5-turbo", "gemini-pro", "local"
+  model: "gpt-4o"  # Options: "gpt-4o", "gpt-3.5-turbo", "local"
   
   # Memory configuration
   memory:
