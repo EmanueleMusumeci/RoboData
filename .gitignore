@@ -17,3 +17,9 @@ images/
 *.pdf
 
 *.drawio
+experiments/
+experiments_GPT_5/
+experiments_old/
+*.sty
+*.csv
+*.bkp
