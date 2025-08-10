@@ -4,7 +4,7 @@
 
 ## About This Project
 
-This project was developed as part of the [WikiProject Ontology Course](https://www.wikidata.org/w/index.php?title=Wikidata:WikiProject_Ontology/Ontology_Course) on Wikidata. It represents our work for the [RoboData project](https://www.wikidata.org/w/index.php?title=Wikidata:WikiProject_Ontology/Ontology_Course/Projects/RoboData), exploring ontology visualization and interaction using Wikidata.
+[Anonymized]
 
 ---
 
@@ -364,6 +364,4 @@ This project is licensed under the MIT License.
 
 ## 🙏 Acknowledgments
 
-- **WikiProject Ontology**: For providing the educational framework
-- **Wikidata Community**: For maintaining the knowledge base
-- **IBM KIF**: For the Knowledge Integration Framework
+[Anonymized]
