@@ -13,8 +13,9 @@ async def should_continue_local_exploration(result: Dict) -> bool:
     elif "EVAL_LOCAL_DATA" in response:  # Ready for evaluation
         return False
         
-    # Final fallback
-    return "READY_FOR_EVALUATION" not in response
+    # Final fallback - be conservative and exit exploration if no clear decision
+    # This prevents getting stuck in exploration when tools fail or LLM is confused
+    return False
 
 async def has_sufficient_local_data(result: Dict) -> bool:
     """Check if local data is sufficient for final answer."""

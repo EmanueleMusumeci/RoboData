@@ -53,10 +53,12 @@ def create_graph_update_toolbox() -> Toolbox:
     # Graph database tools for adding/updating data
     from ...toolbox.graph.graph_tools import (
         AddNodeTool, AddEdgeTool, GetNodeTool, GetEdgeTool, RemoveNodeTool, 
-        RemoveEdgeTool, FindNodesTool, FindEdgesTool, FetchNodeTool, FetchRelationshipTool
+        RemoveEdgeTool, FindNodesTool, FindEdgesTool, FetchNodeTool, FetchRelationshipTool,
+        FetchReverseRelationshipTool
     )
     toolbox.register_tool(FetchNodeTool())
     toolbox.register_tool(FetchRelationshipTool())
+    toolbox.register_tool(FetchReverseRelationshipTool())
     toolbox.register_tool(RemoveNodeTool())
     toolbox.register_tool(RemoveEdgeTool())
     

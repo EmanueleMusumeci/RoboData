@@ -3,12 +3,39 @@ import os
 from pathlib import Path
 
 class LLMSettings:
-    def __init__(self, provider="openai", api_key=None, model="openai-pro", temperature=0.7, max_tokens=4096):
+    def __init__(self, provider="openai", api_key=None, model="openai-pro", temperature=0.7, max_tokens=4096,
+                 metacognition_model=None, evaluation_model=None, exploration_model=None, update_model=None):
         self.provider = provider
         self.api_key = api_key
-        self.model = model
+        self.model = model  # Default/fallback model
         self.temperature = temperature
         self.max_tokens = max_tokens
+        
+        # Specific models for different operations
+        # Default: metacognition and evaluation use GPT-5, exploration and update use GPT-4o
+        self.metacognition_model = metacognition_model or "gpt-5"
+        self.evaluation_model = evaluation_model or "gpt-5"
+        self.exploration_model = exploration_model or "gpt-4o"
+        self.update_model = update_model or "gpt-4o"
+    
+    def get_model_for_operation(self, operation: str) -> str:
+        """Get the appropriate model for a specific operation.
+        
+        Args:
+            operation: One of 'metacognition', 'evaluation', 'exploration', 'update', or 'default'
+            
+        Returns:
+            The model name to use for the given operation
+        """
+        operation_models = {
+            'metacognition': self.metacognition_model,
+            'evaluation': self.evaluation_model,
+            'exploration': self.exploration_model,
+            'update': self.update_model,
+            'default': self.model
+        }
+        
+        return operation_models.get(operation, self.model)
 
 class WikidataSettings:
     def __init__(self, timeout=30, max_results=100, default_language="en"):
@@ -17,7 +44,7 @@ class WikidataSettings:
         self.default_language = default_language
 
 class Neo4jSettings:
-    def __init__(self, uri="bolt://localhost:7687", username="neo4j", password="password", 
+    def __init__(self, uri="bolt://localhost:7687", username="neo4j", password="robodata123", 
                  database="neo4j", connection_timeout=30, max_connection_lifetime=3600):
         self.uri = uri
         self.username = username
@@ -94,6 +121,16 @@ class SettingsManager:
             settings_dict['llm']['provider'] = os.getenv('LLM_PROVIDER')
         if os.getenv('LLM_MODEL'):
             settings_dict['llm']['model'] = os.getenv('LLM_MODEL')
+        
+        # Specific model overrides for different operations
+        if os.getenv('LLM_METACOGNITION_MODEL'):
+            settings_dict['llm']['metacognition_model'] = os.getenv('LLM_METACOGNITION_MODEL')
+        if os.getenv('LLM_EVALUATION_MODEL'):
+            settings_dict['llm']['evaluation_model'] = os.getenv('LLM_EVALUATION_MODEL')
+        if os.getenv('LLM_EXPLORATION_MODEL'):
+            settings_dict['llm']['exploration_model'] = os.getenv('LLM_EXPLORATION_MODEL')
+        if os.getenv('LLM_UPDATE_MODEL'):
+            settings_dict['llm']['update_model'] = os.getenv('LLM_UPDATE_MODEL')
 
         # Neo4j environment overrides
         if 'neo4j' not in settings_dict:
@@ -130,4 +167,4 @@ class SettingsManager:
         self.settings = Settings.from_dict(settings_dict)
 
 # Global settings manager instance
-settings_manager = SettingsManager(config_path="config.yaml")
+settings_manager = SettingsManager(config_path="default_config.yaml")

@@ -11,7 +11,7 @@ import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
 
-from settings import settings_manager
+from backend.settings import settings_manager
 from .interfaces.neo4j_interface import Neo4jInterface, DatabaseInterface
 from .schema import Node, Edge, Graph
 
@@ -474,7 +474,7 @@ class KnowledgeGraph:
             rel_desc = rel_info['description']
             
             if rel_desc:
-                relation_line = f"- {rel_type} ({rel_label}): {rel_desc}"
+                relation_line = f"- {rel_type} ({rel_label}):\n   DESCRIPTION: {rel_desc}"
             else:
                 relation_line = f"- {rel_type} ({rel_label})"
             
@@ -493,7 +493,7 @@ class KnowledgeGraph:
             
             # Add entity header
             if node_desc:
-                entity_header = f"- {node_id} ({node_label}): {node_desc}"
+                entity_header = f"- {node_id} ({node_label}):\n   DESCRIPTION: {node_desc}"
             else:
                 entity_header = f"- {node_id} ({node_label})"
             
@@ -522,16 +522,16 @@ class KnowledgeGraph:
             # Add incoming relationships as comments for context
             incoming_rels = [edge for edge in edges if edge.target_id == node_id]
             if incoming_rels:
-                entity_triples.append("  # Incoming relationships:")
+                entity_triples.append("   RELATIONS:")
                 for edge in incoming_rels:
                     source_label = next((n.label for n in nodes if n.id == edge.source_id), "")
                     rel_label = edge.label or edge.type
-                    entity_triples.append(f"  # <{edge.source_id} ({source_label})> <{edge.type} ({rel_label})> <{node_id}> .")
+                    entity_triples.append(f"   # <{edge.source_id} ({source_label})> <{edge.type} ({rel_label})> <{node_id}> .")
             
             if entity_triples:
                 output_lines.extend(entity_triples)
             else:
-                output_lines.append("  # No additional triples")
+                output_lines.append("   # No additional triples")
         
         return "\n".join(output_lines) if output_lines else None
 
@@ -596,21 +596,31 @@ class KnowledgeGraph:
     
     # === Advanced Operations ===
     
-    async def execute_custom_query(self, query: str, parameters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    async def execute_custom_query(self, query: str, parameters: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
-        Execute a custom Cypher query.
+        Execute a custom Cypher query with notifications.
         
         Args:
             query: Cypher query string
             parameters: Query parameters
             
         Returns:
-            Query results
+            Dict containing query results, notifications, and metadata
         """
         if not await self.is_connected():
             raise RuntimeError("Graph database not connected")
         
-        return await self.db.execute_query(query, parameters)
+        # Use the new method that includes notifications
+        if hasattr(self.db, 'execute_query_with_notifications'):
+            return await self.db.execute_query_with_notifications(query, parameters)
+        else:
+            # Fallback for databases that don't support notifications
+            records = await self.db.execute_query(query, parameters)
+            return {
+                'records': records,
+                'notifications': [],
+                'query': query
+            }
     
     async def get_graph_statistics(self) -> Dict[str, Any]:
         """Get statistics about the knowledge graph."""
@@ -756,13 +766,17 @@ class KnowledgeGraph:
         
         # Add nodes
         for node in graph_data.nodes:
-            nx_graph.add_node(
-                node.id,
-                label=node.label,
-                description=node.description or "",
-                node_type=node.type,
+            # Prepare node attributes, avoiding duplicate description
+            node_attrs = {
+                "label": node.label,
+                "node_type": node.type,
                 **node.properties
-            )
+            }
+            # Only add description if it's not already in properties
+            if "description" not in node_attrs:
+                node_attrs["description"] = node.description or ""
+            
+            nx_graph.add_node(node.id, **node_attrs)
         
         # Add edges
         for edge in graph_data.edges:
@@ -904,12 +918,20 @@ if __name__ == "__main__":
                 
                 # Test 7: Custom query
                 print("\n7. Custom query...")
-                results = await graph.execute_custom_query(
+                result = await graph.execute_custom_query(
                     "MATCH (p:Person)-[:WORKS_FOR]->(c:Company) RETURN p.name as person, c.name as company"
                 )
-                print(f"   Query results: {len(results)}")
-                if results:
-                    print(f"   First result: {results[0]}")
+                records = result.get('records', []) if isinstance(result, dict) else result
+                print(f"   Query results: {len(records)}")
+                if records:
+                    print(f"   First result: {records[0]}")
+                    
+                # Show notifications if any
+                notifications = result.get('notifications', []) if isinstance(result, dict) else []
+                if notifications:
+                    print(f"   Database notifications: {len(notifications)}")
+                    for notification in notifications:
+                        print(f"     - {notification.get('severity', 'UNKNOWN')}: {notification.get('title', 'No title')}")
                 
                 # Test 8: Cleanup
                 print("\n8. Cleaning up...")

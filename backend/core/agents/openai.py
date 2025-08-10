@@ -19,17 +19,28 @@ class OpenAIAgent(BaseAgent):
         super().__init__(toolbox)
         self.client = openai.AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         self.model = model
+
         
         assert self.client.api_key is not None, "OpenAI API key not found. Check your environment variables."
     
-    async def query_llm(self, messages: List[LLMMessage], tools: Optional[List[Dict]] = None, **kwargs) -> LLMResponse:
+    async def query_llm(self, messages: List[LLMMessage], tools: Optional[List[Dict]] = None, 
+                        model: Optional[str] = None, **kwargs) -> LLMResponse:
         """Send messages to OpenAI and get response with tool calling support.
         
         Args:
             messages: List of conversation messages (LLMMessage objects or dicts)
             tools: Optional list of available tools
+            model: Optional model override for this specific call
             **kwargs: Hyperparameters (temperature, max_tokens, top_p, frequency_penalty, presence_penalty, etc.)
         """
+        # Use the provided model or fall back to the agent's default model
+        selected_model = model or self.model
+
+        if model=="gpt-5":
+            temperature = 1.0
+        else:
+            temperature = None
+        
         # Convert messages to OpenAI format if they're LLMMessage objects
         if messages and isinstance(messages[0], LLMMessage):
             openai_messages = self._format_messages_for_openai(messages)
@@ -40,9 +51,9 @@ class OpenAIAgent(BaseAgent):
         try:
             # Prepare request parameters with defaults
             request_params = {
-                "model": self.model,
+                "model": selected_model,
                 "messages": openai_messages,
-                "temperature": kwargs.get("temperature", 0.1),
+                "temperature": temperature if temperature is not None else kwargs.get("temperature", 0.1),
                 "max_tokens": kwargs.get("max_tokens", None),
                 "top_p": kwargs.get("top_p", 1.0),
                 "frequency_penalty": kwargs.get("frequency_penalty", 0.0),

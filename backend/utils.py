@@ -28,6 +28,60 @@ from core.toolbox.toolbox import Toolbox
 from core.logging import log_debug
 
 
+def generate_experiment_id(query: str) -> str:
+    """
+    Generate experiment ID with timestamp followed by first 8 words of query.
+    
+    Args:
+        query: The query string
+        
+    Returns:
+        Experiment ID in format: YYYYMMDD_HHMMSS_word1_word2_..._word8
+    """
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    
+    # Clean and split query into words
+    import re
+    words = re.findall(r'\w+', query.lower())
+    
+    # Take first 8 words and join with underscores
+    query_words = '_'.join(words[:8])
+    
+    return f"{timestamp}_{query_words}"
+
+
+def _make_json_serializable(obj):
+    """
+    Convert objects to JSON-serializable format recursively.
+    
+    Args:
+        obj: Object to convert
+        
+    Returns:
+        JSON-serializable version of the object
+    """
+    if isinstance(obj, dict):
+        return {key: _make_json_serializable(value) for key, value in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return [_make_json_serializable(item) for item in obj]
+    elif isinstance(obj, Path):
+        return str(obj)
+    elif hasattr(obj, '__dict__'):
+        # Convert custom objects to dict representation
+        return _make_json_serializable(obj.__dict__)
+    elif hasattr(obj, 'isoformat'):
+        # Handle datetime objects
+        return obj.isoformat()
+    else:
+        # For other types, try to convert to string if not already serializable
+        try:
+            import json
+            json.dumps(obj)
+            return obj
+        except (TypeError, ValueError):
+            return str(obj)
+
+
 def create_agent(model_name: str, toolbox=None):
     """Create the appropriate agent based on model name.
     
@@ -67,20 +121,28 @@ def create_configured_toolboxes() -> Tuple[Toolbox, Toolbox, Toolbox, Toolbox]:
 async def create_multi_stage_orchestrator(
     config: Dict[str, Any],
     experiment_id: Optional[str] = None,
-    enable_question_decomposition: bool = False
+    enable_question_decomposition: bool = False,
+    enable_metacognition: bool = False,
+    query: Optional[str] = None
 ) -> MultiStageOrchestrator:
     """Create a configured MultiStageOrchestrator.
     
     Args:
         config: Configuration dictionary
         experiment_id: Optional experiment identifier
+        enable_question_decomposition: Enable question decomposition
+        enable_metacognition: Enable metacognitive capabilities
+        query: Optional query string for generating experiment ID
         
     Returns:
         Configured MultiStageOrchestrator instance
     """
     # Generate experiment ID if not provided
     if not experiment_id:
-        experiment_id = config.get("experiment_id") or f"query_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        if query:
+            experiment_id = generate_experiment_id(query)
+        else:
+            experiment_id = config.get("experiment_id") or f"query_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     
     # Create toolboxes
     local_exploration_toolbox, remote_exploration_toolbox, graph_update_toolbox, evaluation_toolbox = create_configured_toolboxes()
@@ -94,6 +156,40 @@ async def create_multi_stage_orchestrator(
         agent = create_agent(model_name, remote_exploration_toolbox)
     else:
         agent = create_agent(model_name)
+    
+    # Get LLM settings from config or settings manager
+    llm_settings = None
+    if "llm" in config:
+        # Create LLMSettings from config
+        from settings import LLMSettings
+        llm_config = config["llm"]
+        llm_settings = LLMSettings(**llm_config)
+    else:
+        # Use global settings manager
+        llm_settings = settings_manager.get_settings().llm
+
+    # Create metacognition module if enabled
+    metacognition = None
+    if enable_metacognition:
+        from core.metacognition.metacognition import Metacognition
+        
+        # Get metacognition descriptions from config - all required
+        metacognition_config = orchestrator_config.get("metacognition", {})
+        system_description = metacognition_config.get("system_description")
+        agent_description = metacognition_config.get("agent_description")
+        task_description = metacognition_config.get("task_description")
+        
+        if not all([system_description, agent_description, task_description]):
+            raise ValueError("Metacognition enabled but missing required descriptions in config. Please provide system_description, agent_description, and task_description in orchestrator.metacognition section.")
+        
+        metacognition = Metacognition(
+            agent=agent,
+            system_description=system_description,
+            agent_description=agent_description,
+            task_description=task_description,
+            llm_settings=llm_settings
+        )
+        log_debug("Metacognition module enabled", "METACOGNITION")
     
     # Get knowledge graph instance
     knowledge_graph = get_knowledge_graph()
@@ -111,7 +207,9 @@ async def create_multi_stage_orchestrator(
         memory_max_slots=orchestrator_config["memory"].get("max_memory_slots", 50),
         max_turns=orchestrator_config.get("max_turns", 20),
         experiment_id=experiment_id,
-        enable_question_decomposition=enable_question_decomposition
+        enable_question_decomposition=enable_question_decomposition,
+        metacognition=metacognition,
+        llm_settings=llm_settings
     )
     
     return orchestrator
@@ -121,7 +219,9 @@ async def create_hil_orchestrator(
     config: Dict[str, Any],
     experiment_id: Optional[str] = None,
     clear_kg_on_start: bool = True,
-    enable_question_decomposition: bool = False
+    enable_question_decomposition: bool = False,
+    enable_metacognition: bool = False,
+    query: Optional[str] = None
 ) -> HILOrchestrator:
     """Create a HIL orchestrator with MultiStageOrchestrator as the wrapped component.
     
@@ -129,12 +229,17 @@ async def create_hil_orchestrator(
         config: Configuration dictionary
         experiment_id: Optional experiment identifier for logging and tracking
         clear_kg_on_start: Whether to clear knowledge graph on startup
+        enable_question_decomposition: Enable question decomposition
+        enable_metacognition: Enable metacognitive capabilities
+        query: Optional query string for generating experiment ID
         
     Returns:
         Configured HIL orchestrator ready for use
     """
     # Create the MultiStage orchestrator
-    multi_stage_orchestrator = await create_multi_stage_orchestrator(config, experiment_id, enable_question_decomposition)
+    multi_stage_orchestrator = await create_multi_stage_orchestrator(
+        config, experiment_id, enable_question_decomposition, enable_metacognition, query
+    )
     
     # Create user input handler
     user_input_handler = AsyncQueueInputHandler()
@@ -193,11 +298,13 @@ async def save_orchestrator_results(result: Dict[str, Any], experiment_id: str, 
         # 2. Save complete result data as JSON
         complete_result_file = results_dir / "complete_result.json"
         with open(complete_result_file, 'w', encoding='utf-8') as f:
+            # Create a JSON-serializable copy of the result
+            serializable_result = _make_json_serializable(result)
             json.dump({
                 "experiment_id": experiment_id,
                 "timestamp": datetime.now().isoformat(),
                 "query": query,
-                "result": result
+                "result": serializable_result
             }, f, indent=2, ensure_ascii=False)
         
         print(f"✅ Complete result saved to {complete_result_file}")
@@ -231,37 +338,34 @@ async def save_orchestrator_results(result: Dict[str, Any], experiment_id: str, 
         
         # 4. Create graph visualizations
         try:
-            from core.toolbox.graph.visualization import visualizer
+            from core.toolbox.graph.visualization import GraphVisualizer
+            
+            # Create visualizer with experiment directory as output
+            visualizer = GraphVisualizer(output_dir=str(results_dir))
             
             # Get current graph data
             graph_data = await knowledge_graph.get_whole_graph()
             
             if graph_data and (graph_data.nodes or graph_data.edges):
-                # Create static visualization (PNG)
+                # Create static visualization (PNG) with support set highlighting
                 static_viz_path = visualizer.create_static_visualization(
                     graph_data,
                     title=f"Knowledge Graph: {experiment_id}",
-                    filename=f"{experiment_id}_graph.png"
+                    filename="knowledge_graph_static.png",
+                    final_answer=result.get('answer', '')
                 )
                 
-                # Move to results directory
-                import shutil
-                static_target = results_dir / "knowledge_graph_static.png"
-                shutil.move(static_viz_path, static_target)
-                print(f"✅ Static graph visualization saved to {static_target}")
+                print(f"✅ Static graph visualization saved to {static_viz_path}")
                 
                 # Create interactive visualization (HTML)
                 try:
                     dynamic_viz_path = visualizer.create_dynamic_visualization(
                         graph_data,
                         title=f"Interactive Knowledge Graph: {experiment_id}",
-                        filename=f"{experiment_id}_graph.html"
+                        filename="knowledge_graph_interactive.html"
                     )
                     
-                    # Move to results directory
-                    dynamic_target = results_dir / "knowledge_graph_interactive.html"
-                    shutil.move(dynamic_viz_path, dynamic_target)
-                    print(f"✅ Interactive graph visualization saved to {dynamic_target}")
+                    print(f"✅ Interactive graph visualization saved to {dynamic_viz_path}")
                     
                 except Exception as e:
                     print(f"⚠️  Warning: Could not create interactive visualization: {e}")

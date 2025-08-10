@@ -26,12 +26,14 @@ class BaseAgent(ABC):
         self.toolbox = toolbox
         
     @abstractmethod
-    async def query_llm(self, messages: List[LLMMessage], tools: Optional[List[Dict]] = None, **kwargs) -> LLMResponse:
+    async def query_llm(self, messages: List[LLMMessage], tools: Optional[List[Dict]] = None, 
+                        model: Optional[str] = None, **kwargs) -> LLMResponse:
         """Send messages to LLM and get response with optional tool calling.
         
         Args:
             messages: List of conversation messages
             tools: Optional list of available tools
+            model: Optional model override for this specific call
             **kwargs: Hyperparameters like temperature, max_tokens, top_p, etc.
         """
         pass

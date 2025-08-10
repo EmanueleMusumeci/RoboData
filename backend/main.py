@@ -15,47 +15,24 @@ from utils import (
     create_multi_stage_orchestrator,
     create_hil_orchestrator,
     save_orchestrator_results,
-    validate_environment
+    validate_environment,
+    generate_experiment_id
 )
 from core.logging import log_debug
 
 
 def get_default_config() -> Dict[str, Any]:
-    """Get default configuration values."""
-    return {
-        "experiment_id": "",
-        "orchestrator": {
-            "type": "multi_stage",
-            "context_length": 8000,
-            "model": "gpt-4o",
-            "memory": {
-                "use_summary_memory": True,
-                "max_memory_slots": 50
-            },
-            "max_turns": 20,
-            "enable_question_decomposition": False,
-            "toolboxes": {
-                "local_exploration": [],
-                "remote_exploration": [],
-                "graph_update": [],
-                "evaluation": []
-            }
-        },
-        "log_level": "DEBUG",
-        "memory": "",
-        "dataset": {
-            "path": "",
-            "type": "auto",  # auto-detect, json, jsonl, lcquad
-            "load_on_start": False
-        },
-        "query": "",
-        "output": {
-            "save_results": True,
-            "export_formats": ["json", "cypher"],
-            "create_visualizations": True,
-            "results_directory": "experiments"
-        }
-    }
+    """Get default configuration values from default_config.yaml."""
+    # Path to default config file (relative to project root)
+    default_config_path = backend_dir.parent / "default_config.yaml"
+    
+    if not default_config_path.exists():
+        raise FileNotFoundError(f"Default configuration file not found: {default_config_path}")
+    
+    with open(default_config_path, 'r') as f:
+        config = yaml.safe_load(f) or {}
+    
+    return config
 
 
 def load_experiment_config(config_path: str) -> Dict[str, Any]:
@@ -81,14 +58,14 @@ def load_experiment_config(config_path: str) -> Dict[str, Any]:
     return config
 
 
-async def run_multi_stage_orchestrator(config: Dict[str, Any], query: str, enable_question_decomposition: bool = False) -> Dict[str, Any]:
+async def run_multi_stage_orchestrator(config: Dict[str, Any], query: str, enable_question_decomposition: bool = False, enable_metacognition: bool = False) -> Dict[str, Any]:
     """Run the multi-stage orchestrator with the given configuration and query."""
     
-    # Generate experiment ID if not provided
-    experiment_id = config.get("experiment_id") or f"query_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    # Generate experiment ID using query
+    experiment_id = config.get("experiment_id") or generate_experiment_id(query)
     
     # Create orchestrator
-    orchestrator = await create_multi_stage_orchestrator(config, experiment_id, enable_question_decomposition)
+    orchestrator = await create_multi_stage_orchestrator(config, experiment_id, enable_question_decomposition, enable_metacognition, query)
     
     # Process the query
     print(f"🤖 Processing query: {query}")
@@ -108,7 +85,75 @@ async def run_multi_stage_orchestrator(config: Dict[str, Any], query: str, enabl
     return result
 
 
-async def run_interactive_mode(config: Dict[str, Any], use_experimental_gui: bool = False, enable_question_decomposition: bool = False) -> None:
+async def run_multiple_queries(config: Dict[str, Any], queries: list, enable_question_decomposition: bool = False, enable_metacognition: bool = False) -> Dict[str, Any]:
+    """Run multiple queries sequentially using the multi-stage orchestrator."""
+    
+    if not queries:
+        raise ValueError("No queries provided")
+    
+    results = []
+    total_turns = 0
+    total_remote_explorations = 0
+    total_local_explorations = 0
+    all_failures = []
+    
+    print(f"🔄 Processing {len(queries)} queries...")
+    
+    for i, query in enumerate(queries, 1):
+        print(f"\n{'='*60}")
+        print(f"📊 QUERY {i}/{len(queries)}")
+        print(f"{'='*60}")
+        
+        try:
+            result = await run_multi_stage_orchestrator(config, query, enable_question_decomposition, enable_metacognition)
+            
+            # Aggregate statistics
+            total_turns += result['turns_taken']
+            total_remote_explorations += result['attempts']['remote_explorations']
+            total_local_explorations += result['attempts']['local_explorations']
+            all_failures.extend(result['attempts']['failures'])
+            
+            results.append({
+                'query': query,
+                'answer': result['answer'],
+                'turns_taken': result['turns_taken'],
+                'attempts': result['attempts'],
+                'sub_questions': result.get('sub_questions', [])
+            })
+            
+            print(f"✅ Query {i} completed successfully")
+            
+        except Exception as e:
+            print(f"❌ Query {i} failed: {e}")
+            results.append({
+                'query': query,
+                'answer': f"Error: {str(e)}",
+                'turns_taken': 0,
+                'attempts': {'remote_explorations': 0, 'local_explorations': 0, 'failures': [str(e)]},
+                'sub_questions': []
+            })
+            all_failures.append(str(e))
+    
+    # Compile aggregate results
+    aggregate_result = {
+        'queries': queries,
+        'results': results,
+        'total_queries': len(queries),
+        'successful_queries': len([r for r in results if not r['answer'].startswith('Error:')]),
+        'failed_queries': len([r for r in results if r['answer'].startswith('Error:')]),
+        'total_turns': total_turns,
+        'avg_turns_per_query': total_turns / len(queries) if queries else 0,
+        'attempts': {
+            'remote_explorations': total_remote_explorations,
+            'local_explorations': total_local_explorations,
+            'failures': all_failures
+        }
+    }
+    
+    return aggregate_result
+
+
+async def run_interactive_mode(config: Dict[str, Any], use_experimental_gui: bool = False, enable_question_decomposition: bool = False, enable_metacognition: bool = False) -> None:
     """Run the HIL orchestrator in interactive mode."""
     
     # Validate environment
@@ -122,7 +167,7 @@ async def run_interactive_mode(config: Dict[str, Any], use_experimental_gui: boo
     
     try:
         # Create regular MultiStage orchestrator for simple mode
-        orchestrator = await create_multi_stage_orchestrator(config, experiment_id, enable_question_decomposition)
+        orchestrator = await create_multi_stage_orchestrator(config, experiment_id, enable_question_decomposition, enable_metacognition)
         
         # Import and run simple interactive interface
         from gui.simple_interactive import run_simple_interactive_session
@@ -201,6 +246,12 @@ def parse_arguments():
         help="Enable question decomposition (breaks complex queries into sub-questions)"
     )
     
+    parser.add_argument(
+        "--enable-metacognition",
+        action="store_true",
+        help="Enable metacognitive strategic assessment and observation"
+    )
+    
     return parser.parse_args()
 
 
@@ -216,15 +267,20 @@ async def main():
         print("  python main.py -q 'What is climate change?' --enable-question-decomposition")
         print("  python main.py -c experiment.yaml")
         print("  python main.py -c experiment.yaml -q 'Who was Albert Einstein?'")
+        print("  python main.py -c experiment_with_multiple_queries.yaml")
         print("  python main.py -d dataset.json --dataset-type lcquad")
         print("  python main.py --interactive")
         print("  python main.py --interactive --experimental-gui")
         print("\nOptions:")
         print("  --enable-question-decomposition   Break complex queries into sub-questions")
+        print("  --enable-metacognition           Enable strategic assessment and meta-observation")
         print("  --interactive                     Simple interactive mode (default)")
         print("                                   Shows normal orchestrator feed with input prompts")
         print("  --interactive --experimental-gui  Experimental curses-based GUI")
         print("                                   Split-screen interface (may not work in all terminals)")
+        print("\nConfiguration:")
+        print("  - Use 'queries' in config for one or more queries (processed sequentially)")
+        print("  - Command line -q creates a single-query list and takes precedence")
         print("\nUse -h for detailed help.")
         return
     
@@ -246,7 +302,8 @@ async def main():
         if args.interactive:
             # Use command-line argument, or fall back to config setting
             enable_decomposition = args.enable_question_decomposition or config.get("orchestrator", {}).get("enable_question_decomposition", False)
-            await run_interactive_mode(config, args.experimental_gui, enable_decomposition)
+            enable_metacognition = args.enable_metacognition or config.get("orchestrator", {}).get("enable_metacognition", False)
+            await run_interactive_mode(config, args.experimental_gui, enable_decomposition, enable_metacognition)
             return
         
         # Handle dataset loading
@@ -278,27 +335,64 @@ async def main():
                 print("   Continuing without dataset...")
                 dataset_loader = None
         
-        # Determine query
-        query = args.query or config.get("query", "")
+        # Determine queries list
+        queries = []
         
-        # If we have a dataset but no specific query, we could run evaluation mode
-        if dataset_loader and not query:
-            print("📊 Dataset loaded but no specific query provided.")
-            print("   Use -q to specify a query, or implement batch evaluation mode")
+        if args.query:
+            # Command line query takes precedence and creates a single-item list
+            queries = [args.query]
+            print(f"✅ Using command line query: {args.query}")
+        else:
+            # Use queries from config file
+            queries = config.get("queries", [])
+            if queries:
+                print(f"✅ Using {len(queries)} queries from configuration file")
+        
+        if not queries:
+            print("❌ No queries specified. Use -q option or provide 'queries' list in config file.")
+            return
+        
+        # If we have a dataset but no queries, we could run evaluation mode
+        if dataset_loader and not queries:
+            print("📊 Dataset loaded but no queries provided.")
+            print("   Use -q to specify a query, or add 'queries' list to config file, or implement batch evaluation mode")
             # For now, just show dataset info and exit
             metadata = dataset_loader.get_metadata()
             print(f"   Dataset info: {metadata}")
-            return
-        
-        if not query:
-            print("❌ No query specified. Use -q option or specify 'query' in config file.")
             return
         
         # Run orchestrator
         if args.orchestrator == "multi_stage":
             # Use command-line argument, or fall back to config setting
             enable_decomposition = args.enable_question_decomposition or config.get("orchestrator", {}).get("enable_question_decomposition", False)
-            result = await run_multi_stage_orchestrator(config, query, enable_decomposition)
+            enable_metacognition = args.enable_metacognition or config.get("orchestrator", {}).get("enable_metacognition", False)
+            
+            if len(queries) == 1:
+                # Process single query (from command line or single item in config)
+                result = await run_multi_stage_orchestrator(config, queries[0], enable_decomposition, enable_metacognition)
+                # Keep original result for visualization info
+                original_result = result.copy()
+                # Convert single result to multiple queries format for consistent handling
+                result = {
+                    'queries': queries,
+                    'results': [{
+                        'query': queries[0],
+                        'answer': result['answer'],
+                        'turns_taken': result['turns_taken'],
+                        'attempts': result['attempts'],
+                        'sub_questions': result.get('sub_questions', [])
+                    }],
+                    'total_queries': 1,
+                    'successful_queries': 1 if not result['answer'].startswith('Error:') else 0,
+                    'failed_queries': 1 if result['answer'].startswith('Error:') else 0,
+                    'total_turns': result['turns_taken'],
+                    'avg_turns_per_query': result['turns_taken'],
+                    'attempts': result['attempts'],
+                    'original_result': original_result  # Keep for visualization info
+                }
+            else:
+                # Process multiple queries
+                result = await run_multiple_queries(config, queries, enable_decomposition, enable_metacognition)
         else:
             print(f"❌ Unsupported orchestrator: {args.orchestrator}")
             return
@@ -307,17 +401,54 @@ async def main():
         print("\n" + "="*60)
         print("🎯 FINAL RESULT")
         print("="*60)
-        print(f"Query: {query}")
+        
         enable_decomposition = args.enable_question_decomposition or config.get("orchestrator", {}).get("enable_question_decomposition", False)
+        enable_metacognition = args.enable_metacognition or config.get("orchestrator", {}).get("enable_metacognition", False)
+        
+        # All results now follow the multiple queries format
+        print(f"Total queries processed: {result['total_queries']}")
+        print(f"Successful queries: {result['successful_queries']}")
+        print(f"Failed queries: {result['failed_queries']}")
         print(f"Question decomposition: {'Enabled' if enable_decomposition else 'Disabled'}")
-        if result.get('sub_questions'):
-            print(f"Sub-questions generated: {len(result.get('sub_questions', []))}")
-        print(f"Answer: {result['answer']}")
-        print(f"Turns taken: {result['turns_taken']}")
-        print(f"Remote explorations: {result['attempts']['remote_explorations']}")
-        print(f"Local explorations: {result['attempts']['local_explorations']}")
+        print(f"Metacognition: {'Enabled' if enable_metacognition else 'Disabled'}")
+        print(f"Total turns taken: {result['total_turns']}")
+        print(f"Average turns per query: {result['avg_turns_per_query']:.1f}")
+        print(f"Total remote explorations: {result['attempts']['remote_explorations']}")
+        print(f"Total local explorations: {result['attempts']['local_explorations']}")
         if result['attempts']['failures']:
-            print(f"Failures: {len(result['attempts']['failures'])}")
+            print(f"Total failures: {len(result['attempts']['failures'])}")
+        
+        # Show individual results
+        if result['total_queries'] == 1:
+            print(f"\n📋 RESULT:")
+            query_result = result['results'][0]
+            print(f"Query: {query_result['query']}")
+            print(f"Answer: {query_result['answer']}")
+            print(f"Turns: {query_result['turns_taken']}")
+            if query_result.get('sub_questions'):
+                print(f"Sub-questions: {len(query_result['sub_questions'])}")
+            
+            # Show visualization information if available
+            if 'original_result' in result and 'visualizations' in result['original_result']:
+                vis_info = result['original_result']['visualizations']
+                print(f"\n🎨 VISUALIZATIONS:")
+                print(f"Output directory: {vis_info['output_dir']}")
+                if vis_info.get('index_html'):
+                    print(f"📄 Index HTML: {vis_info['index_html']}")
+                if vis_info.get('animation_path'):
+                    print(f"🎬 Animation: {vis_info['animation_path']}")
+                if vis_info.get('final_image'):
+                    print(f"🖼️  Final graph: {vis_info['final_image']}")
+        else:
+            print(f"\n📋 INDIVIDUAL RESULTS:")
+            for i, query_result in enumerate(result['results'], 1):
+                print(f"\n--- Query {i} ---")
+                print(f"Query: {query_result['query']}")
+                print(f"Answer: {query_result['answer']}")
+                print(f"Turns: {query_result['turns_taken']}")
+                if query_result.get('sub_questions'):
+                    print(f"Sub-questions: {len(query_result['sub_questions'])}")
+        
         if dataset_loader:
             print(f"Dataset: {dataset_loader.get_metadata().get('total_items', 'unknown')} items")
         print("="*60)

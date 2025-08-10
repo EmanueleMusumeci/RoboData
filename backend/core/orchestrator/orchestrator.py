@@ -3,13 +3,15 @@ from typing import Any, Optional, Dict
 from abc import ABC, abstractmethod
 
 from ..memory import Memory, SimpleMemory
+from ..metacognition import Metacognition
 
 class Orchestrator(ABC):
     """Abstract base class for orchestrators."""
     
-    def __init__(self, agent: Any, memory: Optional[Memory] = None):
+    def __init__(self, agent: Any, memory: Optional[Memory] = None, metacognition: Optional[Metacognition] = None):
         self.agent = agent
         self.memory = memory or SimpleMemory(max_slots=100)
+        self.metacognition = metacognition
         self._running = False
         self._stop_event = asyncio.Event()
     

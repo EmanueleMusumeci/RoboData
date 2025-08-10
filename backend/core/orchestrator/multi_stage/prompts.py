@@ -1,6 +1,9 @@
 from typing import Dict, List, Optional, Tuple, Union
 from dataclasses import dataclass, field
 
+# Import AttemptHistory from statistics module
+from .statistics import AttemptHistory
+
 def format_tool_results_for_prompt(tool_results: List[Dict]) -> str:
     """Format tool results into a readable format for LLM prompts."""
     if not tool_results:
@@ -34,13 +37,6 @@ def format_tool_results_for_prompt(tool_results: List[Dict]) -> str:
     return "\n".join(formatted_parts)
 
 @dataclass
-class AttemptHistory:
-    """Track previous attempts and their outcomes."""
-    remote_explorations: int = 0
-    local_explorations: int = 0
-    failures: List[str] = field(default_factory=list)
-
-@dataclass
 class PromptStructure:
     """Structure for organizing prompts by role."""
     system: str
@@ -72,45 +68,15 @@ def create_local_exploration_prompt(query_text: str, memory_context: str, local_
     if next_step_tools:
         tools_text = "\n".join([f"\t\t- TOOL {tool['function']['name']}: {tool['function']['description']}" for tool in next_step_tools])
 
-    system_prompt = f"""
-You are an expert agent exploring a local knowledge graph to find information to answer a specific query.
-Your task is to systematically explore the available knowledge graph to find relevant information. 
-
-
-USING LOCAL GRAPH DATA:
-- Local graph data shows existing nodes and relationships
-- The graph might be empty or incomplete
-- Use this data to understand what's already in the graph and identify gaps that need to be filled
-- Build upon existing data when exploring new connections
-- Avoid redundant exploration of already-known information
-
-NOTICE: 
-If the graph is too big, only the entities and relationships relevant to the query will be shown.
-In this case you can use the provided tools to explore the graph and gather relevant data.
-
-DECISION CRITERIA:
-After each exploration step, you must decide whether to:
-A) Continue exploring the local graph because you found promising leads -> ANSWER "LOCAL_GRAPH_EXPLORATION" 
-D) Stop exploring and evaluate what you've found -> ANSWER "EVAL_LOCAL_DATA"
-
-Make your decision based on:
-- Whether you found relevant entities/relationships that warrant further exploration
-- Whether you have gathered sufficient local information to attempt an evaluation
-- How the current local graph data relates to your query
-- The DATA PROVIDED BY THE "ASSISTANT"
-
-You MUST end your response with exactly one of:
-- "LOCAL_GRAPH_EXPLORATION" - Continue local exploration
-- "EVAL_LOCAL_DATA" - Ready for evaluation of the data contained in the local graph
-
-IF YOU HAVE CHOSEN AGAIN "REMOTE_GRAPH_EXPLORATION" or "LOCAL_GRAPH_EXPLORATION", you should provide a clear explanation of why you need to explore remote data, including any changes to the query or tools used.
-- Evaluation: a summary or evaluation of the current situation and/or the tools executed (tool_name, tool_parameters, why the tool was executed)
-- Your instructions of what to do next as if they were an order "You should ....", explicitly stating that these instructions should be based on the available tools, which should be listed below as:
-- tool_name: "tool_description", "explanation of why this tool is needed" USING THE FOLLOWING LOCAL_GRAPH_EXPLORATION TOOLS:
-{tools_text}
-- A final invitation to use more tools at the same time if necessary
-- The final choice token
+    # SHORTENED SYSTEM PROMPT
+    system_prompt = (
+        """
+Explore the local knowledge graph to answer the query. Use the current graph data and available tools to find relevant information. Avoid redundancy. After each step, decide:
+- "LOCAL_GRAPH_EXPLORATION" (keep exploring)
+- "EVAL_LOCAL_DATA" (ready to evaluate)
+Base your choice on the data found and the query. Your response must end with the action name (the choice token) on its own line. Give clear instructions for the next stage. You may suggest using multiple tools at once. Explain your reasoning for the next step.
 """
+    )
 
     user_prompt = f'Please explore the local knowledge graph to answer: "{query_text}"'
     
@@ -129,7 +95,7 @@ IF YOU HAVE CHOSEN AGAIN "REMOTE_GRAPH_EXPLORATION" or "LOCAL_GRAPH_EXPLORATION"
     else:
         local_exploration_text = "\n\nRECENT LOCAL EXPLORATION RESULTS:\n##############\nNo recent local exploration results available.\n##############\n"
     
-    assistant_prompt = f"""HI! I AM THE ASSISTANT! I PROVIDE USEFUL DATA!
+    assistant_prompt = f"""
     PREVIOUS THOUGHT FROM THE {last_stage_name} STAGE:
     <thoughts>
     {last_llm_response or "I'll start exploring the local knowledge graph to find relevant information."}
@@ -140,9 +106,9 @@ IF YOU HAVE CHOSEN AGAIN "REMOTE_GRAPH_EXPLORATION" or "LOCAL_GRAPH_EXPLORATION"
     {memory_context}
     </memory>
 
-    <local_graph_data>
+    
     {graph_data_text}
-    </local_graph_data>
+    
 
     <local_exploration_results>
     {local_exploration_text}
@@ -155,64 +121,63 @@ IF YOU HAVE CHOSEN AGAIN "REMOTE_GRAPH_EXPLORATION" or "LOCAL_GRAPH_EXPLORATION"
         assistant=assistant_prompt
     )
 
-def create_local_evaluation_prompt(query_text: str, attempt_history: 'AttemptHistory', memory_context: str, local_graph_data: Optional[str] = None, last_llm_response: Optional[str] = None, next_step_tools: Optional[List] = None, last_stage_name: str = "Unknown", local_exploration_results: Optional[List] = None) -> PromptStructure:
-    """Create prompt for local data evaluation with optional graph data."""
+def create_local_evaluation_prompt(query_text: str, attempt_history: Optional['AttemptHistory'], memory_context: str, local_graph_data: Optional[str] = None, last_llm_response: Optional[str] = None, next_step_tools: Optional[List] = None, last_stage_name: str = "Unknown", local_exploration_results: Optional[List] = None, strategy: Optional[str] = "") -> PromptStructure:
+    """Create prompt for local data evaluation with optional graph data and strategy."""
     
     tools_text = ""
     if next_step_tools:
         tools_text = "\n".join([f"\t\t- TOOL {tool['function']['name']}: {tool['function']['description']}" for tool in next_step_tools])
 
-    system_prompt = f"""You are an expert agent evaluating the available data in a local knowledge graph to find information to answer a specific query. 
-    You need to evaluate whether the local data is sufficient to answer the user's query.
+    # SYSTEM PROMPT with separated instructions and strategy adherence
+    system_prompt = (
+        """
+Evaluate if the local graph data is enough to answer the query. 
 
-FIRST, EXTRACT RELEVANT ENTITIES AND RELATIONSHIPS FROM THE QUERY
-- Identify key entities, relationships, and facts mentioned in the query.
-- List them clearly
-- Make sure each entity and relationship is backed by at least one node or edge in the local graph
-
-THEN, USING LOCAL GRAPH DATA:
-- Analyze the current local graph data to understand available entities, relationships, and facts
-- Determine if this data directly answers the query or provides sufficient context
-- Consider the completeness and relevance of the local data for the specific question
-- Base your decision on concrete evidence present in the local graph
-- If the graph is too big, only the entities and relationships relevant to the query will be shown
-
-DECISION CRITERIA:
-You have sufficient local data to answer the query if:
-- The local graph contains relevant entities and relationships that directly address the query.
-- Each relevant extracted entity and relationship is supported by at least one node or edge in the local graph.
-
-If you have sufficient local data -> ANSWER "PRODUCE_ANSWER"
-
-YOU DON'T HAVE SUFFICIENT LOCAL DATA TO ANSWER THE QUERY IF:
-- The local graph lacks relevant entities or relationships to address the query.
-- Key entities or relationships mentioned in the query are absent from the local graph.
-- The supporting evidence in the local graph is incomplete or insufficient.
-- At least one of the relevant entities or relationships is not present in the local graph.
-
+NOTICE: DESCRIPTION fields are only a textual description but you still need triples/relations in the local graph to support your answer.
+DESCRIPTION ALONE IS NOT ENOUGH TO PRODUCE AN ANSWER.
 Example:
-    Description of entity A mentions entity B but entity B is not available in the local graph as a node or an edge.
-    Entity B is not present in the local graph as a node or an edge therefore you cannot answer the query. 
-    You need to further explore the remote graph to find entity B.
+If you have
+DESCRIPTION: "A has some relationship with B"
+but  does not contain the triple
+<A> <some_relationship> <B> 
+you can not go to PRODUCE_ANSWER. YOU MUST go to REMOTE_GRAPH_EXPLORATION.
 
 
-If you don't have sufficient local data, decide whether to:
-A) Give a partial answer with available data -> "PRODUCE_ANSWER"
-B) Attempt remote graph exploration (if previous attempts allow) -> "REMOTE_GRAPH_EXPLORATION"
-C) Go back to local exploration to find more details -> "LOCAL_GRAPH_EXPLORATION"
+Keep considering remote exploration if:
+- the graph is not connected
+- entities referenced in the query do not explicitly appear in the graph as nodes BUT they exist in the remote ontology
+- relationships referenced in the query do not explicitly appear in the graph as nodes BUT they exist in the remote ontology
 
-You MUST end your response with exactly one of:
-- "PRODUCE_ANSWER"
-- "REMOTE_GRAPH_EXPLORATION"
-- "LOCAL_GRAPH_EXPLORATION"
+List key entities/relationships from the query and check if all are present in the graph. 
+If you feel that key relationships are missing from the local graph, you can suggest using remote tools to gather more data and go back to remote exploration.
 
-IF YOU HAVE CHOSEN AGAIN "REMOTE_GRAPH_EXPLORATION", you should provide a clear explanation of why you need to explore remote data, including any changes to the query or tools used.
-- Evaluation: a summary or evaluation of the current situation and/or the tools executed (tool_name, tool_parameters, why the tool was executed)
-- Your instructions of what to do next as if they were an order "You should ....", explicitly stating that these instructions should be based on the available tools, which should be listed below as:
-- tool_name: "tool_description", "explanation of why this tool is needed" USING THE FOLLOWING REMOTE_GRAPH_EXPLORATION TOOLS:
-{tools_text}
-- A final invitation to use more tools at the same time if necessary
-- The final choice token"""
+REMOTE EXPLORATION STRATEGIES TO CONSIDER:
+- Fetch individual entities and their direct relationships
+- Fetch all relationships of a specific property from entities
+- Use reverse relationship discovery to find entities that reference key concepts in your query (e.g., all people born in a place, all works by an author)
+
+If yes, end with "PRODUCE_ANSWER". If not, choose:
+- "REMOTE_GRAPH_EXPLORATION" (explore remotely)
+- "LOCAL_GRAPH_EXPLORATION" (explore locally)
+Your response must end with the action name (the choice token) on its own line.
+
+AVOID DISCONNECTED COMPONENTS AT ALL COSTS!!! ALL THE RELEVANT INFORMATION MUST BE CONNECTED IN THE LOCAL GRAPH TO THE RELEVANT ENTITIES/RELATIONSHIPS.
+"""
+    )
+    # Add instructions for next stage, with strategy adherence if provided
+    if strategy:
+        system_prompt += (
+            """
+When providing instructions for the next stage, you MUST adhere to the STRATEGY provided in the assistant prompt section below.
+Give clear instructions for the next stage. You may suggest using multiple tools at once. Explain your reasoning for the next step.
+"""
+        )
+    else:
+        system_prompt += (
+            """
+Give clear instructions for the next stage. You may suggest using multiple tools at once. Explain your reasoning for the next step.
+"""
+        )
 
     user_prompt = f'Evaluate whether the local data is sufficient to answer: "{query_text}"'
     
@@ -231,7 +196,7 @@ IF YOU HAVE CHOSEN AGAIN "REMOTE_GRAPH_EXPLORATION", you should provide a clear 
     else:
         local_exploration_text = "\n\nLOCAL EXPLORATION RESULTS:\n##############\nNo local exploration results available.\n##############\n"
 
-    assistant_data = f"""HI! I AM THE ASSISTANT! I PROVIDE USEFUL DATA!
+    assistant_data = f"""
     PREVIOUS THOUGHT FROM THE {last_stage_name} STAGE:
     <thoughts>
     {last_llm_response or "Let's evaluate the available local data."}
@@ -242,15 +207,22 @@ IF YOU HAVE CHOSEN AGAIN "REMOTE_GRAPH_EXPLORATION", you should provide a clear 
     {memory_context}
     </memory>
 
-    <local_graph_data>
+    
     {graph_data_text}
-    </local_graph_data>
+    
 
     <local_exploration_results>
     {local_exploration_text}
     </local_exploration_results>
 """
-    
+    # Add STRATEGY section if strategy is provided
+    if strategy:
+        assistant_data += f"""
+    <STRATEGY: FOLLOW THIS STRATEGY CLOSELY>
+    {strategy}
+    </STRATEGY: FOLLOW THIS STRATEGY CLOSELY>
+"""
+
     return PromptStructure(
         system=system_prompt,
         user=user_prompt,
@@ -264,27 +236,20 @@ def create_remote_exploration_prompt(query_text: str, memory_context: str, local
     if next_step_tools:
         tools_text = "\n".join([f"\t\t- TOOL {tool['function']['name']}: {tool['function']['description']}" for tool in next_step_tools])
 
-    system_prompt = f"""You are exploring remote knowledge sources to gather relevant data from external sources.
+    # SHORTENED SYSTEM PROMPT
+    system_prompt = (
+        """
+The local graph is insufficient. Use remote tools to gather relevant data that fills gaps in the local graph. Avoid redundancy. Focus on entities/relationships related to the query.
 
-The local graph does not contain sufficient information. Use the available remote exploration tools to gather relevant data.
+EXPLORATION STRATEGIES:
+- Search for specific entities and their properties
+- Find relationships between entities using SPARQL queries  
+- Explore bidirectional relationships (both subject->object and object<-subject patterns)
+- Use reverse relationship discovery to find all entities that reference a target entity
 
-USING LOCAL GRAPH DATA:
-- Review the current local graph data to understand what information is already available
-- Identify specific gaps and missing entities/relationships that need to be filled
-- Target your remote exploration to complement existing local data
-- Avoid gathering redundant information that's already in the local graph
-- If the graph is too big, only the entities and relationships relevant to the query will be shown
-
-EXPLORATION STRATEGY:
-1. SYSTEMATICALLY EXPLORE: Use the remote exploration tools to systematically gather data related to the query.
-2. FOCUS ON RELEVANCE: Prioritize data that contains entities, relationships, or facts related to the query topic.
-3. COMPLEMENT LOCAL DATA: Focus on filling gaps identified in the local graph data. Start from existing entities and relationships to find new connections and neighboring data.
-4. USE TOOLS EFFECTIVELY: Execute the remote exploration tools to gather data, ensuring you capture all relevant information.
-5. AVOID HALLUCINATION: Only gather data that is explicitly available through the remote tools.
-
-Your available tools for remote exploration are:
-{tools_text}
+Your response must end with the action name (the choice token) on its own line. Give clear instructions for the next stage. Explain your reasoning for the next step.
 """
+    )
 
     user_prompt = f'Explore remote knowledge sources to answer: "{query_text}"'
     
@@ -295,7 +260,7 @@ Your available tools for remote exploration are:
     else:
         graph_data_text = "\n\nCurrent local graph data is empty."
     
-    assistant_prompt = f"""HI! I AM THE ASSISTANT! I PROVIDE USEFUL DATA!
+    assistant_prompt = f"""
     PREVIOUS THOUGHT FROM THE {last_stage_name} STAGE:
     <thoughts>
     {last_llm_response or "Let's evaluate the available local data."}
@@ -306,9 +271,9 @@ Your available tools for remote exploration are:
     {memory_context}
     </memory>
 
-    <local_graph_data>
+    
     {graph_data_text}
-    </local_graph_data>
+    
 """
     
     return PromptStructure(
@@ -317,45 +282,39 @@ Your available tools for remote exploration are:
         assistant=assistant_prompt
     )
 
-def create_remote_evaluation_prompt(query_text: str, memory_context: str, remote_data: list, local_graph_data: Optional[str] = None, last_llm_response: Optional[str] = None, next_step_tools: Optional[List] = None, last_stage_name: str = "Unknown") -> PromptStructure:
-    """Create prompt for remote data evaluation."""
+def create_remote_evaluation_prompt(query_text: str, memory_context: str, remote_data: list, local_graph_data: Optional[str] = None, last_llm_response: Optional[str] = None, next_step_tools: Optional[List] = None, last_stage_name: str = "Unknown", strategy: Optional[str] = "") -> PromptStructure:
+    """Create prompt for remote data evaluation with optional strategy."""
     
     tools_text = ""
     if next_step_tools:
         tools_text = "\n".join([f"\t\t- TOOL {tool['function']['name']}: {tool['function']['description']}" for tool in next_step_tools])
 
-    system_prompt = f"""You are an expert agent evaluating remote data to decide if it's relevant for a user's query.
-Your main goal is to incrementally build a knowledge graph. You must determine if the gathered remote data, even if incomplete, is related to the query and can contribute to the graph.
+    # SYSTEM PROMPT with separated instructions and strategy adherence
+    system_prompt = (
+        """
+Evaluate if remote data is relevant for building a knowledge graph for the query. Data is relevant if it contains related entities/relationships. Compare with local graph.
 
-EVALUATION CRITERIA:
-- The data does NOT need to directly answer the query but should contribute to building a relevant knowledge graph that might help answer the query in the future.
-- The data IS RELEVANT if it contains entities, relationships, or facts related to the query topic.
-- Your task is to collect pieces of information that, step-by-step, will build a graph to answer the query.
-- SELECT ONLY RELEVANT DATA, DISCARD THE REST
+NEXT STEPS:
+- "LOCAL_GRAPH_UPDATE" (add to graph) - Use available tools like fetch_node, fetch_relationship_from_node, or fetch_relationship_to_node
+- "EVAL_LOCAL_DATA" (discard)
+- "REMOTE_GRAPH_EXPLORATION" (need more data, correct tool usage) - Consider reverse relationship patterns
 
-USING LOCAL GRAPH DATA:
-- Compare remote data with the existing local graph to see what's new.
-- The remote data should complement or expand the local graph.
-- If the graph is too big, only the entities and relationships relevant to the query will be shown.
-
-DECISION CRITERIA:
-Based on the relevance to the query topic, you must decide:
-A) The data is relevant and on-topic -> ANSWER "LOCAL_GRAPH_UPDATE"
-B) The data is completely irrelevant and off-topic -> ANSWER "EVAL_LOCAL_DATA"
-C) The data is not sufficient, and you need to explore more remote data -> "REMOTE_GRAPH_EXPLORATION"
-
-You MUST end your response with exactly one of:
-- "LOCAL_GRAPH_UPDATE" - Data is relevant and should be added to the graph.
-- "EVAL_LOCAL_DATA" - Data is not relevant and should be discarded.
-- "REMOTE_GRAPH_EXPLORATION" - Not enough data, need more remote exploration.
-
-IF YOU HAVE CHOSEN "LOCAL_GRAPH_UPDATE" or "REMOTE_GRAPH_EXPLORATION", you should provide a clear explanation of why you think the remote data is relevant, including any changes to the query or tools used.
-- Evaluation: a summary or evaluation of the current situation and/or the tools executed (tool_name, tool_parameters, why the tool was executed)
-- Your instructions of what to do next as if they were an order "You should ....", explicitly stating that these instructions should be based on the available tools, which should be listed below as:
-- tool_name: "tool_description", "explanation of why this tool is needed" USING THE FOLLOWING LOCAL_GRAPH_UPDATE TOOLS:
-{tools_text}
-- A final invitation to use more tools at the same time if necessary
-- The final choice token"""
+Your response must end with the action name (the choice token) on its own line.
+"""
+    )
+    if strategy:
+        system_prompt += (
+            """
+When providing instructions for the next stage, you MUST adhere to the STRATEGY provided in the assistant prompt section below.
+Give clear instructions for the next stage. You may suggest using multiple tools at once. Explain your reasoning for the next step. If some tool usage needs to be refined, provide an analysis of the current tool usage and suggest how to improve it.
+"""
+        )
+    else:
+        system_prompt += (
+            """
+Give clear instructions for the next stage. You may suggest using multiple tools at once. Explain your reasoning for the next step.
+"""
+        )
 
     user_prompt = f'Evaluate whether the remote data may be useful for answering: "{query_text}"'
     
@@ -365,31 +324,36 @@ IF YOU HAVE CHOSEN "LOCAL_GRAPH_UPDATE" or "REMOTE_GRAPH_EXPLORATION", you shoul
         graph_data_text = f"\n\nCURRENT LOCAL GRAPH DATA:\n##############\n{local_graph_data}\n##############\n"
     else:
         graph_data_text = "\n\nCURRENT LOCAL GRAPH DATA:\n##############\nNo local graph data available (empty graph).\n##############\n"
-
     if remote_data:
         formatted_remote_data = format_tool_results_for_prompt(remote_data)
         remote_graph_data_text = f"REMOTE DATA:\n##############\n{formatted_remote_data}\n##############\n"
     else:
         remote_graph_data_text = "REMOTE DATA:\n##############\nNo remote data available.\n##############\n"
 
-    assistant_prompt = f"""HI! I AM THE ASSISTANT! I PROVIDE USEFUL DATA!
+    assistant_prompt = f"""
     PREVIOUS THOUGHT FROM THE {last_stage_name} STAGE:
     <thoughts>
     {last_llm_response or "Let's evaluate the relevance of this remote data."}
     </thoughts>
 
-    <local_graph_data>
+    
     {graph_data_text}
-    </local_graph_data>
+    
 
-    <remote_graph_data>
+    
     {remote_graph_data_text}
-    </remote_graph_data>
+    
 
     RECENT MEMORY:
     <memory>
     {memory_context}
     </memory>
+"""
+    if strategy:
+        assistant_prompt += f"""
+    <STRATEGY: FOLLOW THIS STRATEGY CLOSELY>
+    {strategy}
+    </STRATEGY: FOLLOW THIS STRATEGY CLOSELY>
 """
     
     return PromptStructure(
@@ -405,44 +369,21 @@ def create_graph_update_prompt(query_text: str, memory_context: str, remote_data
     if next_step_tools:
         tools_text = "\n".join([f"\t\t- TOOL {tool['function']['name']}: {tool['function']['description']}" for tool in next_step_tools])
 
-    system_prompt = f"""Update the local knowledge graph with relevant remote data.
+    # SHORTENED SYSTEM PROMPT
+    system_prompt = (
+        """
+Update the local graph with relevant remote data. Only add entities/relationships that are directly related to the query. Avoid isolated nodes and redundancy. Always connect new entities. Mirror remote relationships in the local graph.
 
-CRITICAL INSTRUCTIONS FOR GRAPH CONSTRUCTION:
+AVAILABLE GRAPH UPDATE STRATEGIES:
+- Use fetch_node to add individual Wikidata entities to the local graph
+- Use fetch_relationship_from_node to get all relationships of a specific property from a subject entity
+- Use fetch_relationship_to_node to find all entities that reference a specific object through a particular property (e.g., all people born in a city, all works by an author)
 
-1. BUILD A CONNECTED GRAPH: Every new entity must be connected to at least one other entity through relationships.
-   Do NOT add isolated nodes unless absolutely necessary.
+YOU SHOULD ALWAYS TRY TO CONNECT NEW ENTITIES TO THE LOCAL GRAPH, AVOIDING ISOLATED NODES.
 
-2. RELATIONSHIP-FIRST APPROACH: You should always try to establish new relationships in the local data!!!
-    When you find entities that are related in the remote data:
-   - First add the entities using add_node
-   - Immediately add relationships using add_edge to connect them
-
-3. SELECT ONLY RELEVANT DATA:
-   - The remote data should be directly related to the query topic
-   - Focus on entities, relationships, and facts that contribute to building a relevant knowledge graph
-   - Avoid adding irrelevant or off-topic data that does not contribute to the graph's purpose or that is redundant
-
-4. PRESERVE DATA STRUCTURE: If the remote data shows relationships between existing entities in the local graph translate them directly into graph relationships. 
-The local graph should mirror the remote structure as closely as possible. Each local relationship MUST correspond to a remote relationship.
-
-5. INTEGRATE WITH EXISTING DATA: 
-   - Review the current local graph data to understand existing structure
-   - Connect new entities to existing entities when relationships exist
-   - Avoid duplicating existing nodes and relationships
-   - Maintain consistency with the existing graph schema
-
-6. AVOID HALLUCINATION: Only create relationships that are explicitly present in the remote data.
-   Do not invent relationships that aren't supported by the data.
-
-7. WORK SYSTEMATICALLY:
-   a) First, identify useful data in the remote data
-   b) Check if any already exist in the local graph
-   c) Add new entities as nodes with their properties
-   d) Then systematically add all relationships found in the data
-
-Your available tools for graph update are:
-{tools_text}
+Your response must end with the action name (the choice token) on its own line. Give clear instructions for the next stage. Explain your reasoning for the next step.
 """
+    )
 
     user_prompt = f'Update the local knowledge graph with relevant remote data for query: "{query_text}"'
     
@@ -452,26 +393,25 @@ Your available tools for graph update are:
         graph_data_text = f"\n\nCURRENT LOCAL GRAPH DATA:\n##############\n{local_graph_data}\n##############\n"
     else:
         graph_data_text = "\n\nCURRENT LOCAL GRAPH DATA:\n##############\nNo local graph data available (empty graph).\n##############\n"
-        
     if remote_data:
         formatted_remote_data = format_tool_results_for_prompt(remote_data)
         remote_graph_data_text = f"REMOTE DATA:\n##############\n{formatted_remote_data}\n##############\n"
     else:
         remote_graph_data_text = "REMOTE DATA:\n##############\nNo remote data available.\n##############\n"
 
-    assistant_prompt = f"""HI! I AM THE ASSISTANT! I PROVIDE USEFUL DATA!
+    assistant_prompt = f"""
     PREVIOUS THOUGHT FROM THE {last_stage_name} STAGE:
     <thoughts>
     {last_llm_response or "I'll systematically update the local knowledge graph with this remote data."}
     </thoughts>
 
-    <local_graph_data>
+    
     {graph_data_text}
-    </local_graph_data>
+    
 
-    <remote_graph_data>
+    
     {remote_graph_data_text}
-    </remote_graph_data>
+    
 
     RECENT MEMORY:
     <memory>
@@ -522,14 +462,18 @@ CRITICAL INSTRUCTIONS FOR ANSWER CONSTRUCTION:
 7. ANSWER FORMAT: Structure your response as:
    ```
    SENTENCE 1: [Your first sentence]
-   PROOF SET PS_001: [Specific graph elements (nodes and relationships) that support sentence 1, specified by triples ID] -> EXAMPLE: (subject_id, relationship_id, object_id)
-
+   SUPPORT SET 001: [ONLY USE TRIPLES FOR EDGES
+   (subject_id, relationship_id, object_id)
+   AND NODE IDS FOR SINGLE NODES
+   (node_id)
+   IF SOMETHING CAN BE EXPLAINED WITH AN EDGE, USE AN EDGE, NOT A NODE!]
+   
    SENTENCE 2: [Your second sentence] 
-   PROOF SET PS_002: [Specific graph elements (nodes and relationships) that support sentence 2]
+   SUPPORT SET 002: [SAME AS ABOVE]
 
    ... continue for all sentences ...
-   
-   FINAL ANSWER: [Complete answer combining all sentences]
+
+   FINAL ANSWER: [Complete answer containing all sentences, each backed by a support set]. 
    ```
 """
 
@@ -548,9 +492,9 @@ CRITICAL INSTRUCTIONS FOR ANSWER CONSTRUCTION:
     {last_llm_response or "I'll examine the local knowledge graph and construct an evidence-backed answer with proof sets for each sentence."}
     </thoughts>
 
-    <local_graph_data>
+    
     {graph_data_text}
-    </local_graph_data>
+    
 
     RECENT MEMORY:
     <memory>
@@ -571,46 +515,18 @@ def create_question_decomposition_prompt(query_text: str, memory_context: str, a
     if available_tools:
         tools_text = "\n".join([f"\t\t- TOOL {tool['function']['name']}: {tool['function']['description']}" for tool in available_tools])
 
-    system_prompt = f"""You are an expert query decomposition agent. Your task is to analyze complex questions and break them down into a sequence of simpler, more focused sub-questions that can be answered individually to build up to a comprehensive answer.
-
-DECOMPOSITION STRATEGY:
-
-1. ANALYZE THE ORIGINAL QUESTION:
-   - Identify the main concepts, entities, and relationships involved
-
-2. BREAK DOWN INTO SUB-QUESTIONS:
-   - Create up to 5 focused sub-questions that together cover all aspects of the original question
-   - Each sub-question should be:
-     * Self-contained and answerable independently
-     * Specific and focused on one particular aspect
-     * Logically ordered to build understanding progressively
-     * Designed to gather information that contributes to the final answer
-
-3. SUB-QUESTION CHARACTERISTICS:
-   - Start with foundational/definitional questions if needed
-   - Progress from simple facts to more complex analysis
-   - Include context-gathering questions before analysis questions
-   - Ensure each question can be answered using the available tools and knowledge sources
-
-
-YOUR AVAILABLE TOOLS AND CAPABILITIES:
-You have access to these tools that can be used to answer sub-questions:
+    # SHORTENED SYSTEM PROMPT
+    system_prompt = f"""
+Analyze the question and, if helpful, break it into up to 5 focused sub-questions that together cover all aspects. Each sub-question should be self-contained, specific, and logically ordered. Use available tools:
 {tools_text}
-
-Consider these capabilities when designing sub-questions to ensure they can be effectively answered.
-
-OUTPUT FORMAT:
-If decomposition is helpful, provide your sub-questions in this format:
-1. [First sub-question]
-2. [Second sub-question]
-3. [Third sub-question]
-...
-
+If decomposition is useful, output:
+1. ...
+2. ...
+...etc.
 """
-
     user_prompt = f'Please analyze this question and determine if it should be decomposed into sub-questions: "{query_text}"'
     
-    assistant_prompt = f"""HI! I AM THE ASSISTANT! I PROVIDE USEFUL DATA!
+    assistant_prompt = f"""
 
     RECENT MEMORY:
     <memory>

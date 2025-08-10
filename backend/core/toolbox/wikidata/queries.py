@@ -15,14 +15,15 @@ class SPARQLQueryTool(Tool):
             name="sparql_query",
             description="Execute SPARQL queries on Wikidata, where SPARQL is a query language for databases, able to retrieve and manipulate data stored in Resource Description Framework (RDF) format." \
             "This tool should be preferred if we wish to retrieve sets of data with a common property. It is generally faster than the other tools, as it can retrieve multiple data in a single query." \
+            "Be careful when using the LIMIT operator: the higher the number of results, the better for you." \
             "USEFUL FOR: retrieving structured data from Wikidata, such as entities, properties, and relationships." \
             "Retrieving data with complex relationships, such as subclasses, superclasses, instances, and properties of entities or even property chains." \
             "Retrievin data with specific conditions, such as entities or properties with a certain property value or instances of a class." \
         )
         self.endpoint = "https://query.wikidata.org/sparql"
         self.query_limits = {}
-        self.initial_limit = 10
-        self.increment = 10
+        self.initial_limit = 50
+        self.increment = 25
     
     def get_definition(self) -> ToolDefinition:
         return ToolDefinition(
@@ -39,7 +40,7 @@ class SPARQLQueryTool(Tool):
                     type="integer",
                     description="Query timeout in seconds",
                     required=False,
-                    default=30
+                    default=60
                 ),
                 ToolParameter(
                     name="increase_limit",
@@ -54,16 +55,17 @@ class SPARQLQueryTool(Tool):
         )
     
     async def execute(self, **kwargs) -> Dict[str, Any]:
-        """Execute a SPARQL query."""
+        """Execute a SPARQL query. Any warning/error/notification from the endpoint is included in the result."""
+        import traceback
         query = kwargs.get("query")
-        timeout = kwargs.get("timeout", 30)
+        timeout = kwargs.get("timeout", 60)
         increase_limit = kwargs.get("increase_limit", False)
 
         if not query:
-            raise ValueError("SPARQL query string is required")
+            return {"success": False, "error": "SPARQL query string is required"}
 
         # Manage display limits
-        query_hash = hash(query) 
+        query_hash = hash(query)
         display_limit = self.query_limits.get(query_hash, self.initial_limit)
         if increase_limit:
             display_limit += self.increment
@@ -73,8 +75,9 @@ class SPARQLQueryTool(Tool):
             'Accept': 'application/sparql-results+json',
             'User-Agent': 'RoboData/1.0 (Python)'
         }
-        
+        result: Dict[str, Any] = {}
         try:
+            import requests
             response = requests.get(
                 self.endpoint,
                 params={'query': query},
@@ -82,97 +85,177 @@ class SPARQLQueryTool(Tool):
                 timeout=timeout
             )
             if response.status_code == 200:
-                result = response.json()
+                data = response.json()
                 # Add metadata for better formatting
-                result['_metadata'] = {
+                data['_metadata'] = {
                     'query': query,
                     'display_limit': display_limit,
-                    'total_results': len(result.get('results', {}).get('bindings', []))
+                    'total_results': len(data.get('results', {}).get('bindings', []))
                 }
-                return result
+                result["success"] = True
+                result["data"] = data
             else:
-                raise ValueError(f"SPARQL query failed: {response.status_code}")
-        except requests.RequestException as e:
-            raise ValueError(f"SPARQL query error: {e}")
+                result["success"] = False
+                result["error"] = f"SPARQL query failed: {response.status_code}"
+                try:
+                    result["endpoint_message"] = response.json()
+                except Exception:
+                    result["endpoint_message"] = response.text
+        except Exception as e:
+            result["success"] = False
+            
+            # Provide specific handling for timeout errors with optimization suggestions
+            if "timeout" in str(e).lower() or "timed out" in str(e).lower():
+                result["error"] = f"SPARQL query timed out after {timeout} seconds: {e}"
+                result["optimization_suggestions"] = self._get_optimization_suggestions(query)
+            else:
+                result["error"] = f"SPARQL query error: {e}"
+            
+            result["traceback"] = traceback.format_exc()
+        return result
 
     def format_result(self, result: Optional[Dict[str, Any]], query: Optional[str] = None) -> str:
-        """Format the result into a readable, extensive string."""
+        """Format the result into a readable, extensive string. Any warning/error/notification from the endpoint is included in the output."""
+        import json
         if not result:
             return "SPARQL query returned no result."
         
+        # Extract query text for both success and error cases
+        query_text = query
+        if result.get("data") and result["data"].get('_metadata'):
+            query_text = result["data"]["_metadata"].get('query') or query
+        
+        if not result.get("success", True):
+            out = f"SPARQL query failed: {result.get('error', 'Unknown error.')}"
+            if result.get("traceback"):
+                out += f"\nTraceback:\n{result['traceback']}"
+            if result.get("endpoint_message"):
+                out += f"\nEndpoint message: {json.dumps(result['endpoint_message'], indent=2)}"
+            
+            # Add optimization suggestions for timeout errors
+            if result.get("optimization_suggestions"):
+                out += f"\n\nOPTIMIZATION SUGGESTIONS:\n"
+                for i, suggestion in enumerate(result["optimization_suggestions"], 1):
+                    out += f"{i}. {suggestion}\n"
+                
+                # Add alternative queries if it's a timeout error
+                if "timeout" in result.get("error", "").lower():
+                    alternatives = self._suggest_alternative_queries(query_text or "")
+                    if alternatives:
+                        out += f"\nALTERNATIVE QUERIES:\n"
+                        for alt in alternatives:
+                            out += f"{alt}\n"
+            
+            return out
+        data = result.get("data", result)
         # Extract metadata
-        metadata = result.get('_metadata', {})
+        metadata = data.get('_metadata', {})
         query_text = metadata.get('query') or query
         display_limit = metadata.get('display_limit', self.initial_limit)
         total_results = metadata.get('total_results', 0)
-        
-        bindings = result.get('results', {}).get('bindings', [])
+        bindings = data.get('results', {}).get('bindings', [])
         count = len(bindings)
-        
         if count == 0:
             summary = "SPARQL query returned 0 results.\n"
             if query_text:
                 summary += f"\nQuery:\n```sparql\n{query_text}\n```"
             return summary
-            
         # Start building the summary
         summary = f"SPARQL query returned {count} results. Showing top {min(display_limit, count)}:\n"
-        
         # Add query if available
         if query_text:
-            # Truncate very long queries for readability
-            query_display = query_text if len(query_text) <= 200 else query_text[:197] + "..."
-            summary += f"\nQuery: {query_display}\n"
-        
+            summary += f"\nQuery: {query_text}\n"
         # Extract headers from the first result if available
         headers = list(bindings[0].keys()) if bindings else []
         if headers:
             summary += f"Columns: {', '.join(headers)}\n\n"
-        
         # Display results in detail, similar to SearchEntitiesTool
         results_to_show = bindings[:display_limit]
-        
         for i, binding in enumerate(results_to_show):
             summary += f"{i+1}. "
-            
-            # Format each column for this result
             column_parts = []
             for header in headers:
                 value_data = binding.get(header, {})
                 raw_value = value_data.get('value', 'N/A')
                 value_type = value_data.get('type', 'literal')
-                
-                # Process different types of values
                 if value_type == 'uri' and raw_value.startswith("http://www.wikidata.org/entity/"):
-                    # Wikidata entity - extract ID
                     entity_id = raw_value.split('/')[-1]
                     formatted_value = entity_id
                 elif value_type == 'uri':
-                    # Other URI - show last part or full if short
-                    if len(raw_value) > 50:
-                        formatted_value = "..." + raw_value[-47:]
-                    else:
-                        formatted_value = raw_value
+                    formatted_value = raw_value
                 else:
-                    # Literal value
-                    if len(raw_value) > 100:
-                        formatted_value = raw_value[:97] + "..."
-                    else:
-                        formatted_value = raw_value
-                
+                    formatted_value = raw_value
                 column_parts.append(f"{header}: {formatted_value}")
-            
             summary += " | ".join(column_parts) + "\n"
-            
-            # Add spacing between results for readability
             if i < len(results_to_show) - 1:
                 summary += "\n"
-        
-        # Add footer information
         if count > display_limit:
             summary += f"\n... and {count - display_limit} more results"
-            
         return summary.strip()
+
+    def _get_optimization_suggestions(self, query: str) -> List[str]:
+        """Generate optimization suggestions for complex SPARQL queries."""
+        suggestions = []
+        
+        if not query:
+            return suggestions
+        
+        query_lower = query.lower()
+        
+        # Check for multiple joins that might cause timeouts
+        if query_lower.count('?') > 10:
+            suggestions.append("Consider reducing the number of variables in your query")
+        
+        # Check for missing LIMIT clause
+        if 'limit' not in query_lower:
+            suggestions.append("Add a LIMIT clause to restrict the number of results (e.g., LIMIT 100)")
+        
+        # Check for complex property chains
+        if query_lower.count('wdt:') > 5:
+            suggestions.append("Consider breaking complex property chains into separate queries")
+        
+        # Check for multiple OPTIONAL clauses
+        optional_count = query_lower.count('optional')
+        if optional_count > 3:
+            suggestions.append("Too many OPTIONAL clauses can slow down queries - consider making some required")
+        
+        # Check for complex filtering
+        if 'filter' in query_lower and len(query) > 500:
+            suggestions.append("Complex FILTER conditions can be expensive - try to simplify or move filtering to WHERE clauses")
+        
+        # General timeout suggestions
+        suggestions.extend([
+            "Try increasing the timeout parameter if the query is necessary",
+            "Consider using more specific entity IDs instead of broad classes",
+            "Break complex queries into smaller, simpler queries",
+            "Use DISTINCT sparingly as it can be expensive on large result sets"
+        ])
+        
+        return suggestions[:5]  # Return top 5 suggestions
+
+    def _suggest_alternative_queries(self, original_query: str) -> List[str]:
+        """Suggest alternative, simpler queries for complex cases."""
+        alternatives = []
+        
+        if not original_query:
+            return alternatives
+        
+        query_lower = original_query.lower()
+        
+        # General suggestions for complex queries
+        if 'limit' not in query_lower:
+            alternatives.append("""
+# Add a LIMIT clause to your query
+# Example: Add 'LIMIT 100' at the end of your query
+""")
+        
+        if query_lower.count('wdt:') > 5:
+            alternatives.append("""
+# Break complex queries into smaller parts
+# Example: Query one relationship at a time, then combine results
+""")
+        
+        return alternatives
 
 class SubclassQueryTool(Tool):
     """Tool for querying subclasses of an entity."""

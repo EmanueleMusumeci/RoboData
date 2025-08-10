@@ -35,18 +35,19 @@ class ExplorationTool(Tool):
         """
         pass
     
-    async def _fetch_property_name(self, prop_id: str) -> tuple[str, str]:
+    async def _fetch_property_name(self, prop_id: str) -> tuple[str, str, Optional[str]]:
         """Fetch property name for a given property ID."""
         try:
             prop_api_data = await wikidata_api.get_property(prop_id)
             prop_name = prop_api_data.get('labels', {}).get('en', prop_id)
-            return prop_id, prop_name
+            return prop_id, prop_name, None
         except Exception as e:
-            print(f"Error fetching property {prop_id}: {e}")
+            error_msg = f"Error fetching property {prop_id}: {e}"
+            print(error_msg)
             traceback.print_exc()
-            return prop_id, prop_id
+            return prop_id, prop_id, error_msg
     
-    async def _fetch_property_names_parallel(self, property_ids: List[str]) -> Dict[str, str]:
+    async def _fetch_property_names_parallel(self, property_ids: List[str]) -> tuple[Dict[str, str], List[str]]:
         """Fetch property names in parallel for multiple property IDs."""
         print(f"🔄 Fetching property names for {len(property_ids)} properties in parallel...")
         
@@ -54,30 +55,38 @@ class ExplorationTool(Tool):
         property_results = await asyncio.gather(*property_tasks, return_exceptions=True)
         
         prop_names = {}
+        errors = []
         for result in property_results:
-            if isinstance(result, tuple):
-                prop_id, prop_name = result
+            if isinstance(result, tuple) and len(result) == 3:
+                prop_id, prop_name, error = result
                 prop_names[prop_id] = prop_name
+                if error:
+                    errors.append(error)
             else:
-                print(f"    ⚠️  Error fetching property name: {result}")
+                error_msg = f"Error fetching property name: {result}"
+                print(f"    ⚠️  {error_msg}")
+                errors.append(error_msg)
         
         print(f"✅ Property names fetched successfully")
-        return prop_names
+        if errors:
+            print(f"⚠️  {len(errors)} errors occurred during property name fetching")
+        return prop_names, errors
     
-    async def _fetch_neighbor_entity(self, entity_ref: str) -> tuple[str, Dict[str, Any]]:
+    async def _fetch_neighbor_entity(self, entity_ref: str) -> tuple[str, Dict[str, Any], Optional[str]]:
         """Fetch a single neighbor entity."""
         try:
             neighbor_api_data = await wikidata_api.get_entity(entity_ref)
-            return entity_ref, neighbor_api_data
+            return entity_ref, neighbor_api_data, None
         except Exception as e:
-            print(f"      ❌ Failed to load neighbor {entity_ref}: {e}")
+            error_msg = f"Failed to load neighbor {entity_ref}: {e}"
+            print(f"      ❌ {error_msg}")
             traceback.print_exc()
-            return entity_ref, {'id': entity_ref, 'label': entity_ref, 'description': ''}
+            return entity_ref, {'id': entity_ref, 'label': entity_ref, 'description': ''}, error_msg
     
-    async def _fetch_neighbors_parallel(self, entity_refs: Set[str]) -> Dict[str, Dict[str, Any]]:
+    async def _fetch_neighbors_parallel(self, entity_refs: Set[str]) -> tuple[Dict[str, Dict[str, Any]], List[str]]:
         """Fetch multiple neighbor entities in parallel."""
         if not entity_refs:
-            return {}
+            return {}, []
         
         print(f"🔄 Fetching {len(entity_refs)} neighbor entities in parallel...")
         
@@ -85,10 +94,13 @@ class ExplorationTool(Tool):
         neighbor_results = await asyncio.gather(*neighbor_tasks, return_exceptions=True)
         
         neighbors = {}
+        errors = []
         for result in neighbor_results:
-            if isinstance(result, tuple):
-                entity_ref, neighbor_data = result
+            if isinstance(result, tuple) and len(result) == 3:
+                entity_ref, neighbor_data, error = result
                 neighbors[entity_ref] = neighbor_data
+                if error:
+                    errors.append(error)
                 # Check if we have a valid entity with a label
                 if isinstance(neighbor_data, dict) and 'labels' in neighbor_data:
                     labels = neighbor_data.get('labels', {})
@@ -97,9 +109,13 @@ class ExplorationTool(Tool):
                 else:
                     print(f"      ⚠️  Neighbor data incomplete for {entity_ref}")
             else:
-                print(f"    ⚠️  Error fetching neighbor: {result}")
+                error_msg = f"Error fetching neighbor: {result}"
+                print(f"    ⚠️  {error_msg}")
+                errors.append(error_msg)
         
-        return neighbors
+        if errors:
+            print(f"⚠️  {len(errors)} errors occurred during neighbor fetching")
+        return neighbors, errors
     
     async def _process_entity_batch(self, entity_batch: List[tuple[str, int]]) -> List[Any]:
         """Process a batch of entities in parallel."""
@@ -109,7 +125,8 @@ class ExplorationTool(Tool):
                 entity = convert_api_entity_to_model(api_data)
                 return (entity_id, current_depth, entity)
             except Exception as e:
-                print(f"⚠️ Error processing entity {entity_id}: {e}")
+                error_msg = f"Error processing entity {entity_id}: {e}"
+                print(f"⚠️ {error_msg}")
                 return (entity_id, current_depth, None)
         
         batch_tasks = [process_single_entity(entity_id, current_depth) for entity_id, current_depth in entity_batch]
@@ -184,6 +201,10 @@ class NeighborsExplorationTool(ExplorationTool):
         if not entity_id:
             raise ValueError("entity_id is required")
 
+        # Initialize error tracking
+        all_errors = []
+        partial_data = False
+
         # Get progressive limit
         limit = self.entity_limits.get(entity_id, self.initial_limit)
         if increase_limit:
@@ -191,8 +212,13 @@ class NeighborsExplorationTool(ExplorationTool):
         self.entity_limits[entity_id] = limit
 
         # Get basic entity info using wikidata_api
-        api_data = await wikidata_api.get_entity(entity_id)
-        entity = convert_api_entity_to_model(api_data)
+        try:
+            api_data = await wikidata_api.get_entity(entity_id)
+            entity = convert_api_entity_to_model(api_data)
+        except Exception as e:
+            error_msg = f"Failed to fetch main entity {entity_id}: {e}"
+            all_errors.append(error_msg)
+            raise ValueError(error_msg)
         
         neighbors = {}
         relationships = {}
@@ -208,7 +234,10 @@ class NeighborsExplorationTool(ExplorationTool):
             relevant_props = all_prop_ids
         
         # Fetch property names in parallel
-        prop_names = await self._fetch_property_names_parallel(relevant_props)
+        prop_names, prop_errors = await self._fetch_property_names_parallel(relevant_props)
+        all_errors.extend(prop_errors)
+        if prop_errors:
+            partial_data = True
         
         # Process each property and collect entity references for parallel fetching
         entity_refs_to_fetch = set()
@@ -242,12 +271,19 @@ class NeighborsExplorationTool(ExplorationTool):
 
 
         # Fetch neighbor entities in parallel and convert to WikidataEntity objects
-        neighbor_data = await self._fetch_neighbors_parallel(entity_refs_to_fetch)
+        neighbor_data, neighbor_errors = await self._fetch_neighbors_parallel(entity_refs_to_fetch)
+        all_errors.extend(neighbor_errors)
+        if neighbor_errors:
+            partial_data = True
+            
         for entity_id_val, neighbor_info in neighbor_data.items():
             if neighbor_info:
                 neighbors[entity_id_val] = convert_api_entity_to_model(neighbor_info)
         
         print(f"🎯 Exploration complete: {len(neighbors)} neighbors found")
+        if all_errors:
+            print(f"⚠️  Total errors encountered: {len(all_errors)}")
+            
         return NeighborExplorationResult(
             entity=entity,
             neighbors=neighbors,
@@ -256,7 +292,9 @@ class NeighborsExplorationTool(ExplorationTool):
             total_properties=len(entity.statements),
             neighbor_count=len(neighbors),
             limit=limit,
-            order_by_degree=order_by_degree
+            order_by_degree=order_by_degree,
+            errors=all_errors,
+            partial_data=partial_data
         )
     
     def format_result(self, result: Optional[NeighborExplorationResult]) -> str:
@@ -269,6 +307,17 @@ class NeighborsExplorationTool(ExplorationTool):
         neighbor_count = result.neighbor_count
         
         summary = f"Explored '{entity.label}' ({entity.id}). Found {prop_count} properties and {neighbor_count} neighbors."
+        
+        # Add error information if present
+        if result.errors:
+            summary += f" ⚠️ WARNING: {len(result.errors)} errors occurred during exploration."
+            if result.partial_data:
+                summary += " Some data may be incomplete due to API failures."
+            # Include first few errors for context
+            if len(result.errors) <= 3:
+                summary += f" Errors: {'; '.join(result.errors)}"
+            else:
+                summary += f" First 3 errors: {'; '.join(result.errors[:3])}..."
         
         # Order properties and get top examples based on progressive limit
         order_by_degree = result.order_by_degree
@@ -462,6 +511,10 @@ class LocalGraphTool(ExplorationTool):
         if not center_entity:
             raise ValueError("center_entity is required")
 
+        # Initialize error tracking
+        all_errors = []
+        partial_data = False
+
         limit = self.entity_limits.get(center_entity, self.initial_limit)
         if increase_limit:
             limit += self.increment
@@ -475,8 +528,12 @@ class LocalGraphTool(ExplorationTool):
         print(f"🔍 Following properties: {properties}")
         
         # Fetch property names in parallel
-        prop_names = await self._fetch_property_names_parallel(properties)
-        print(f"📋 Property details: {', '.join([f'{p} ({prop_names[p]})' for p in properties])}")
+        prop_names, prop_errors = await self._fetch_property_names_parallel(properties)
+        all_errors.extend(prop_errors)
+        if prop_errors:
+            partial_data = True
+            
+        print(f"📋 Property details: {', '.join([f'{p} ({prop_names.get(p, p)})' for p in properties])}")
         
         nodes = {}
         edges = []
@@ -505,7 +562,12 @@ class LocalGraphTool(ExplorationTool):
             for result in batch_results:
                 if isinstance(result, tuple):
                     entity_id, current_depth, entity = result
-                    if entity is None or entity_id in explored:
+                    if entity is None:
+                        error_msg = f"Failed to fetch entity {entity_id} at depth {current_depth}"
+                        all_errors.append(error_msg)
+                        partial_data = True
+                        continue
+                    if entity_id in explored:
                         continue
                         
                     explored.add(entity_id)
@@ -543,11 +605,14 @@ class LocalGraphTool(ExplorationTool):
                                     
                                     if neighbor not in explored and current_depth + 1 < depth:
                                         to_explore.append((neighbor, current_depth + 1))
-                                        print(f"      🔗 Added to explore: {neighbor} via {prop} ({prop_names[prop]})")
+                                        print(f"      🔗 Added to explore: {neighbor} via {prop} ({prop_names.get(prop, prop)})")
                     
                     print(f"    📊 Found {neighbors_found} neighbors via target properties")
                 else:
-                    print(f"    ⚠️  Error in batch processing: {result}")
+                    error_msg = f"Error in batch processing: {result}"
+                    all_errors.append(error_msg)
+                    partial_data = True
+                    print(f"    ⚠️  {error_msg}")
         
         print(f"🎯 Graph building complete: {len(nodes)} nodes, {len(edges)} edges")
         
@@ -565,9 +630,19 @@ class LocalGraphTool(ExplorationTool):
                         entity.__dict__['depth'] = depth
                         nodes[entity_id] = entity
                         print(f"    🌿 Added leaf node: '{entity.label}' ({entity_id})")
+                    else:
+                        error_msg = f"Failed to fetch leaf node {entity_id}"
+                        all_errors.append(error_msg)
+                        partial_data = True
                 else:
                     # This handles exceptions returned by asyncio.gather
-                    print(f"    ⚠️  Error fetching leaf node details: {result}")
+                    error_msg = f"Error fetching leaf node details: {result}"
+                    all_errors.append(error_msg)
+                    partial_data = True
+                    print(f"    ⚠️  {error_msg}")
+
+        if all_errors:
+            print(f"⚠️  Total errors encountered: {len(all_errors)}")
 
         return LocalGraphResult(
             nodes=nodes,
@@ -579,7 +654,9 @@ class LocalGraphTool(ExplorationTool):
             total_nodes=len(nodes),
             total_edges=len(edges),
             limit=limit,
-            order_by_degree=order_by_degree
+            order_by_degree=order_by_degree,
+            errors=all_errors,
+            partial_data=partial_data
         )
     
     def format_result(self, result: Optional[LocalGraphResult]) -> str:
@@ -592,6 +669,17 @@ class LocalGraphTool(ExplorationTool):
             
         summary = (f"Built local graph around '{center_label}' ({result.center}) "
                    f"with depth {result.depth}. Found {result.total_nodes} nodes and {result.total_edges} edges.")
+
+        # Add error information if present
+        if result.errors:
+            summary += f" ⚠️ WARNING: {len(result.errors)} errors occurred during graph building."
+            if result.partial_data:
+                summary += " Some data may be incomplete due to API failures."
+            # Include first few errors for context
+            if len(result.errors) <= 3:
+                summary += f" Errors: {'; '.join(result.errors)}"
+            else:
+                summary += f" First 3 errors: {'; '.join(result.errors[:3])}..."
 
         order_by_degree = result.order_by_degree
         ordered_edges = order_local_graph_edges(result, enabled=order_by_degree)

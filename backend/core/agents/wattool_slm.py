@@ -29,8 +29,12 @@ class WatToolSLMAgent(BaseAgent):
         )
         self.model = model
     
-    async def query_llm(self, messages: List[LLMMessage], tools: Optional[List[Dict]] = None, **kwargs) -> LLMResponse:
+    async def query_llm(self, messages: List[LLMMessage], tools: Optional[List[Dict]] = None, 
+                        model: Optional[str] = None, **kwargs) -> LLMResponse:
         """Send messages to the local SLM and get response with tool calling support."""
+        # Use the provided model or fall back to the agent's default model
+        selected_model = model or self.model
+        
         if messages and isinstance(messages[0], LLMMessage):
             openai_messages = self._format_messages_for_openai(messages)
         else:
@@ -38,7 +42,7 @@ class WatToolSLMAgent(BaseAgent):
         
         try:
             request_params = {
-                "model": self.model,
+                "model": selected_model,
                 "messages": openai_messages,
                 "temperature": kwargs.get("temperature", 0.1),
             }

@@ -5,6 +5,7 @@ from ...knowledge_base.schema import Node, Edge
 # Add imports for Wikidata integration
 from ..wikidata.wikidata_api import wikidata_api
 from ..wikidata.datamodel import convert_api_entity_to_model, convert_api_property_to_model
+import aiohttp
 import json
 import time
 
@@ -411,7 +412,7 @@ class FetchRelationshipTool(Tool):
     
     def __init__(self):
         super().__init__(
-            name="fetch_relationship",
+            name="fetch_relationship_from_node",
             description="Fetch ALL Wikidata statements for a specific property from a subject entity and add them to the local graph database. " \
             "This tool fetches the subject entity, retrieves all statements for the specified property, then fetches all object entities " \
             "and creates relationships between the subject and each object in the local graph. " \
@@ -608,7 +609,7 @@ class FetchRelationshipTool(Tool):
                         "edge_id": edge_id,
                         "value_type": "entity"
                     })
-                    result["operations"].append(f"Relationship {subject_id} -[{property_id}]-> {object_id} created with ID: {edge_id}")
+                    result["operations"].append(f"Relationship {subject_id} -[{property_id}:{result['property_label']}]-> {object_id} created with ID: {edge_id}")
                     
                 else:
                     # This is a literal value (date, string, number, etc.)
@@ -672,7 +673,7 @@ class FetchRelationshipTool(Tool):
                         "value_type": "literal",
                         "datatype": datatype
                     })
-                    result["operations"].append(f"Relationship {subject_id} -[{property_id}]-> {literal_node_id} (literal: {literal_value}) created with ID: {edge_id}")
+                    result["operations"].append(f"Relationship {subject_id} -[{property_id}:{result['property_label']}]-> {literal_node_id} (literal: {literal_value}) created with ID: {edge_id}")
                 
             except Exception as e:
                 result["operations"].append(f"Failed to process object {object_key}: {str(e)}")
@@ -724,13 +725,13 @@ class FetchRelationshipTool(Tool):
                 
                 if value_type == "entity":
                     object_str = f"{object_id} ({object_label})" if object_label != object_id else object_id
-                    output += f"  - {subject_str} -[{property_id}]-> {object_str}\n"
+                    output += f"  - {subject_str} -[{property_id}:{property_label}]-> {object_str}\n"
                 elif value_type == "literal":
                     datatype_str = f" ({datatype})" if datatype else ""
-                    output += f"  - {subject_str} -[{property_id}]-> {object_label}{datatype_str} [literal]\n"
+                    output += f"  - {subject_str} -[{property_id}:{property_label}]-> {object_label}{datatype_str} [literal]\n"
                 else:
                     object_str = f"{object_id} ({object_label})" if object_label != object_id else object_id
-                    output += f"  - {subject_str} -[{property_id}]-> {object_str}\n"
+                    output += f"  - {subject_str} -[{property_id}:{property_label}]-> {object_str}\n"
         
         if relationships_skipped:
             output += "\nRelationships skipped:\n"
@@ -738,6 +739,279 @@ class FetchRelationshipTool(Tool):
                 object_id = rel.get("object_id")
                 reason = rel.get("reason")
                 output += f"  - {object_id}: {reason}\n"
+        
+        # Show summary of operations if not too verbose
+        if len(operations) <= 10:
+            output += "\nOperations performed:\n"
+            for op in operations:
+                output += f"  - {op}\n"
+        else:
+            output += f"\n{len(operations)} operations performed (detailed log available)"
+        
+        return output.strip()
+
+class FetchReverseRelationshipTool(Tool):
+    """Tool for fetching all entities that have a specific relationship pointing to a given object entity."""
+    
+    def __init__(self):
+        super().__init__(
+            name="fetch_relationship_to_node",
+            description="Find and fetch all Wikidata entities that have a specific relationship pointing to a given object entity. " \
+            "This tool uses SPARQL queries to find all subjects that have the specified property pointing to the given object, " \
+            "then fetches those entities and creates the relationships in the local graph. " \
+            "USEFUL FOR: discovering all entities that reference a specific entity through a particular property (e.g., all people born in a city, all works created by an author). " \
+            "Eliminates hallucinations by only fetching relationships that actually exist in Wikidata."
+        )
+    
+    def get_definition(self) -> ToolDefinition:
+        return ToolDefinition(
+            name=self.name,
+            description=self.description,
+            parameters=[
+                ToolParameter(
+                    name="object_id",
+                    type="string",
+                    description="Wikidata object entity ID that should be the target of relationships (e.g., Q84 for London)"
+                ),
+                ToolParameter(
+                    name="property_id",
+                    type="string",
+                    description="Wikidata property ID to search for (e.g., P19 for 'place of birth')"
+                ),
+                ToolParameter(
+                    name="limit",
+                    type="integer",
+                    description="Maximum number of subject entities to fetch (default: 50, max: 500)",
+                    required=False,
+                    default=50
+                )
+            ],
+            return_type="object",
+            return_description="Result of the reverse relationship fetch operation with details about all discovered subject entities and created relationships."
+        )
+    
+    async def execute(self, **kwargs) -> Dict[str, Any]:
+        """Find all entities that reference the given object through the specified property."""
+        object_id = kwargs.get("object_id")
+        property_id = kwargs.get("property_id")
+        limit = min(kwargs.get("limit", 50), 500)  # Cap at 500 to prevent excessive queries
+        
+        if not object_id or not property_id:
+            raise ValueError("object_id and property_id are required")
+        
+        # Connect to local graph
+        graph = get_knowledge_graph()
+        if not await graph.is_connected():
+            await graph.connect()
+        
+        result = {
+            "object_id": object_id,
+            "property_id": property_id,
+            "limit": limit,
+            "operations": [],
+            "subjects_found": [],
+            "relationships_created": [],
+            "relationships_skipped": []
+        }
+        
+        # First, ensure the object entity exists in our local graph
+        try:
+            api_data = await wikidata_api.get_entity(object_id)
+            object_entity = convert_api_entity_to_model(api_data)
+            result["object_label"] = object_entity.label
+            result["operations"].append(f"Object {object_id} ({object_entity.label}) fetched from Wikidata")
+        except Exception as e:
+            result["operations"].append(f"Failed to fetch object {object_id}: {str(e)}")
+            return result
+        
+        # Add/merge object entity to local graph
+        existing_object = await graph.get_entity(object_id)
+        if existing_object:
+            result["operations"].append(f"Object {object_id} already exists in local graph")
+        else:
+            try:
+                object_node = Node(
+                    node_id=object_entity.id,
+                    node_type="WikidataEntity",
+                    label=object_entity.label,
+                    description=object_entity.description or "",
+                    properties={
+                        "wikidata_link": object_entity.link,
+                    }
+                )
+                
+                await graph.add_entity(object_node)
+                result["operations"].append(f"Object {object_id} ({object_entity.label}) added to local graph")
+            except Exception as e:
+                result["operations"].append(f"Failed to add object to local graph: {str(e)}")
+                return result
+        
+        # Fetch property information
+        try:
+            api_data = await wikidata_api.get_property(property_id)
+            prop = convert_api_property_to_model(api_data)
+            result["property_label"] = prop.label
+            result["property_description"] = prop.description
+        except Exception as e:
+            result["operations"].append(f"Failed to fetch property {property_id}: {str(e)}")
+            result["property_label"] = property_id
+            result["property_description"] = ""
+        
+        # Use SPARQL to find all subjects that have this property pointing to our object
+        sparql_query = f"""
+        SELECT DISTINCT ?subject WHERE {{
+            ?subject wdt:{property_id} wd:{object_id} .
+        }}
+        LIMIT {limit}
+        """
+        
+        try:
+            # Execute SPARQL query using aiohttp
+            async with aiohttp.ClientSession() as session:
+                sparql_url = "https://query.wikidata.org/sparql"
+                headers = {
+                    'Accept': 'application/sparql-results+json',
+                    'User-Agent': 'RoboData/1.0 (https://github.com/EmanueleMusumeci/RoboData)'
+                }
+                
+                async with session.get(sparql_url, params={'query': sparql_query}, headers=headers) as response:
+                    if response.status != 200:
+                        result["operations"].append(f"SPARQL query failed with status {response.status}")
+                        return result
+                    
+                    sparql_data = await response.json()
+                    
+                    # Extract subject entity IDs from SPARQL results
+                    bindings = sparql_data.get("results", {}).get("bindings", [])
+                    subject_ids = []
+                    
+                    for binding in bindings:
+                        subject_uri = binding.get("subject", {}).get("value", "")
+                        if subject_uri.startswith("http://www.wikidata.org/entity/"):
+                            subject_id = subject_uri.split("/")[-1]
+                            subject_ids.append(subject_id)
+                    
+                    result["subjects_found"] = subject_ids
+                    result["operations"].append(f"SPARQL query found {len(subject_ids)} subjects")
+                    
+        except Exception as e:
+            result["operations"].append(f"Failed to execute SPARQL query: {str(e)}")
+            return result
+        
+        # Process each subject entity found
+        for subject_id in subject_ids:
+            try:
+                # Check if relationship already exists in local graph
+                existing_relationships = await graph.get_entity_relationships(subject_id)
+                relationship_exists = False
+                for rel in existing_relationships:
+                    if (rel.source_id == subject_id and rel.target_id == object_id and 
+                        rel.type == property_id):
+                        relationship_exists = True
+                        break
+                
+                if relationship_exists:
+                    result["relationships_skipped"].append({
+                        "subject_id": subject_id,
+                        "reason": "already exists in local graph"
+                    })
+                    continue
+                
+                # Fetch and add/merge subject entity
+                existing_subject = await graph.get_entity(subject_id)
+                if existing_subject:
+                    subject_label = existing_subject.label
+                    result["operations"].append(f"Subject {subject_id} already exists in local graph")
+                else:
+                    try:
+                        # Fetch subject from Wikidata
+                        api_data = await wikidata_api.get_entity(subject_id)
+                        subject_entity = convert_api_entity_to_model(api_data)
+                        subject_label = subject_entity.label
+                        
+                        # Add to local graph
+                        subject_node = Node(
+                            node_id=subject_entity.id,
+                            node_type="WikidataEntity",
+                            label=subject_entity.label,
+                            description=subject_entity.description or "",
+                            properties={
+                                "wikidata_link": subject_entity.link,
+                            }
+                        )
+                        
+                        await graph.add_entity(subject_node)
+                        result["operations"].append(f"Subject {subject_id} ({subject_entity.label}) added to local graph")
+                    except Exception as e:
+                        result["operations"].append(f"Failed to fetch/add subject {subject_id}: {str(e)}")
+                        result["relationships_skipped"].append({
+                            "subject_id": subject_id,
+                            "reason": f"failed to fetch subject: {str(e)}"
+                        })
+                        continue
+                
+                # Create the relationship
+                edge = Edge(
+                    source_id=subject_id,
+                    target_id=object_id,
+                    relationship_type=property_id,
+                    label=result["property_label"],
+                    description=result["property_description"] or "",
+                    properties={
+                        "wikidata_link": f"https://www.wikidata.org/wiki/Property:{property_id}"
+                    }
+                )
+                
+                edge_id = await graph.add_relationship(edge)
+                result["relationships_created"].append({
+                    "subject_id": subject_id,
+                    "subject_label": subject_label,
+                    "edge_id": edge_id
+                })
+                result["operations"].append(f"Relationship {subject_id} -[{property_id}:{result['property_label']}]-> {object_id} created with ID: {edge_id}")
+                
+            except Exception as e:
+                result["operations"].append(f"Failed to process subject {subject_id}: {str(e)}")
+                result["relationships_skipped"].append({
+                    "subject_id": subject_id,
+                    "reason": f"processing error: {str(e)}"
+                })
+        
+        return result
+
+    def format_result(self, result: Dict[str, Any]) -> str:
+        """Format the result into a readable, concise string."""
+        if not result:
+            return "Failed to fetch reverse relationships."
+        
+        object_id = result.get("object_id")
+        property_id = result.get("property_id")
+        object_label = result.get("object_label", object_id)
+        property_label = result.get("property_label", property_id)
+        subjects_found = result.get("subjects_found", [])
+        relationships_created = result.get("relationships_created", [])
+        relationships_skipped = result.get("relationships_skipped", [])
+        operations = result.get("operations", [])
+        
+        object_str = f"{object_id} ({object_label})" if object_label != object_id else object_id
+        
+        output = f"Fetched reverse relationships for property {property_id} ({property_label}) pointing to {object_str}\n"
+        output += f"Found {len(subjects_found)} potential subjects, created {len(relationships_created)} relationships, skipped {len(relationships_skipped)}\n"
+        
+        if relationships_created:
+            output += "\nRelationships created:\n"
+            for rel in relationships_created:
+                subject_id = rel.get("subject_id")
+                subject_label = rel.get("subject_label", subject_id)
+                subject_str = f"{subject_id} ({subject_label})" if subject_label != subject_id else subject_id
+                output += f"  - {subject_str} -[{property_id}:{property_label}]-> {object_str}\n"
+        
+        if relationships_skipped:
+            output += "\nRelationships skipped:\n"
+            for rel in relationships_skipped:
+                subject_id = rel.get("subject_id")
+                reason = rel.get("reason")
+                output += f"  - {subject_id}: {reason}\n"
         
         # Show summary of operations if not too verbose
         if len(operations) <= 10:
@@ -915,7 +1189,7 @@ class FetchTripleTool(Tool):
                 break
         
         if relationship_exists:
-            result["operations"].append(f"Relationship {subject_id} -[{property_id}]-> {object_id} already exists in local graph")
+            result["operations"].append(f"Relationship {subject_id} -[{property_id}:{result['property_label']}]-> {object_id} already exists in local graph")
         else:
             # Create the relationship since it's verified to exist in Wikidata
             edge = Edge(
@@ -930,7 +1204,7 @@ class FetchTripleTool(Tool):
             )
             
             edge_id = await graph.add_relationship(edge)
-            result["operations"].append(f"Relationship {subject_id} -[{property_id}]-> {object_id} created with ID: {edge_id}")
+            result["operations"].append(f"Relationship {subject_id} -[{property_id}:{result['property_label']}]-> {object_id} created with ID: {edge_id}")
             result["edge_id"] = edge_id
         
         return result
@@ -945,9 +1219,11 @@ class FetchTripleTool(Tool):
             subject_id = result.get("subject_id")
             property_id = result.get("property_id")
             object_id = result.get("object_id")
+            property_label = result.get("property_label", property_id)
             operations = result.get("operations", [])
             
-            output = f"Relationship verification failed: {subject_id} -[{property_id}]-> {object_id} does not exist in Wikidata\n"
+            property_display = f"{property_id}:{property_label}" if property_label != property_id else property_id
+            output = f"Relationship verification failed: {subject_id} -[{property_display}]-> {object_id} does not exist in Wikidata\n"
             output += "Operations performed:\n"
             for op in operations:
                 output += f"  - {op}\n"
@@ -1476,12 +1752,12 @@ class CypherQueryTool(Tool):
         )
     
     async def execute(self, **kwargs) -> Dict[str, Any]:
-        """Execute a Cypher query with enhanced error handling and result formatting."""
-        
+        """Execute a Cypher query with enhanced error handling and result formatting. Any DBMS warning/error/notification is included in the result."""
+        import traceback
         cypher_query = kwargs.get("cypher_query")
         parameters = kwargs.get("parameters", {})
         timeout = kwargs.get("timeout", 30)
-        
+        result: Dict[str, Any] = {}
         if not cypher_query:
             return {
                 "success": False,
@@ -1494,73 +1770,109 @@ class CypherQueryTool(Tool):
                     "parameters": {}
                 }
             }
-        
         graph = get_knowledge_graph()
         if not await graph.is_connected():
             await graph.connect()
-        
         start_time = time.time()
-        
         try:
-            # Execute the query
-            results = await graph.execute_custom_query(cypher_query, parameters)
-            
+            # Execute the query and capture any DBMS notifications/warnings/errors if available
+            query_result = await graph.execute_custom_query(cypher_query, parameters)
             execution_time = time.time() - start_time
             
-            return {
-                "success": True,
-                "results": results,
-                "metadata": {
-                    "record_count": len(results),
+            # query_result is now a dict with keys: records, notifications, query
+            if isinstance(query_result, dict) and 'records' in query_result:
+                result["success"] = True
+                result["results"] = query_result.get("records", [])
+                result["metadata"] = {
+                    "record_count": len(query_result.get("records", [])),
                     "execution_time_seconds": round(execution_time, 3),
                     "query": cypher_query,
                     "parameters": parameters
                 }
-            }
-            
+                
+                # Include notifications in the result for the agent to see
+                notifications = query_result.get("notifications", [])
+                if notifications:
+                    result["notifications"] = notifications
+                    
+            else:
+                # fallback: treat as list of results (for backwards compatibility)
+                result["success"] = True
+                result["results"] = query_result if isinstance(query_result, list) else []
+                result["metadata"] = {
+                    "record_count": len(query_result) if isinstance(query_result, list) else 0,
+                    "execution_time_seconds": round(execution_time, 3),
+                    "query": cypher_query,
+                    "parameters": parameters
+                }
         except Exception as e:
             execution_time = time.time() - start_time
-            return {
-                "success": False,
-                "error": str(e),
-                "results": [],
-                "metadata": {
-                    "record_count": 0,
-                    "execution_time_seconds": round(execution_time, 3),
-                    "query": cypher_query,
-                    "parameters": parameters
-                }
+            result["success"] = False
+            result["error"] = str(e)
+            result["results"] = []
+            result["metadata"] = {
+                "record_count": 0,
+                "execution_time_seconds": round(execution_time, 3),
+                "query": cypher_query,
+                "parameters": parameters
             }
+            result["traceback"] = traceback.format_exc()
+        return result
 
     def format_result(self, result: Dict[str, Any]) -> str:
-        """Format the result into a readable, concise string."""
+        """Format the result into a readable, concise string. Any DBMS warning/error/notification is included in the output."""
+        import json
         if not result.get("success"):
-            return f"Cypher query failed: {result.get('error', 'Unknown error')}"
-            
+            out = f"Cypher query failed: {result.get('error', 'Unknown error')}"
+            if result.get("traceback"):
+                out += f"\nTraceback:\n{result['traceback']}"
+            for key in ("errors", "warnings", "notifications"):
+                if key in result and result[key]:
+                    out += f"\n{key.capitalize()}: {json.dumps(result[key], indent=2)}"
+            return out
         metadata = result.get('metadata', {})
         record_count = metadata.get('record_count', 0)
         execution_time = metadata.get('execution_time_seconds', 0)
-        
         if record_count == 0:
-            return f"Cypher query successful, returned no records. Time: {execution_time}s"
+            out = f"Cypher query returned no records. Time: {execution_time}s"
+        else:
+            # Convert results to JSON-serializable format for preview
+            results_preview = []
+            for record in result.get('results', [])[:2]:
+                serializable_record = {}
+                for key, value in record.items():
+                    if hasattr(value, 'to_dict'):
+                        serializable_record[key] = value.to_dict()
+                    elif isinstance(value, (str, int, float, bool, type(None))):
+                        serializable_record[key] = value
+                    else:
+                        serializable_record[key] = str(value)
+                results_preview.append(serializable_record)
+            out = f"Cypher query successful. Records: {record_count}, Time: {execution_time}s. Preview: {json.dumps(results_preview)}"
         
-        # Convert results to JSON-serializable format for preview
-        results_preview = []
-        for record in result.get('results', [])[:2]:
-            serializable_record = {}
-            for key, value in record.items():
-                if hasattr(value, 'to_dict'):
-                    # Handle Node/Edge objects that have to_dict method
-                    serializable_record[key] = value.to_dict()
-                elif isinstance(value, (str, int, float, bool, type(None))):
-                    # Handle primitive types
-                    serializable_record[key] = value
-                else:
-                    # Convert other objects to string representation
-                    serializable_record[key] = str(value)
-            results_preview.append(serializable_record)
-            
-        return f"Cypher query successful. Records: {record_count}, Time: {execution_time}s. Preview: {json.dumps(results_preview)}"
+        # Include notifications in a more readable format for the agent
+        notifications = result.get('notifications', [])
+        if notifications:
+            out += f"\n\nDATABASE NOTIFICATIONS ({len(notifications)} total):"
+            for i, notification in enumerate(notifications, 1):
+                severity = notification.get('severity', 'UNKNOWN')
+                title = notification.get('title', 'Unknown notification')
+                description = notification.get('description', 'No description available')
+                out += f"\n  {i}. [{severity}] {title}"
+                out += f"\n     {description}"
+                
+                # Include position information if available
+                position = notification.get('position', {})
+                if position:
+                    line = position.get('line', 'unknown')
+                    column = position.get('column', 'unknown')
+                    out += f"\n     Position: line {line}, column {column}"
+        
+        # Keep backwards compatibility for other notification formats
+        for key in ("errors", "warnings"):
+            if key in result and result[key]:
+                out += f"\n{key.capitalize()}: {json.dumps(result[key], indent=2)}"
+        return out
 
 # Export all tools for registration
 all_tools = [
@@ -1739,51 +2051,77 @@ if __name__ == '__main__':
 
         # Test FetchRelationshipTool
         print("\n--- Testing FetchRelationshipTool ---")
-        fetch_relationship_tool = FetchRelationshipTool()
+        fetch_relationship_from_node_tool = FetchRelationshipTool()
         
         # Test fetching a real Wikidata triple: Douglas Adams (Q42) - instance of (P31) - human (Q5)
         try:
-            result = await fetch_relationship_tool.execute(
+            result = await fetch_relationship_from_node_tool.execute(
                 subject_id='Q42',
                 property_id='P31',
                 object_id='Q5'
             )
-            print(f"Fetch Q42-P31-Q5: {fetch_relationship_tool.format_result(result)}")
+            print(f"Fetch Q42-P31-Q5: {fetch_relationship_from_node_tool.format_result(result)}")
         except Exception as e:
             print(f"Error fetching Q42-P31-Q5: {e}")
         
         # Test fetching another triple with already existing subject
         try:
-            result = await fetch_relationship_tool.execute(
+            result = await fetch_relationship_from_node_tool.execute(
                 subject_id='Q42',
                 property_id='P106',
                 object_id='Q36180'
             )
-            print(f"Fetch Q42-P106-Q36180: {fetch_relationship_tool.format_result(result)}")
+            print(f"Fetch Q42-P106-Q36180: {fetch_relationship_from_node_tool.format_result(result)}")
         except Exception as e:
             print(f"Error fetching Q42-P106-Q36180: {e}")
         
         # Test with existing relationship
         try:
-            result = await fetch_relationship_tool.execute(
+            result = await fetch_relationship_from_node_tool.execute(
                 subject_id='Q42',
                 property_id='P31',
                 object_id='Q5'
             )
-            print(f"Fetch Q42-P31-Q5 (duplicate): {fetch_relationship_tool.format_result(result)}")
+            print(f"Fetch Q42-P31-Q5 (duplicate): {fetch_relationship_from_node_tool.format_result(result)}")
         except Exception as e:
             print(f"Error fetching Q42-P31-Q5 (duplicate): {e}")
         
         # Test with non-existent relationship to verify verification works
         try:
-            result = await fetch_relationship_tool.execute(
+            result = await fetch_relationship_from_node_tool.execute(
                 subject_id='Q42',
                 property_id='P31',
                 object_id='Q6256'  # country - Douglas Adams is not a country
             )
-            print(f"Fetch Q42-P31-Q6256 (non-existent): {fetch_relationship_tool.format_result(result)}")
+            print(f"Fetch Q42-P31-Q6256 (non-existent): {fetch_relationship_from_node_tool.format_result(result)}")
         except Exception as e:
             print(f"Error fetching Q42-P31-Q6256 (non-existent): {e}")
+
+        # Test FetchReverseRelationshipTool
+        print("\n--- Testing FetchReverseRelationshipTool ---")
+        fetch_reverse_tool = FetchReverseRelationshipTool()
+        
+        # Test finding all people born in Cambridge (Q350)
+        try:
+            result = await fetch_reverse_tool.execute(
+                object_id='Q350',  # Cambridge
+                property_id='P19',  # place of birth
+                limit=10
+            )
+            print(f"Fetch reverse P19->Q350: {fetch_reverse_tool.format_result(result)}")
+        except Exception as e:
+            print(f"Error fetching reverse P19->Q350: {e}")
+        
+        # Test finding works by Douglas Adams (Q42)
+        try:
+            result = await fetch_reverse_tool.execute(
+                object_id='Q42',  # Douglas Adams
+                property_id='P50',  # author
+                limit=5
+            )
+            print(f"Fetch reverse P50->Q42: {fetch_reverse_tool.format_result(result)}")
+        except Exception as e:
+            print(f"Error fetching reverse P50->Q42: {e}")
 
         # Test RemoveEdgeTool
         print("\n--- Testing RemoveEdgeTool ---")

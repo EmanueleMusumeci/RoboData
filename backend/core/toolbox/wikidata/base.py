@@ -56,10 +56,10 @@ class GetEntityInfoTool(Tool):
             return_description="Detailed structured description of the input entity with a human-readable label, natural language description, and main properties (value-like characteristics of this entity) and relationships with neighboring nodes."
         )
 
-    async def _fetch_property_details_parallel(self, property_ids: List[str]) -> Dict[str, Dict[str, str]]:
+    async def _fetch_property_details_parallel(self, property_ids: List[str]) -> tuple[Dict[str, Dict[str, str]], List[str]]:
         """Fetch property names and descriptions in parallel for multiple property IDs."""
         
-        async def fetch_single_prop(prop_id: str) -> Tuple[str, Dict[str, str]]:
+        async def fetch_single_prop(prop_id: str) -> Tuple[str, Dict[str, str], Optional[str]]:
             try:
                 prop_api_data = await wikidata_api.get_property(prop_id)
                 labels = prop_api_data.get('labels', {})
@@ -72,18 +72,26 @@ class GetEntityInfoTool(Tool):
                 return prop_id, {
                     'name': prop_name,
                     'description': prop_desc
-                }
+                }, None
             except Exception as e:
-                print(f"Error fetching property {prop_id}: {e}")
+                error_msg = f"Error fetching property {prop_id}: {e}"
+                print(error_msg)
                 return prop_id, {
                     'name': prop_id,
                     'description': 'No description available'
-                }
+                }, error_msg
 
         tasks = [fetch_single_prop(prop_id) for prop_id in property_ids]
         results = await asyncio.gather(*tasks)
         
-        return {prop_id: prop_details for prop_id, prop_details in results}
+        prop_details = {}
+        errors = []
+        for prop_id, prop_data, error in results:
+            prop_details[prop_id] = prop_data
+            if error:
+                errors.append(error)
+        
+        return prop_details, errors
     
     async def execute(self, **kwargs) -> Dict[str, Any]:
         """Get comprehensive information about a Wikidata entity."""
@@ -94,9 +102,18 @@ class GetEntityInfoTool(Tool):
         
         if not entity_id:
             raise ValueError("entity_id is required")
-            
-        api_data = await wikidata_api.get_entity(entity_id)
-        entity = convert_api_entity_to_model(api_data)
+        
+        # Initialize error tracking
+        errors = []
+        partial_data = False
+        
+        try:
+            api_data = await wikidata_api.get_entity(entity_id)
+            entity = convert_api_entity_to_model(api_data)
+        except Exception as e:
+            error_msg = f"Failed to fetch entity {entity_id}: {e}"
+            errors.append(error_msg)
+            raise ValueError(error_msg)
         
         # Basic entity information
         result = {
@@ -105,14 +122,19 @@ class GetEntityInfoTool(Tool):
             "description": entity.description,
             "aliases": entity.aliases,
             "statement_count": len(entity.statements),
-            "link": entity.link
+            "link": entity.link,
+            "errors": errors,
+            "partial_data": partial_data
         }
         
         # Add properties information if requested
         if include_properties and entity.statements:
             # Fetch property details for all statements in parallel
             prop_ids = list(entity.statements.keys())
-            prop_details = await self._fetch_property_details_parallel(prop_ids)
+            prop_details, prop_errors = await self._fetch_property_details_parallel(prop_ids)
+            errors.extend(prop_errors)
+            if prop_errors:
+                partial_data = True
 
             limit = self.entity_limits.get(entity_id, self.initial_limit)
             if increase_limit:
@@ -124,7 +146,9 @@ class GetEntityInfoTool(Tool):
                 "statements": entity.statements,
                 "property_details": prop_details,
                 "limit": limit,
-                "order_by_degree": order_by_degree
+                "order_by_degree": order_by_degree,
+                "errors": errors,
+                "partial_data": partial_data
             })
 
         return result
@@ -143,6 +167,19 @@ class GetEntityInfoTool(Tool):
         summary = f"Entity: {entity_label} ({entity_id})\n"
         summary += f"Description: {description[:100]}{'...' if len(description) > 100 else ''}\n"
         summary += f"Total statements: {statement_count}\n"
+        
+        # Add error information if present
+        errors = result.get('errors', [])
+        partial_data = result.get('partial_data', False)
+        if errors:
+            summary += f"⚠️ WARNING: {len(errors)} errors occurred during data retrieval.\n"
+            if partial_data:
+                summary += "Some data may be incomplete due to API failures.\n"
+            # Include first few errors for context
+            if len(errors) <= 3:
+                summary += f"Errors: {'; '.join(errors)}\n"
+            else:
+                summary += f"First 3 errors: {'; '.join(errors[:3])}...\n"
         
         # Add properties information if available
         statements = result.get("statements")
@@ -194,16 +231,30 @@ class GetPropertyInfoTool(Tool):
         property_id = kwargs.get("property_id")
         if not property_id:
             raise ValueError("property_id is required")
-            
-        api_data = await wikidata_api.get_property(property_id)
-        prop = convert_api_property_to_model(api_data)
-        return {
-            "id": prop.id,
-            "label": prop.label,
-            "description": prop.description,
-            "datatype": prop.datatype,
-            "link": prop.link
-        }
+        
+        try:
+            api_data = await wikidata_api.get_property(property_id)
+            prop = convert_api_property_to_model(api_data)
+            return {
+                "id": prop.id,
+                "label": prop.label,
+                "description": prop.description,
+                "datatype": prop.datatype,
+                "link": prop.link,
+                "errors": [],
+                "partial_data": False
+            }
+        except Exception as e:
+            error_msg = f"Failed to fetch property {property_id}: {e}"
+            return {
+                "id": property_id,
+                "label": property_id,
+                "description": "Failed to fetch description",
+                "datatype": "unknown",
+                "link": f"https://www.wikidata.org/wiki/Property:{property_id}",
+                "errors": [error_msg],
+                "partial_data": True
+            }
 
     def format_result(self, result: Dict[str, Any]) -> str:
         """Format the result into a readable, concise string."""
@@ -218,6 +269,19 @@ class GetPropertyInfoTool(Tool):
         summary = f"Property: {prop_label} ({prop_id})\n"
         summary += f"Type: {datatype}\n"
         summary += f"Description: {description}"
+        
+        # Add error information if present
+        errors = result.get('errors', [])
+        partial_data = result.get('partial_data', False)
+        if errors:
+            summary += f"\n⚠️ WARNING: {len(errors)} errors occurred during property retrieval."
+            if partial_data:
+                summary += " Some data may be incomplete due to API failures."
+            # Include first few errors for context
+            if len(errors) <= 3:
+                summary += f" Errors: {'; '.join(errors)}"
+            else:
+                summary += f" First 3 errors: {'; '.join(errors[:3])}..."
         
         return summary
 
@@ -273,7 +337,7 @@ class SearchEntitiesTool(Tool):
             return_description="List of search results with IDs, labels, descriptions, and optionally main properties"
         )
 
-    async def _fetch_single_property(self, prop_id: str) -> Tuple[str, Dict[str, str]]:
+    async def _fetch_single_property(self, prop_id: str) -> Tuple[str, Dict[str, str], Optional[str]]:
         """Fetch a single property's details."""
         try:
             prop_api_data = await wikidata_api.get_property(prop_id)
@@ -287,22 +351,24 @@ class SearchEntitiesTool(Tool):
             return prop_id, {
                 'name': prop_name,
                 'description': prop_desc
-            }
+            }, None
         except Exception as e:
-            print(f"Error fetching property {prop_id}: {e}")
+            error_msg = f"Error fetching property {prop_id}: {e}"
+            print(error_msg)
             return prop_id, {
                 'name': prop_id,
                 'description': 'No description available'
-            }
+            }, error_msg
 
     async def _fetch_entity_properties(self, entity_id: str, limit: int) -> Dict[str, Any]:
         """Fetch properties for a single entity."""
+        errors = []
         try:
             api_data = await wikidata_api.get_entity(entity_id)
             entity = convert_api_entity_to_model(api_data)
             
             if not entity.statements:
-                return {"statements": {}, "property_details": {}}
+                return {"statements": {}, "property_details": {}, "errors": errors}
             
             # Get top properties by degree
             ordered_props = order_properties_by_degree(entity.statements, enabled=True)
@@ -312,15 +378,22 @@ class SearchEntitiesTool(Tool):
             tasks = [self._fetch_single_property(prop_id) for prop_id in top_props]
             property_results = await asyncio.gather(*tasks)
             
-            prop_details = {prop_id: prop_info for prop_id, prop_info in property_results}
+            prop_details = {}
+            for prop_id, prop_info, error in property_results:
+                prop_details[prop_id] = prop_info
+                if error:
+                    errors.append(error)
             
             return {
                 "statements": {prop_id: entity.statements[prop_id] for prop_id in top_props if prop_id in entity.statements},
-                "property_details": prop_details
+                "property_details": prop_details,
+                "errors": errors
             }
         except Exception as e:
-            print(f"Error fetching entity {entity_id}: {e}")
-            return {"statements": {}, "property_details": {}}
+            error_msg = f"Error fetching entity {entity_id}: {e}"
+            print(error_msg)
+            errors.append(error_msg)
+            return {"statements": {}, "property_details": {}, "errors": errors}
     
     async def execute(self, **kwargs) -> List[Dict[str, Any]]:
         """Search for Wikidata entities by text query."""
@@ -333,9 +406,18 @@ class SearchEntitiesTool(Tool):
         
         if not query:
             raise ValueError("query is required")
-            
-        api_data = await wikidata_api.search_entities(query, limit)
-        results = convert_api_search_to_model(api_data)
+        
+        # Initialize error tracking
+        all_errors = []
+        partial_data = False
+        
+        try:
+            api_data = await wikidata_api.search_entities(query, limit)
+            results = convert_api_search_to_model(api_data)
+        except Exception as e:
+            error_msg = f"Failed to search entities for query '{query}': {e}"
+            all_errors.append(error_msg)
+            raise ValueError(error_msg)
 
         display_limit = self.query_limits.get(query, self.initial_limit)
         if increase_limit:
@@ -361,7 +443,9 @@ class SearchEntitiesTool(Tool):
                 "limit": display_limit,
                 "query": query,
                 "include_properties": include_properties,
-                "prop_limit": prop_limit
+                "prop_limit": prop_limit,
+                "errors": [],
+                "partial_data": False
             }
             enhanced_results.append(entity_data)
         
@@ -378,7 +462,18 @@ class SearchEntitiesTool(Tool):
             
             # Update enhanced_results with property data
             for i, props_data in enumerate(properties_results):
+                entity_errors = props_data.pop("errors", [])
                 enhanced_results[i].update(props_data)
+                enhanced_results[i]["errors"] = entity_errors
+                enhanced_results[i]["partial_data"] = bool(entity_errors)
+                all_errors.extend(entity_errors)
+                if entity_errors:
+                    partial_data = True
+        
+        # Add global error information to first result for summary
+        if enhanced_results:
+            enhanced_results[0]["global_errors"] = all_errors
+            enhanced_results[0]["global_partial_data"] = partial_data
         
         return enhanced_results
 
@@ -391,16 +486,40 @@ class SearchEntitiesTool(Tool):
         query = result[0].get("query")
         include_properties = result[0].get("include_properties", False)
         prop_limit = result[0].get("prop_limit", 5)
+        global_errors = result[0].get("global_errors", [])
+        global_partial_data = result[0].get("global_partial_data", False)
 
-        summary = f"Found {len(result)} entities for '{query}'. Showing top {min(limit, len(result))}:\n\n"
+        summary = f"Found {len(result)} entities for '{query}'. Showing top {min(limit, len(result))}:"
+        
+        # Add global error information if present
+        if global_errors:
+            summary += f"\n⚠️ WARNING: {len(global_errors)} errors occurred during search."
+            if global_partial_data:
+                summary += " Some data may be incomplete due to API failures."
+            # Include first few errors for context
+            if len(global_errors) <= 3:
+                summary += f" Errors: {'; '.join(global_errors)}"
+            else:
+                summary += f" First 3 errors: {'; '.join(global_errors[:3])}..."
+        
+        summary += "\n\n"
         
         for i, entity in enumerate(result[:limit]):
             entity_id = entity.get('id', 'N/A')
             entity_label = entity.get('label', 'N/A')
             entity_desc = entity.get('description', 'No description available')
+            entity_errors = entity.get('errors', [])
+            entity_partial_data = entity.get('partial_data', False)
             
             summary += f"{i+1}. {entity_label} ({entity_id})\n"
             summary += f"   Description: {entity_desc}\n"
+            
+            # Add entity-specific error information if present
+            if entity_errors:
+                summary += f"   ⚠️ Entity errors: {len(entity_errors)} occurred."
+                if entity_partial_data:
+                    summary += " Properties may be incomplete."
+                summary += "\n"
             
             # Add properties if included
             if include_properties:

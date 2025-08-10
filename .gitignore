@@ -9,3 +9,11 @@ README.md
 /experiments/
 /lib/
 *.backup
+
+backend/lib
+
+images/
+
+*.pdf
+
+*.drawio

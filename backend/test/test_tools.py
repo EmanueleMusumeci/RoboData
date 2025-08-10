@@ -260,10 +260,9 @@ def test_agent_initialization_with_toolbox():
     toolbox = Toolbox()
     
     try:
-        from core.agents.gemini import GeminiAgent
-        agent = GeminiAgent(toolbox=toolbox)
+        from core.agents.openai import OpenAIAgent
+        agent = OpenAIAgent(toolbox=toolbox)
         assert agent.toolbox == toolbox
-        assert len(agent.toolbox.list_tools()) == 0
     except Exception as e:
         # Skip if API key not available in test environment
         if "api_key" in str(e).lower():

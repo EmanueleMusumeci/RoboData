@@ -1,0 +1,39 @@
+# QA06 – Complex multi-hop (Failure): "Which female philosophers influenced by Hegel also collaborated with French institutions before 1920?"
+# (Generated for failure) Combines sparse filters (gender, influence, institution, time). 
+# Expected to trigger long execution traces with little grounding. Used to stress-test failure detection and termination.
+
+experiment_id: "_complex_female_philosophers_hegel"
+
+orchestrator:
+  type: "multi_stage"
+  context_length: 8000
+  model: "gpt-4o"
+  memory:
+    use_summary_memory: true
+    max_memory_slots: 30
+  max_turns: 30
+  enable_question_decomposition: false
+  enable_metacognition: false
+  
+  toolboxes:
+    local_exploration: []
+    remote_exploration: []
+    graph_update: []
+    evaluation: []
+
+log_level: "DEBUG"
+memory: ""
+
+dataset:
+  path: ""
+  type: "auto"
+  load_on_start: false
+
+queries:
+  - "Which female philosophers influenced by Hegel also collaborated with French institutions before 1920?"
+
+output:
+  save_results: true
+  export_formats: ["json", "cypher"]
+  create_visualizations: true
+  results_directory: "experiments"

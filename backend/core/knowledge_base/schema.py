@@ -91,7 +91,15 @@ class Graph:
 
     def add_node(self, node: Node):
         """Adds a node to the graph."""
-        self._graph.add_node(node.id, **node.to_dict())
+        # Avoid conflict with NetworkX reserved parameters by using safe attribute names
+        node_attrs = {
+            'node_id': node.id,
+            'node_type': node.type,
+            'label': node.label,
+            'desc': node.description,  # Use 'desc' instead of 'description' to avoid conflicts
+            'properties': node.properties
+        }
+        self._graph.add_node(node.id, **node_attrs)
 
     def add_edge(self, edge: Edge):
         """Adds an edge to the graph."""
@@ -102,10 +110,10 @@ class Graph:
         if self._graph.has_node(node_id):
             node_data = self._graph.nodes[node_id]
             return Node(
-                node_id=node_data['id'],
-                node_type=node_data['type'],
+                node_id=node_data.get('node_id', node_id),
+                node_type=node_data.get('node_type', ''),
                 label=node_data.get('label', ''),
-                description=node_data.get('description', ''),
+                description=node_data.get('desc', ''),  # Use 'desc' instead of 'description'
                 properties=node_data.get('properties', {})
             )
         return None

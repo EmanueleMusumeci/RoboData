@@ -1,0 +1,39 @@
+# QA09 – Subclass Neighborhoods: "Find all subclasses of the neighbors of Q42"
+# Tests fine-grained neighborhood expansion, requiring both traversal and inference. 
+# The goal is to evaluate the system's graph construction and filtering over a densely connected node.
+
+experiment_id: "QB01_subclass_neighbors_q42_without_metacognition"
+
+orchestrator:
+  type: "multi_stage"
+  context_length: 8000
+  model: "gpt-4o"
+  memory:
+    use_summary_memory: true
+    max_memory_slots: 30
+  max_turns: 30
+  enable_question_decomposition: false
+  enable_metacognition: false
+  
+  toolboxes:
+    local_exploration: []
+    remote_exploration: []
+    graph_update: []
+    evaluation: []
+
+log_level: "DEBUG"
+memory: ""
+
+dataset:
+  path: ""
+  type: "auto"
+  load_on_start: false
+
+queries:
+  - "Find all subclasses of the neighbors of Q42"
+
+output:
+  save_results: true
+  export_formats: ["json", "cypher"]
+  create_visualizations: true
+  results_directory: "experiments"

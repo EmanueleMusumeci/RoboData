@@ -54,6 +54,15 @@ class DatabaseInterface(ABC):
         """Execute a query and return results."""
         pass
     
+    async def execute_query_with_notifications(self, query: str, parameters: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Execute a query and return results with notifications. Default implementation for backwards compatibility."""
+        records = await self.execute_query(query, parameters)
+        return {
+            'records': records,
+            'notifications': [],
+            'query': query
+        }
+    
     # Node operations
     @abstractmethod
     async def create_node(self, labels: List[str], properties: Dict[str, Any]) -> Optional[str]:
@@ -201,8 +210,8 @@ class Neo4jInterface(DatabaseInterface):
                 result = await session.run(literal_query, parameters)
                 records = []
                 async for record in result:
-                    records.append(dict(record))
-                
+                    records.append(dict(record))        
+
                 # Get summary and check for notifications
                 try:
                     summary = await result.consume()
@@ -210,11 +219,64 @@ class Neo4jInterface(DatabaseInterface):
                         warning_count = len([n for n in summary.notifications if getattr(n, 'severity', None) == 'WARNING'])
                         if warning_count > 0:
                             logger.debug(f"Query returned {warning_count} warnings (likely missing labels/properties/relationships)")
-                except Exception:
-                    # Ignore summary processing errors
-                    pass
+                except Exception as e:
+                    logger.warning(f"Could not get query summary: {e}")
                 
                 return records
+            except Exception as e:
+                logger.error(f"Query execution failed: {e}")
+                logger.error(f"Query: {query}")
+                logger.error(f"Parameters: {parameters}")
+                raise
+
+    async def execute_query_with_notifications(self, query: str, parameters: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Execute a Cypher query and return results with notifications for tool usage."""
+        if not await self.is_connected():
+            raise RuntimeError("Database not connected")
+        
+        if parameters is None:
+            parameters = {}
+        
+        if self.driver is None:
+            raise RuntimeError("Driver not initialized")
+            
+        async with self.driver.session(database=self.database) as session:
+            try:
+                literal_query = cast(LiteralString, query)
+                result = await session.run(literal_query, parameters)
+                records = []
+                async for record in result:
+                    records.append(dict(record))
+                
+
+                # Get summary and check for notifications
+                notifications = []
+                try:
+                    summary = await result.consume()
+                    if summary and hasattr(summary, 'notifications') and summary.notifications:
+                        for notification in summary.notifications:
+                            # Extract notification data - notifications are dict-like objects
+                            notification_dict = {
+                                'severity': notification.get('severity', 'UNKNOWN'),
+                                'code': notification.get('code', 'UNKNOWN'),
+                                'category': notification.get('category', 'UNKNOWN'),
+                                'title': notification.get('title', 'UNKNOWN'),
+                                'description': notification.get('description', 'UNKNOWN'),
+                                'position': notification.get('position', {})
+                            }
+                            notifications.append(notification_dict)
+                        
+                        warning_count = len([n for n in notifications if n.get('severity') == 'WARNING'])
+                        if warning_count > 0:
+                            logger.debug(f"Query returned {warning_count} warnings (likely missing labels/properties/relationships)")
+                except Exception as e:
+                    logger.warning(f"Could not get query summary: {e}")
+                
+                return {
+                    'records': records,
+                    'notifications': notifications,
+                    'query': query
+                }
             except Exception as e:
                 logger.error(f"Query execution failed: {e}")
                 logger.error(f"Query: {query}")

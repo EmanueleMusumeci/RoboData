@@ -43,6 +43,8 @@ class NeighborExplorationResult(BaseModel):
     neighbor_count: int
     limit: int
     order_by_degree: bool
+    errors: List[str] = []  # List of errors encountered during exploration
+    partial_data: bool = False  # True if some data could not be fetched due to errors
 
 class LocalGraphResult(BaseModel):
     """Result from building a local graph around an entity."""
@@ -56,6 +58,8 @@ class LocalGraphResult(BaseModel):
     total_edges: int
     limit: int
     order_by_degree: bool
+    errors: List[str] = []  # List of errors encountered during graph building
+    partial_data: bool = False  # True if some data could not be fetched due to errors
 
 def convert_api_entity_to_model(api_data: Dict[str, Any]) -> WikidataEntity:
     """Convert wikidata API response to WikidataEntity model."""

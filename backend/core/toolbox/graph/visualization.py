@@ -1,4 +1,4 @@
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional, Tuple, Set
 import matplotlib
 matplotlib.use('Agg')  # Set non-interactive backend before importing pyplot
 import matplotlib.pyplot as plt
@@ -8,6 +8,10 @@ import numpy as np
 from pathlib import Path
 import asyncio
 import json
+import re
+import math
+import uuid
+from adjustText import adjust_text
 
 try:
     import plotly.graph_objects as go
@@ -18,14 +22,34 @@ except ImportError:
     PLOTLY_AVAILABLE = False
 
 try:
-    from pyvis.network import Network
+    from pyvis.network import Network as PyvisNetwork  # type: ignore
     PYVIS_AVAILABLE = True
 except ImportError:
     PYVIS_AVAILABLE = False
-    class Network: pass  # Dummy class for linter
+    class PyvisNetwork: pass  # Dummy class for linter
 
-from ...knowledge_base.graph import get_knowledge_graph
-from ...knowledge_base.schema import Graph, Node, Edge
+from backend.core.knowledge_base.graph import get_knowledge_graph
+from backend.core.knowledge_base.schema import Graph, Node, Edge
+
+
+def _format_label(label: str, item_id: str, max_word_len: int = 20, max_id_len: int = 11, words_per_line: int = 3) -> str:
+    """Formats a label for display by wrapping, truncating long words, and truncating the ID."""
+    # Truncate long words
+    words = label.split(' ')
+    truncated_words = []
+    for word in words:
+        if len(word) > max_word_len:
+            truncated_words.append(word[:max_word_len - 3] + '...')
+        else:
+            truncated_words.append(word)
+    
+    # Wrap text
+    wrapped_label = '\n'.join([' '.join(truncated_words[i:i + words_per_line]) for i in range(0, len(truncated_words), words_per_line)])
+
+    # Truncate ID
+    truncated_id = (item_id[:max_id_len - 3] + '...') if len(item_id) > max_id_len else item_id
+    
+    return f"{wrapped_label}\n({truncated_id})"
 
 
 class GraphVisualizer:
@@ -35,26 +59,122 @@ class GraphVisualizer:
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True, parents=True)
     
-    def create_static_visualization(
-        self, 
-        graph: Graph, 
-        title: str = "Wikidata Graph",
-        filename: Optional[str] = None,
-        figsize: Tuple[int, int] = (16, 12),
-        node_size_multiplier: float = 1.0,
-        font_size: int = 8
-    ) -> str:
+    def extract_support_sets_from_answer(self, final_answer: str) -> List[List[str]]:
         """
-        Create a static graph visualization with labeled nodes and edges.
+        Extract support sets from the final answer text.
         
         Args:
-            nodes: Dictionary of node data with IDs as keys
-            edges: List of edge dictionaries with source, target, property
-            title: Graph title
+            final_answer: The final answer containing support sets
+            
+        Returns:
+            List of support sets, where each support set is a list of entity IDs
+        """
+        support_sets = []
+        if not final_answer:
+            return support_sets
+        
+        # Handle both old format "SUPPORT SET 001:" and new format "SUPPORT SET PS_001:"
+        # Pattern to match support set headers
+        support_header_pattern = r'SUPPORT SET (?:PS_)?(\d+):'
+        
+        # Split the text into lines for processing
+        lines = final_answer.split('\n')
+        
+        current_support_set = []
+        inside_support_set = False
+        
+        for line in lines:
+            line = line.strip()
+            
+            # Check if this line is a support set header
+            header_match = re.match(support_header_pattern, line)
+            if header_match:
+                # If we were already processing a support set, save it
+                if current_support_set:
+                    support_sets.append(current_support_set)
+                
+                # Start a new support set
+                current_support_set = []
+                inside_support_set = True
+                
+                # Check if the support set is on the same line (old format)
+                remainder = line[header_match.end():].strip()
+                if remainder:
+                    # Old format: SUPPORT SET 001: (Q42, P22, Q14623675)
+                    triple_match = re.search(r'\(([^)]+)\)', remainder)
+                    if triple_match:
+                        entities = self._extract_entities_from_triple(triple_match.group(1))
+                        current_support_set.extend(entities)
+                
+                continue
+            
+            # If we're inside a support set and this line contains a triple
+            if inside_support_set and line.startswith('(') and line.endswith(')'):
+                # New format: each triple on its own line
+                triple_content = line[1:-1]  # Remove parentheses
+                entities = self._extract_entities_from_triple(triple_content)
+                current_support_set.extend(entities)
+                continue
+            
+            # If we encounter a line that doesn't belong to the support set, stop processing
+            if inside_support_set and line and not line.startswith('('):
+                # Check if it's another section (like "SENTENCE" or "FINAL ANSWER")
+                if any(keyword in line.upper() for keyword in ['SENTENCE', 'FINAL ANSWER', 'SUPPORT SET']):
+                    inside_support_set = False
+        
+        # Don't forget the last support set
+        if current_support_set:
+            support_sets.append(current_support_set)
+        
+        return support_sets
+    
+    def _extract_entities_from_triple(self, triple_content: str) -> List[str]:
+        """
+        Extract entity IDs from a triple string like "Q42, P22, Q14623675".
+        
+        Args:
+            triple_content: Content of the triple without parentheses
+            
+        Returns:
+            List of entity IDs found in the triple
+        """
+        entities = []
+        parts = triple_content.split(',')
+        for part in parts:
+            part = part.strip()
+            # Look for ID in parentheses or plain ID
+            id_match = re.search(r'\(([QP]\d+)\)', part)
+            if id_match:
+                entities.append(id_match.group(1))
+            elif re.match(r'^[QP]\d+$', part):
+                entities.append(part)
+        
+        return entities
+        
+        return support_sets
+
+    def create_static_visualization(
+        self,
+        graph: Graph,
+        title: Optional[str] = None,
+        filename: Optional[str] = None,
+        figsize: Tuple[int, int] = (20, 16),
+        node_size_multiplier: float = 1.0,
+        font_size: int = 12,
+        final_answer: Optional[str] = None
+    ) -> str:
+        """
+        Create a static graph visualization with labeled nodes and edges, optimized layout, 
+        and support set highlighting.
+        
+        Args:
+            graph: Graph object to visualize
+            title: Optional title for the graph
             filename: Output filename (auto-generated if None)
             figsize: Figure size tuple
             node_size_multiplier: Multiplier for node sizes
             font_size: Base font size
+            final_answer: Final answer text containing support sets to highlight
             
         Returns:
             Path to the generated image file
@@ -62,121 +182,181 @@ class GraphVisualizer:
         # Use the networkx graph from our Graph object
         G = graph._graph
         
-        # Create figure
-        fig, ax = plt.subplots(figsize=figsize)
-        ax.set_title(title, fontsize=16, fontweight='bold', pad=20)
+        # Extract support sets from final answer if provided
+        support_sets = []
+        if final_answer:
+            support_sets = self.extract_support_sets_from_answer(final_answer)
         
-        # Generate layout
-        if len(list(G.nodes())) > 50:
-            layout = nx.spring_layout(G, k=3, iterations=50)
-        else:
-            layout = nx.spring_layout(G, k=2, iterations=100)
-        
-        # Draw edges first (so they appear behind nodes)
-        edge_colors = ['#666666' for _ in G.edges()]
-        nx.draw_networkx_edges(
-            G, layout, 
-            edge_color=edge_colors, # type: ignore
-            alpha=0.6,
-            width=1.5,
-            ax=ax
-        )
-        
-        # Calculate node sizes based on degree
-        degrees = dict(G.degree()) # type: ignore
-        max_degree = max(degrees.values()) if degrees else 1
-        node_sizes = [
-            300 + (degrees.get(node, 1) / max_degree) * 1000 * node_size_multiplier 
-            for node in G.nodes()
+        # Create support set color mapping
+        support_set_colors = [
+            '#FF1744',  # Red
+            '#FF9100',  # Orange  
+            '#00E676',  # Green
+            '#00BCD4',  # Cyan
+            '#9C27B0',  # Purple
+            '#FF5722',  # Deep Orange
+            '#4CAF50',  # Light Green
+            '#2196F3',  # Blue
+            '#E91E63',  # Pink
+            '#795548'   # Brown
         ]
         
-        # Color nodes by depth if available
-        node_colors = []
-        for node_id in G.nodes():
-            node_data = G.nodes[node_id]
-            depth = node_data.get('properties', {}).get('depth', 0)
-            if depth == 0:
-                node_colors.append('#FF6B6B')  # Center node - red
-            elif depth == 1:
-                node_colors.append('#4ECDC4')  # First level - teal
-            elif depth == 2:
-                node_colors.append('#45B7D1')  # Second level - blue
-            else:
-                node_colors.append('#96CEB4')  # Other levels - green
+        # Create figure
+        fig, ax = plt.subplots(figsize=figsize)
         
+        # Generate an elastic layout with more spacing to ensure edge length and component separation
+        layout = nx.spring_layout(G, k=4.0, iterations=500, seed=42)
+
+        # Calculate degrees for node sizing
+        degrees = dict(G.degree())  # type: ignore
+        degree_values = [int(deg) for deg in degrees.values()] if degrees else [1]
+        max_degree = max(degree_values) if degree_values else 1
+        min_degree = min(degree_values) if degree_values else 1
+        
+        # Separate nodes into three size categories based on degree
+        node_sizes = []
+        for node in G.nodes():
+            degree = int(degrees.get(node, 1))
+            if max_degree == min_degree:
+                size = 1200
+            else:
+                # Normalize degree to 0-1 range
+                normalized_degree = (degree - min_degree) / (max_degree - min_degree)
+                
+                # Three size categories: small, medium, large
+                if normalized_degree < 0.33:
+                    size = 1000
+                elif normalized_degree < 0.67:
+                    size = 1800
+                else:
+                    size = 3000
+            
+            node_sizes.append(size * node_size_multiplier)
+
+        # Determine node and edge colors based on support sets
+        node_colors = {}
+        edge_colors = {}
+        edge_widths = {}
+
+        default_node_color = '#cccccc'  # Grey
+        default_edge_color = '#cccccc'
+
+        for node_id in G.nodes():
+            node_colors[node_id] = default_node_color
+
+        for u, v in G.edges():
+            edge_colors[(u, v)] = default_edge_color
+            edge_widths[(u, v)] = 1.5
+
+        for i, support_set in enumerate(support_sets):
+            color = support_set_colors[i % len(support_set_colors)]
+            # A support set is (source, relation, target)
+            if len(support_set) >= 3:
+                source, _, target = support_set[0], support_set[1], support_set[2]
+                if source in G:
+                    node_colors[source] = color
+                if target in G:
+                    node_colors[target] = color
+                if G.has_edge(source, target):
+                    edge_colors[(source, target)] = color
+                    edge_widths[(source, target)] = 3.0
+                # Also handle reverse edge if graph is not directed
+                if not G.is_directed() and G.has_edge(target, source):
+                    edge_colors[(target, source)] = color
+                    edge_widths[(target, source)] = 3.0
+
+        # Draw edges
+        edge_color_list = [edge_colors.get(edge, default_edge_color) for edge in G.edges()]
+        edge_width_list = [edge_widths.get(edge, 1.5) for edge in G.edges()]
+
+        nx.draw_networkx_edges(
+            G, layout, 
+            edge_color=edge_color_list,
+            width=edge_width_list,
+            alpha=0.8,
+            ax=ax,
+            arrows=True,
+            arrowsize=30,
+            arrowstyle='-|>'
+        )
+
         # Draw nodes
         nx.draw_networkx_nodes(
             G, layout,
-            node_color=node_colors,
+            node_color=[node_colors.get(node, default_node_color) for node in G.nodes()],
             node_size=node_sizes,
-            alpha=0.9,
+            alpha=0.95,
             ax=ax
         )
         
-        # Add node labels (entity labels above nodes)
-        node_label_pos = {node: (x, y + 0.15) for node, (x, y) in layout.items()}
+        # Add node labels with overlap avoidance
         node_labels = {
-            node_id: G.nodes[node_id].get('label', node_id)[:30] + ('...' if len(G.nodes[node_id].get('label', '')) > 30 else '')
+            node_id: _format_label(G.nodes[node_id].get('label', node_id), node_id)
             for node_id in G.nodes()
         }
         
-        nx.draw_networkx_labels(
-            G, node_label_pos,
-            labels=node_labels,
-            font_size=font_size,
-            font_weight='bold',
-            ax=ax
+        texts = []
+        for node_id, text in node_labels.items():
+            x, y = layout[node_id]
+            texts.append(ax.text(x, y, text, fontsize=font_size, fontweight='bold', ha='center', va='center'))
+
+        # Use adjust_text to prevent label overlap, with more visible connectors
+        adjust_text(
+            texts, 
+            arrowprops=dict(arrowstyle='-', color='black', lw=1.0),
+            force_text=(0.5, 0.5),
+            force_points=(0.2, 0.2)
         )
-        
-        # Add node IDs at center of nodes
-        nx.draw_networkx_labels(
-            G, layout,
-            labels={node_id: node_id for node_id in G.nodes()},
-            font_size=max(6, font_size - 2),
-            font_color='white',
-            ax=ax
-        )
-        
-        # Add edge labels (property names and IDs)
+
+        # Add edge labels
         edge_labels = {}
         for u, v, data in G.edges(data=True):
             prop_id = data.get('type', '')
             prop_name = data.get('label', prop_id)
-            if prop_name and prop_name != prop_id:
-                label = f"{prop_name}\n({prop_id})"
-            else:
-                label = prop_id
-            edge_labels[(u, v)] = label
+            edge_labels[(u, v)] = _format_label(prop_name, prop_id, words_per_line=2)
 
-        for (u, v), label in edge_labels.items():
-            pos_u = layout[u]
-            pos_v = layout[v]
-            pos = ((pos_u[0] + pos_v[0]) / 2, (pos_u[1] + pos_v[1]) / 2)
-            ax.text(
-                pos[0], pos[1], label,
-                horizontalalignment='center',
-                verticalalignment='center',
-                fontsize=max(6, font_size - 3),
-                bbox=dict(boxstyle='round,pad=0.2', facecolor='white', alpha=0.8),
-                style='italic'
-            )
+        edge_label_objects = nx.draw_networkx_edge_labels(
+            G, layout,
+            edge_labels=edge_labels,
+            font_size=max(10, font_size - 2),
+            font_weight='bold',
+            font_color='black',
+            bbox=dict(boxstyle='round,pad=0.2', fc='white', ec='none', alpha=0.7)
+        )
 
-        # Add legend
-        legend_elements = [
-            patches.Patch(color='#FF6B6B', label='Center Entity'),
-            patches.Patch(color='#4ECDC4', label='Depth 1'),
-            patches.Patch(color='#45B7D1', label='Depth 2'),
-            patches.Patch(color='#96CEB4', label='Depth 3+')
-        ]
-        ax.legend(handles=legend_elements, loc='upper right')
+        # Rerun adjust_text to also avoid edge labels
+        adjust_text(
+            texts, 
+            add_objects=list(edge_label_objects.values()), 
+            arrowprops=dict(arrowstyle='-', color='black', lw=1.0),
+            force_text=(0.5, 0.5),
+            force_points=(0.2, 0.2)
+        )
+
+        # Create legend
+        legend_elements = []
+        if support_sets:
+            legend_elements.append(patches.Patch(color='white', label='Sentences:'))
+            for i, _ in enumerate(support_sets):
+                color = support_set_colors[i % len(support_set_colors)]
+                legend_elements.append(
+                    patches.Patch(color=color, label=f'{i+1}')
+                )
         
-        # Format axes
-        ax.set_axis_off()
+        ax.legend(handles=legend_elements, loc='upper right', prop={'weight':'bold', 'size':'x-large'})
+        
+        # Add title if provided
+        if title:
+            ax.set_title(title, fontsize=16, fontweight='bold', pad=20)
+        
+        # Format axes and ensure all nodes fit
         plt.tight_layout()
+        ax.margins(0.15) 
         
         # Save the figure
         if filename is None:
-            filename = f"graph_{title.lower().replace(' ', '_')}.png"
+            # Create a more generic filename
+            filename = f"graph_visualization_{uuid.uuid4().hex[:8]}.png"
         
         filepath = self.output_dir / filename
         plt.savefig(filepath, dpi=300, bbox_inches='tight', facecolor='white')
@@ -184,7 +364,7 @@ class GraphVisualizer:
         
         print(f"📊 Static visualization saved to: {filepath}")
         return str(filepath)
-    
+
     def create_dynamic_visualization(
         self,
         graph: Graph,
@@ -209,16 +389,16 @@ class GraphVisualizer:
         if not PYVIS_AVAILABLE:
             raise ImportError("pyvis not available. Install with: pip install pyvis")
         
-        net = Network(
-            height=height,
-            width=width,
-            bgcolor="#ffffff",
-            font_color="black", # type: ignore
-            directed=True
+        net = PyvisNetwork(  # type: ignore
+            height=height,  # type: ignore
+            width=width,  # type: ignore
+            bgcolor="#ffffff",  # type: ignore
+            font_color="black",  # type: ignore
+            directed=True  # type: ignore
         )
         
         # Configure physics for elastic layout
-        net.set_options("""
+        net.set_options("""  # type: ignore[attr-defined]
         var options = {
           "physics": {
             "enabled": true,
@@ -268,7 +448,7 @@ class GraphVisualizer:
             Description: {(node.description or 'No description')[:100]}...
             """
             
-            net.add_node(
+            net.add_node(  # type: ignore
                 node.id,
                 label=f"{label}\n{node.id}",
                 title=title_text,
@@ -288,7 +468,7 @@ class GraphVisualizer:
             else:
                 edge_label = prop_id
             
-            net.add_edge(
+            net.add_edge(  # type: ignore
                 edge.source_id,
                 edge.target_id,
                 label=edge_label,
@@ -304,7 +484,7 @@ class GraphVisualizer:
         filepath = self.output_dir / filename
         
         # Save the network
-        net.show(str(filepath), notebook=False)
+        net.show(str(filepath), notebook=False)  # type: ignore
         
         print(f"🌐 Interactive visualization saved to: {filepath}")
         return str(filepath)
@@ -415,7 +595,8 @@ class GraphVisualizer:
         title = f"{title_prefix}: {entity['label']} ({entity['id']})"
         
         static_path = self.create_static_visualization(
-            graph, title,
+            graph,
+            title=title,
             filename=f"exploration_{entity['id']}.png"
         )
         
@@ -467,7 +648,8 @@ class GraphVisualizer:
         title = f"{title_prefix}: {center} (Depth {depth})"
         
         static_path = self.create_static_visualization(
-            graph, title,
+            graph,
+            title=title,
             filename=f"local_graph_{center}_d{depth}.png"
         )
         
@@ -516,8 +698,8 @@ if __name__ == "__main__":
         print("1. Testing static visualization...")
         try:
             static_path = viz.create_static_visualization(
-                graph, 
-                "Sample Wikidata Graph"
+                graph,
+                title="Sample Wikidata Graph"
             )
             print(f"✓ Static visualization created successfully")
         except Exception as e:

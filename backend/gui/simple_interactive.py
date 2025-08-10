@@ -88,8 +88,8 @@ async def run_simple_interactive_session(orchestrator, config: Dict[str, Any]) -
                 
                 # Save results if configured
                 if config.get("output", {}).get("save_results", True):
-                    from utils import save_orchestrator_results
-                    experiment_id = f"simple_interactive_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{query_count:03d}"
+                    from utils import save_orchestrator_results, generate_experiment_id
+                    experiment_id = f"simple_interactive_{query_count:03d}_{generate_experiment_id(user_query)}"
                     await save_orchestrator_results(result, experiment_id, user_query, orchestrator.knowledge_graph)
                     print(f"💾 Results saved with ID: {experiment_id}")
                 
