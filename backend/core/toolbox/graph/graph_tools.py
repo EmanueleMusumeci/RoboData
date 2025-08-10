@@ -871,7 +871,7 @@ class FetchReverseRelationshipTool(Tool):
                 sparql_url = "https://query.wikidata.org/sparql"
                 headers = {
                     'Accept': 'application/sparql-results+json',
-                    'User-Agent': 'RoboData/1.0 (https://github.com/EmanueleMusumeci/RoboData)'
+                    'User-Agent': 'RoboData/1.0'
                 }
                 
                 async with session.get(sparql_url, params={'query': sparql_query}, headers=headers) as response:
