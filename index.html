@@ -17,7 +17,7 @@
   <link rel="stylesheet" href="./static/css/fontawesome.all.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1/css/academicons.min.css">
   <link rel="stylesheet" href="./static/css/index.css">
-  <!-- <link rel="icon" href="./static/images/favicon.svg"> -->
+  <!-- <link rel="icon" href="./static/images/favicon.svg"> --> 
 
   <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
   <script defer src="./static/js/fontawesome.all.min.js"></script>
@@ -80,26 +80,26 @@
 
             <div class="column has-text-centered">
               <div class="publication-links">
-                <!-- PDF Link. -->
+                <!-- Paper Link. -->
                 <span class="link-block">
-                  <a href="" class="external-link button is-normal ">
+                  <a href="https://www.wikidata.org/w/index.php?title=Wikidata:WikiProject_Ontology/Ontology_Course/Projects/RoboData" class="external-link button is-normal ">
                     <span class="icon">
                       <i class="fas fa-file-pdf"></i>
                     </span>
-                    <span>Paper</span>
+                    <span>Project Page</span>
                   </a>
                 </span>
                 <span class="link-block">
-                  <a href="" class="external-link button is-normal ">
+                  <a href="https://www.wikidata.org/w/index.php?title=Wikidata:WikiProject_Ontology/Ontology_Course" class="external-link button is-normal ">
                     <span class="icon">
                       <i class="ai ai-arxiv"></i>
                     </span>
-                    <span>arXiv</span>
+                    <span>WikiProject Course</span>
                   </a>
                 </span>
                 <!-- Code Link. -->
                 <span class="link-block">
-                  <a href="https://github.com/Lab-RoCoCo-Sapienza/context-matters" class="external-link button is-normal ">
+                  <a href="https://github.com/EmanueleMusumeci/RoboData" class="external-link button is-normal ">
                     <span class="icon">
                       <i class="fab fa-github"></i>
                     </span>
@@ -107,11 +107,11 @@
                   </a>
                 </span>
                 <span class="link-block">
-                  <a href="./dataset.html" class="external-link button is-normal ">
+                  <a href="#features" class="external-link button is-normal ">
                     <span class="icon">
-                        <i class="fas fa-database"></i>
+                        <i class="fas fa-cogs"></i>
                     </span>
-                    <span>Dataset</span>
+                    <span>Features</span>
                   </a>
                 </span>
               </div>
@@ -124,103 +124,172 @@
   </section>
 
 
-  <section class="section" id="summary-video">
+  <section class="section" id="overview">
     <div class="container is-max-desktop has-text-centered">
-      <h2 class="title is-3">🎥 Summary Video</h2>
-      <div class="video-container" style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden;">
-        <iframe 
-          src="assets/output_video.mp4" 
-          frameborder="0" 
-          allowfullscreen 
-          style="position: absolute; top: 0; left: 0; width: 75%; height: 75%; margin-left: 15%;">
-        </iframe>
+      <h2 class="title is-3">� Project Overview</h2>
+      <div class="hero-image" style="display: flex; justify-content: center; margin-bottom: 2rem;">
+        <img src="images/RoboData_light.png" alt="RoboData Visualization" style="max-width: 60%; height: auto;">
+      </div>
+      <div style="text-align: justify; margin: 0 auto; max-width: 80%;">
+        <p style="font-size: 1.1rem; margin-bottom: 1.5rem;">
+          RoboData provides an intelligent interface for exploring Wikidata ontologies through natural language queries. 
+          The system combines LLM agents with specialized tools to enable intuitive navigation of knowledge graphs, 
+          entity relationships, and semantic hierarchies.
+        </p>
       </div>
     </div>
   </section>
 
-  <section style="margin-top: -8%;" class="section">
+  <section style="margin-top: 2%;" class="section" id="features">
     <div class="container is-max-desktop">
       <div class="columns is-vcentered">
         <div style="margin-right: 5%;" class="column is-half">
-          <img src="assets/Intro_vertical_sem.png" alt="Architecture" style="width:80%;">
         </div>
         <div class="column is-half">
           <div class="text-image-container title is-3">
             
-                <p>🌟 Motivations</p>
+                <p>🚀 Core Capabilities</p>
             </div>
 
             <div class="text">
-              <li>Planning in real world is made difficult by the need to ground the robot's 
-                perception of the environment to planning predicates.</li>
-                <li>The strictness of classical planning causes failures even when the task is still 
-                  achievable (up to a certain degree).</li>
-                </li>
-                  <li>LLM partially overcomes this issue thanks to commonsense reasoning, but often
-                  lead to unsafe or incorrect plans.
-                  </li>
+              <li><strong>Natural Language Queries:</strong> Ask questions about Wikidata entities in plain English</li>
+              <li><strong>Dynamic Tool System:</strong> Extensible architecture with automatic tool registration</li>
+              <li><strong>Multiple API Backends:</strong> Support for both REST API and KIF (Knowledge Integration Framework)</li>
+              <li><strong>Graph Database Integration:</strong> Neo4j support for local knowledge graph storage</li>
+              <li><strong>Comprehensive Testing:</strong> Real API integration tests with validation</li>
             </div>
         <div style = "margin-top: 10%" class="text-image-container title is-3">
 
-              <p>📝 Contributions</p>
+              <p>� Query Types</p>
           </div>
 
           <div class="text">
-            <li>
-              We propose a framework that effeciently combines LLMs commonsense reasoning 
-              with classical planning approaches.
-            </li>
-            <li>
-              We define a bi-dimensional feasibility formalism that iteratively adapts 
-              tasks to the given <b>context</b>.
-            </li>
-            <li>
-              We propose an architecture that outperforms the SOTA for task planning in environment
-              represented by 3D Scene Graph.
-            </li>
-            <li>
-              We releas a publicy available <a href="dataset">dataset</a> for planning in everyday scenarios.
-            </li>
+            <li>Entity exploration and detailed information retrieval</li>
+            <li>Subclass/superclass hierarchy navigation</li>
+            <li>Instance finding and classification</li>
+            <li>Path finding between entities</li>
+            <li>Local graph construction around entities</li>
+            <li>Custom SPARQL query execution</li>
           </div>
           </div>
         </div>
 
     </div>
     </div>
-
-
 
   </section>
   
   <div style = "margin-top: 3%" class="columns is-centered has-text-centered">
     <div class="column is-four-fifths">
-      <h2 class="title is-3">Methodology</h2>
-      <img style="margin-bottom: 6%;width:70%;" src="assets/methodology_diagram.png" alt="Methodology" >
-      <div   class="text" style="text-align: justify;width: 70%; margin-left: 15%;"> 
-        Our formalism is mainly represented by two operators, the <b>Γ<sub>shift</sub></b>
-      and <b>Δ<sub>rel</sub></b>. <b>Γ<sub>shift</sub></b> represents the situational shifting, namely the operator that adapts the
-      agent's understanding of the operating environment to the core and the planning goal. <b>Δ<sub>rel</sub></b> represents
-      the complexity relaxation operators that is able to produce a more general or comprehensive formulation
-      of the goal. Suppose we have an agent which is able to explore the environment
-      and map every object he found to the corresponding location, effectively creating a <b>3D Scene Graph</b> of
-      the environment. The 3D Scene Graph and the natural language description of the task are given into the architecture as our input.
-      The <b>PDDL</b> problem file is generated by the LLM, while the domain file is either given or generated to. The plan obtained at
-      the current time step is used to attempt grounding the scene. If this step fails, the relaxation mechanism
-      takes place and new PDDL files are generated for the next iteration. In this way, the architecture is
-      able to find the optimal subset of objects needed to achieve the task. Thanks to this bidimensional mechanism,
-      the architecture is able to gradually relax the problem until the least relaxed solution is found.
-      Effectively, what we found is the minimal traverse cost path inside our relaxation graph.
+      <h2 class="title is-3">🏗️ Architecture</h2>
+      <div class="text" style="text-align: justify;width: 70%; margin-left: 15%; margin-bottom: 2rem;"> 
+        The RoboData system is built on a modular architecture that combines LLM agents with specialized tools for Wikidata exploration. 
+        The core components include a <strong>BaseAgent</strong> interface for LLM agents with tool calling capabilities, 
+        a dynamic <strong>Toolbox</strong> system for tool registration and management, and strongly typed <strong>Pydantic models</strong> 
+        for all Wikidata structures.
       </div>
-
+      
+      <div class="columns is-multiline" style="margin-top: 2rem;">
+        <div class="column is-half">
+          <h3 class="title is-5">🔧 Tools Available</h3>
+          <div class="text" style="text-align: left;">
+            <h4 style="font-weight: bold; margin-top: 1rem;">Graph Tools:</h4>
+            <ul style="list-style-type: disc; margin-left: 2rem;">
+              <li>AddNodeTool, AddEdgeTool</li>
+              <li>GetNodeTool, GetEdgeTool</li>
+              <li>GetNeighborsTool, GetSubgraphTool</li>
+              <li>CypherQueryTool</li>
+            </ul>
+            
+            <h4 style="font-weight: bold; margin-top: 1rem;">Wikidata Tools:</h4>
+            <ul style="list-style-type: disc; margin-left: 2rem;">
+              <li>GetEntityInfoTool</li>
+              <li>SearchEntitiesTool</li>
+              <li>SPARQLQueryTool</li>
+              <li>SubclassQueryTool, SuperclassQueryTool</li>
+              <li>InstanceQueryTool, InstanceOfQueryTool</li>
+            </ul>
+          </div>
+        </div>
+        
+        <div class="column is-half">
+          <h3 class="title is-5">💾 Data Models</h3>
+          <div class="text" style="text-align: left;">
+            <h4 style="font-weight: bold; margin-top: 1rem;">Wikidata Models:</h4>
+            <ul style="list-style-type: disc; margin-left: 2rem;">
+              <li>WikidataEntity</li>
+              <li>WikidataProperty</li>
+              <li>WikidataStatement</li>
+              <li>SearchResult</li>
+            </ul>
+            
+            <h4 style="font-weight: bold; margin-top: 1rem;">Local Graph Models:</h4>
+            <ul style="list-style-type: disc; margin-left: 2rem;">
+              <li>Node (entities in local graph)</li>
+              <li>Edge (relationships between nodes)</li>
+              <li>Graph (NetworkX-based container)</li>
+            </ul>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
 
 
-  <section class="section" id="BibTeX">
+  <section class="section" id="installation">
     <div class="container is-max-desktop content">
-      <h2 class="title">BibTeX</h2>
-      <pre><code></code></pre>
+      <h2 class="title is-3">🛠️ Installation & Usage</h2>
+      
+      <div class="columns">
+        <div class="column is-half">
+          <h3 class="title is-5">Quick Start</h3>
+          <pre><code># Clone the repository
+git clone &lt;repository-url&gt;
+cd RoboData
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Set up API keys
+export GEMINI_API_KEY="your-gemini-api-key"
+
+# Run the interactive terminal
+cd backend
+python -m core.orchestrator.multi_stage.multi_stage_orchestrator</code></pre>
+        </div>
+        
+        <div class="column is-half">
+          <h3 class="title is-5">Available Commands</h3>
+          <ul>
+            <li><code>help</code> - Show help information and query examples</li>
+            <li><code>tools</code> - List all available tools with descriptions</li>
+            <li><code>settings</code> - Show current configuration</li>
+            <li><code>clear</code> - Clear conversation history</li>
+            <li><code>exit/quit</code> - Exit the application</li>
+          </ul>
+          
+          <h3 class="title is-5" style="margin-top: 2rem;">Neo4j Setup (Optional)</h3>
+          <p>For graph database features, install and configure Neo4j following the instructions in the README.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="acknowledgments">
+    <div class="container is-max-desktop content has-text-centered">
+      <h2 class="title">🙏 Acknowledgments</h2>
+      <div class="columns is-centered">
+        <div class="column is-8">
+          <p>
+            This project was developed as part of the 
+            <a href="https://www.wikidata.org/w/index.php?title=Wikidata:WikiProject_Ontology/Ontology_Course">WikiProject Ontology Course</a> 
+            on Wikidata. Special thanks to the <strong>WikiProject Ontology</strong> for providing the educational framework, 
+            the <strong>Wikidata Community</strong> for maintaining the knowledge base, and <strong>IBM KIF</strong> 
+            for the Knowledge Integration Framework.
+          </p>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -242,7 +311,9 @@
               href="https://github.com/concept-graphs/concept-graphs.github.io">Concept-Graph</a> template, which is licensed under a <a rel="license"
               href="http://creativecommons.org/licenses/by-sa/4.0/">Creative Commons Attribution-ShareAlike 4.0
               International License</a>. The template uses the <a href="https://github.com/nerfies/nerfies.github.io">Nerfies
-              source code</a>.
+              source code</a>. 
+              <br><br>
+              <strong>RoboData</strong> is licensed under the MIT License and is part of the WikiProject Ontology Course.
             </p>
           </div>
         </div>
