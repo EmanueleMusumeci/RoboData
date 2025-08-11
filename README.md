@@ -1,6 +1,6 @@
 # RoboData - Ontology Explorer
 
-![RoboData Visualization](images/RoboData_light.png)
+![RoboData Visualization](images/architecture.png)
 
 ## About This Project
 
