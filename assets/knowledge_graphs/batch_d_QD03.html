@@ -1,0 +1,127 @@
+<html>
+    <head>
+        <meta charset="utf-8">
+        
+            <script src="lib/bindings/utils.js"></script>
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/dist/vis-network.min.css" integrity="sha512-WgxfT5LWjfszlPHXRmBWHkV2eceiWTOBvrKCNbdgDYTHrT2AeLCGbF4sZlZw3UMN3WtL0tGUoIAKsu8mllg/XA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/vis-network.min.js" integrity="sha512-LnvoEWDFrqGHlHmDD2101OrLcbsfkrzoSpvtSQtxK3RMnRV0eOkhhBN2dXHKRrUU8p2DGRTk35n4O8nWSVe1mQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+            
+        
+<center>
+<h1></h1>
+</center>
+
+<!-- <link rel="stylesheet" href="../node_modules/vis/dist/vis.min.css" type="text/css" />
+<script type="text/javascript" src="../node_modules/vis/dist/vis.js"> </script>-->
+        <link
+          href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/css/bootstrap.min.css"
+          rel="stylesheet"
+          integrity="sha384-eOJMYsd53ii+scO/bJGFsiCZc+5NDVN2yr8+0RDqr0Ql0h+rP48ckxlpbzKgwra6"
+          crossorigin="anonymous"
+        />
+        <script
+          src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/js/bootstrap.bundle.min.js"
+          integrity="sha384-JEW9xMcG8R+pH31jmWH6WWP0WintQrMb4s7ZOdauHnUtxwoG2vI5DkLtS3qm9Ekf"
+          crossorigin="anonymous"
+        ></script>
+
+
+        <center>
+          <h1></h1>
+        </center>
+        <style type="text/css">
+
+             #mynetwork {
+                 width: 100%;
+                 height: 800px;
+                 background-color: #ffffff;
+                 border: 1px solid lightgray;
+                 position: relative;
+                 float: left;
+             }
+
+             
+
+             
+
+             
+        </style>
+    </head>
+
+
+    <body>
+        <div class="card" style="width: 100%">
+            
+            
+            <div id="mynetwork" class="card-body"></div>
+        </div>
+
+        
+        
+
+        <script type="text/javascript">
+
+              // initialize global variables.
+              var edges;
+              var nodes;
+              var allNodes;
+              var allEdges;
+              var nodeColors;
+              var originalNodes;
+              var network;
+              var container;
+              var options, data;
+              var filter = {
+                  item : '',
+                  property : '',
+                  value : []
+              };
+
+              
+
+              
+
+              // This method is responsible for drawing the graph, returns the drawn network
+              function drawGraph() {
+                  var container = document.getElementById('mynetwork');
+
+                  
+
+                  // parsing and collecting nodes and edges from the python
+                  nodes = new vis.DataSet([{"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q9312", "label": "Immanuel Kant\nQ9312", "shape": "dot", "size": 30, "title": "\n            \u003cb\u003eImmanuel Kant\u003c/b\u003e\u003cbr\u003e\n            ID: Q9312\u003cbr\u003e\n            Depth: 0\u003cbr\u003e\n            Description: German philosopher (1724\u20131804)...\n            "}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q37160", "label": "David Hume\nQ37160", "shape": "dot", "size": 30, "title": "\n            \u003cb\u003eDavid Hume\u003c/b\u003e\u003cbr\u003e\n            ID: Q37160\u003cbr\u003e\n            Depth: 0\u003cbr\u003e\n            Description: Scottish philosopher, economist, and historian...\n            "}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q82049", "label": "George Berkeley\nQ82049", "shape": "dot", "size": 30, "title": "\n            \u003cb\u003eGeorge Berkeley\u003c/b\u003e\u003cbr\u003e\n            ID: Q82049\u003cbr\u003e\n            Depth: 0\u003cbr\u003e\n            Description: Irish idealist philosopher and Anglican bishop (1685\u20131753)...\n            "}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q76510", "label": "Christian Wolff\nQ76510", "shape": "dot", "size": 30, "title": "\n            \u003cb\u003eChristian Wolff\u003c/b\u003e\u003cbr\u003e\n            ID: Q76510\u003cbr\u003e\n            Depth: 0\u003cbr\u003e\n            Description: German philosopher (1679\u20131754)...\n            "}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q6527", "label": "Jean-Jacques Rousseau\nQ6527", "shape": "dot", "size": 30, "title": "\n            \u003cb\u003eJean-Jacques Rousseau\u003c/b\u003e\u003cbr\u003e\n            ID: Q6527\u003cbr\u003e\n            Depth: 0\u003cbr\u003e\n            Description: Genevan philosopher, writer, and composer (1712\u20131778)...\n            "}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q316367", "label": "Francis Hutcheson\nQ316367", "shape": "dot", "size": 30, "title": "\n            \u003cb\u003eFrancis Hutcheson\u003c/b\u003e\u003cbr\u003e\n            ID: Q316367\u003cbr\u003e\n            Depth: 0\u003cbr\u003e\n            Description: Scottish philosopher (1694\u20131746)...\n            "}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q935", "label": "Isaac Newton\nQ935", "shape": "dot", "size": 30, "title": "\n            \u003cb\u003eIsaac Newton\u003c/b\u003e\u003cbr\u003e\n            ID: Q935\u003cbr\u003e\n            Depth: 0\u003cbr\u003e\n            Description: English mathematician and physicist (1642\u20131727)...\n            "}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q859", "label": "Plato\nQ859", "shape": "dot", "size": 30, "title": "\n            \u003cb\u003ePlato\u003c/b\u003e\u003cbr\u003e\n            ID: Q859\u003cbr\u003e\n            Depth: 0\u003cbr\u003e\n            Description: 4th-century BCE Greek philosopher...\n            "}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q63081", "label": "Johannes Nikolaus Tetens\nQ63081", "shape": "dot", "size": 30, "title": "\n            \u003cb\u003eJohannes Nikolaus Tetens\u003c/b\u003e\u003cbr\u003e\n            ID: Q63081\u003cbr\u003e\n            Depth: 0\u003cbr\u003e\n            Description: German-Danish philosopher (1736-1807)...\n            "}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q41568", "label": "Michel de Montaigne\nQ41568", "shape": "dot", "size": 30, "title": "\n            \u003cb\u003eMichel de Montaigne\u003c/b\u003e\u003cbr\u003e\n            ID: Q41568\u003cbr\u003e\n            Depth: 0\u003cbr\u003e\n            Description: French author, philosopher, and statesman (1533\u20131592)...\n            "}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q9191", "label": "Ren\u00e9 Descartes\nQ9191", "shape": "dot", "size": 30, "title": "\n            \u003cb\u003eRen\u00e9 Descartes\u003c/b\u003e\u003cbr\u003e\n            ID: Q9191\u003cbr\u003e\n            Depth: 0\u003cbr\u003e\n            Description: French philosopher, mathematician, and scientist (1596\u20131650)...\n            "}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q9047", "label": "Gottfried Wilhelm Leibniz\nQ9047", "shape": "dot", "size": 30, "title": "\n            \u003cb\u003eGottfried Wilhelm Leibniz\u003c/b\u003e\u003cbr\u003e\n            ID: Q9047\u003cbr\u003e\n            Depth: 0\u003cbr\u003e\n            Description: German mathematician and philosopher (1646\u20131716)...\n            "}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q9353", "label": "John Locke\nQ9353", "shape": "dot", "size": 30, "title": "\n            \u003cb\u003eJohn Locke\u003c/b\u003e\u003cbr\u003e\n            ID: Q9353\u003cbr\u003e\n            Depth: 0\u003cbr\u003e\n            Description: English philosopher and physician (1632\u20131704)...\n            "}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q309818", "label": "Nicolas Malebranche\nQ309818", "shape": "dot", "size": 30, "title": "\n            \u003cb\u003eNicolas Malebranche\u003c/b\u003e\u003cbr\u003e\n            ID: Q309818\u003cbr\u003e\n            Depth: 0\u003cbr\u003e\n            Description: French philosopher...\n            "}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q35802", "label": "Benedictus de Spinoza\nQ35802", "shape": "dot", "size": 30, "title": "\n            \u003cb\u003eBenedictus de Spinoza\u003c/b\u003e\u003cbr\u003e\n            ID: Q35802\u003cbr\u003e\n            Depth: 0\u003cbr\u003e\n            Description: Dutch philosopher (1632\u20131677)...\n            "}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q41585", "label": "David Hilbert\nQ41585", "shape": "dot", "size": 30, "title": "\n            \u003cb\u003eDavid Hilbert\u003c/b\u003e\u003cbr\u003e\n            ID: Q41585\u003cbr\u003e\n            Depth: 0\u003cbr\u003e\n            Description: German mathematician (1862\u20131943)...\n            "}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q58586", "label": "Edmund Husserl\nQ58586", "shape": "dot", "size": 30, "title": "\n            \u003cb\u003eEdmund Husserl\u003c/b\u003e\u003cbr\u003e\n            ID: Q58586\u003cbr\u003e\n            Depth: 0\u003cbr\u003e\n            Description: German philosopher, known as the father of phenomenology (*1859 \u2013 \u20201938)...\n            "}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q71029", "label": "Hermann Weyl\nQ71029", "shape": "dot", "size": 30, "title": "\n            \u003cb\u003eHermann Weyl\u003c/b\u003e\u003cbr\u003e\n            ID: Q71029\u003cbr\u003e\n            Depth: 0\u003cbr\u003e\n            Description: German mathematician (1885\u20131955)...\n            "}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q155887", "label": "Luitzen Egbertus Jan Brouwer\nQ155887", "shape": "dot", "size": 30, "title": "\n            \u003cb\u003eLuitzen Egbertus Jan Brouwer\u003c/b\u003e\u003cbr\u003e\n            ID: Q155887\u003cbr\u003e\n            Depth: 0\u003cbr\u003e\n            Description: Dutch mathematician and logician (1881\u20131966)...\n            "}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q6992366", "label": "Shem-Tov Gefen\nQ6992366", "shape": "dot", "size": 30, "title": "\n            \u003cb\u003eShem-Tov Gefen\u003c/b\u003e\u003cbr\u003e\n            ID: Q6992366\u003cbr\u003e\n            Depth: 0\u003cbr\u003e\n            Description: \u05e4\u05d9\u05dc\u05d5\u05e1\u05d5\u05e3 \u05e0\u05d0\u05d5-\u05e7\u05d0\u05e0\u05d8\u05d9\u05d0\u05e0\u05d9, \u05ea\u05d0\u05d5\u05e8\u05d8\u05d9\u05e7\u05df, \u05de\u05ea\u05de\u05d8\u05d9\u05e7\u05d0\u05d9, \u05de\u05e7\u05d5\u05d1\u05dc \u05d5\u05d0\u05d9\u05e9 \u05d0\u05e9\u05db\u05d5\u05dc\u05d5\u05ea \u05d9\u05d4\u05d5\u05d3\u05d9, \u05de\u05de\u05d5\u05e6\u05d0 \u05d0\u05d5\u05e7\u05e8\u05d0\u05d9\u05e0\u05d9, \u05d1\u05e2\u05dc \u05d4\u05e9\u05e7\u05e4\u05d4 \u05e6\u05d9\u05d5\u05e0\u05d9\u05ea...\n            "}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q170790", "label": "mathematician\nQ170790", "shape": "dot", "size": 30, "title": "\n            \u003cb\u003emathematician\u003c/b\u003e\u003cbr\u003e\n            ID: Q170790\u003cbr\u003e\n            Depth: 0\u003cbr\u003e\n            Description: person with an extensive knowledge of mathematics...\n            "}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q1622272", "label": "university teacher\nQ1622272", "shape": "dot", "size": 30, "title": "\n            \u003cb\u003euniversity teacher\u003c/b\u003e\u003cbr\u003e\n            ID: Q1622272\u003cbr\u003e\n            Depth: 0\u003cbr\u003e\n            Description: person teaching at a university...\n            "}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q4964182", "label": "philosopher\nQ4964182", "shape": "dot", "size": 30, "title": "\n            \u003cb\u003ephilosopher\u003c/b\u003e\u003cbr\u003e\n            ID: Q4964182\u003cbr\u003e\n            Depth: 0\u003cbr\u003e\n            Description: person with an extensive knowledge of philosophy...\n            "}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q169470", "label": "physicist\nQ169470", "shape": "dot", "size": 30, "title": "\n            \u003cb\u003ephysicist\u003c/b\u003e\u003cbr\u003e\n            ID: Q169470\u003cbr\u003e\n            Depth: 0\u003cbr\u003e\n            Description: scientist who does research in physics...\n            "}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q14565331", "label": "logician\nQ14565331", "shape": "dot", "size": 30, "title": "\n            \u003cb\u003elogician\u003c/b\u003e\u003cbr\u003e\n            ID: Q14565331\u003cbr\u003e\n            Depth: 0\u003cbr\u003e\n            Description: person specializing in formal logic...\n            "}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q101064325", "label": "philosopher of mathematics\nQ101064325", "shape": "dot", "size": 30, "title": "\n            \u003cb\u003ephilosopher of mathematics\u003c/b\u003e\u003cbr\u003e\n            ID: Q101064325\u003cbr\u003e\n            Depth: 0\u003cbr\u003e\n            Description: No description...\n            "}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q28045801", "label": "phenomenologist\nQ28045801", "shape": "dot", "size": 30, "title": "\n            \u003cb\u003ephenomenologist\u003c/b\u003e\u003cbr\u003e\n            ID: Q28045801\u003cbr\u003e\n            Depth: 0\u003cbr\u003e\n            Description: philosopher who studies phenomena...\n            "}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q18663426", "label": "topologist\nQ18663426", "shape": "dot", "size": 30, "title": "\n            \u003cb\u003etopologist\u003c/b\u003e\u003cbr\u003e\n            ID: Q18663426\u003cbr\u003e\n            Depth: 0\u003cbr\u003e\n            Description: mathematician who studies topology...\n            "}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q36180", "label": "writer\nQ36180", "shape": "dot", "size": 30, "title": "\n            \u003cb\u003ewriter\u003c/b\u003e\u003cbr\u003e\n            ID: Q36180\u003cbr\u003e\n            Depth: 0\u003cbr\u003e\n            Description: person who uses written words to communicate ideas and to produce literary works...\n            "}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q37226", "label": "teacher\nQ37226", "shape": "dot", "size": 30, "title": "\n            \u003cb\u003eteacher\u003c/b\u003e\u003cbr\u003e\n            ID: Q37226\u003cbr\u003e\n            Depth: 0\u003cbr\u003e\n            Description: person who helps others to acquire knowledge, competences or values...\n            "}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q12350380", "label": "kabbalist\nQ12350380", "shape": "dot", "size": 30, "title": "\n            \u003cb\u003ekabbalist\u003c/b\u003e\u003cbr\u003e\n            ID: Q12350380\u003cbr\u003e\n            Depth: 0\u003cbr\u003e\n            Description: someone who professionally studies the Kabbalah...\n            "}]);
+                  edges = new vis.DataSet([{"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q9312", "label": "influenced by (P737)", "to": "Q35802", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q9312", "label": "influenced by (P737)", "to": "Q309818", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q9312", "label": "influenced by (P737)", "to": "Q9353", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q9312", "label": "influenced by (P737)", "to": "Q9047", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q9312", "label": "influenced by (P737)", "to": "Q9191", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q9312", "label": "influenced by (P737)", "to": "Q41568", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q9312", "label": "influenced by (P737)", "to": "Q63081", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q9312", "label": "influenced by (P737)", "to": "Q859", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q9312", "label": "influenced by (P737)", "to": "Q935", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q9312", "label": "influenced by (P737)", "to": "Q316367", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q9312", "label": "influenced by (P737)", "to": "Q6527", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q9312", "label": "influenced by (P737)", "to": "Q76510", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q9312", "label": "influenced by (P737)", "to": "Q82049", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q9312", "label": "influenced by (P737)", "to": "Q37160", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q41585", "label": "occupation (P106)", "to": "Q101064325", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q41585", "label": "occupation (P106)", "to": "Q14565331", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q41585", "label": "occupation (P106)", "to": "Q169470", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q41585", "label": "occupation (P106)", "to": "Q4964182", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q41585", "label": "occupation (P106)", "to": "Q1622272", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q41585", "label": "occupation (P106)", "to": "Q170790", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q58586", "label": "occupation (P106)", "to": "Q28045801", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q58586", "label": "occupation (P106)", "to": "Q1622272", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q58586", "label": "occupation (P106)", "to": "Q4964182", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q58586", "label": "occupation (P106)", "to": "Q170790", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q71029", "label": "occupation (P106)", "to": "Q1622272", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q71029", "label": "occupation (P106)", "to": "Q4964182", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q71029", "label": "occupation (P106)", "to": "Q169470", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q71029", "label": "occupation (P106)", "to": "Q170790", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q155887", "label": "occupation (P106)", "to": "Q36180", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q155887", "label": "occupation (P106)", "to": "Q1622272", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q155887", "label": "occupation (P106)", "to": "Q18663426", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q155887", "label": "occupation (P106)", "to": "Q4964182", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q155887", "label": "occupation (P106)", "to": "Q170790", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q6992366", "label": "occupation (P106)", "to": "Q4964182", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q6992366", "label": "occupation (P106)", "to": "Q170790", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q6992366", "label": "occupation (P106)", "to": "Q12350380", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q6992366", "label": "occupation (P106)", "to": "Q37226", "width": 2}]);
+
+                  nodeColors = {};
+                  allNodes = nodes.get({ returnType: "Object" });
+                  for (nodeId in allNodes) {
+                    nodeColors[nodeId] = allNodes[nodeId].color;
+                  }
+                  allEdges = edges.get({ returnType: "Object" });
+                  // adding nodes and edges to the graph
+                  data = {nodes: nodes, edges: edges};
+
+                  var options = {"physics": {"enabled": true, "stabilization": {"iterations": 100}, "barnesHut": {"gravitationalConstant": -8000, "centralGravity": 0.3, "springLength": 95, "springConstant": 0.04, "damping": 0.09, "avoidOverlap": 0.1}}, "interaction": {"dragNodes": true, "dragView": true, "zoomView": true}};
+
+                  
+
+
+                  
+
+                  network = new vis.Network(container, data, options);
+
+                  
+
+                  
+
+                  
+
+
+                  
+
+                  return network;
+
+              }
+              drawGraph();
+        </script>
+    </body>
+</html>

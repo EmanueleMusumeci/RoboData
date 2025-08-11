@@ -24,6 +24,7 @@
   <script src="./static/js/bulma-carousel.min.js"></script>
   <script src="./static/js/bulma-slider.min.js"></script>
   <script src="./static/js/index.js"></script>
+  <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
 
 
 </head>
@@ -44,6 +45,85 @@
         li {
             margin: 5px 0;
         }
+        .prompt-box {
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            margin-bottom: 1.5em;
+            font-family: monospace;
+            font-size: 0.8em;
+            max-width: 100%;
+        }
+        .prompt-box .prompt-content {
+            padding: 12px;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+        }
+        .prompt-box .prompt-content .title.is-5 {
+            font-size: 1.1em;
+        }
+
+        .prompt-label {
+            font-weight: bold;
+        }
+        .system-prompt-label {
+            color: #d9534f; /* red */
+        }
+        .assistant-prompt-label {
+            color: #428bca; /* blue */
+        }
+        .tools-label {
+            color: #f0ad4e; /* orange */
+        }
+
+        .tool-list {
+            list-style-type: none;
+            padding-left: 1.5em;
+            margin-top: 0.5em;
+        }
+        .tool-list li {
+            margin-bottom: 0.25em;
+        }
+        .tool-list code {
+            color: black;
+            font-weight: bold;
+        }
+
+        .status-box {
+            display: inline-block;
+            padding: 0.25em 0.6em;
+            font-size: 75%;
+            font-weight: 700;
+            line-height: 1;
+            text-align: center;
+            white-space: nowrap;
+            vertical-align: baseline;
+            border-radius: 0.25rem;
+            margin-top: 0.5rem;
+        }
+        .status-ok {
+            color: #155724;
+            background-color: #d4edda;
+        }
+        .status-incomplete {
+            color: #856404;
+            background-color: #fff3cd;
+        }
+        .status-wrong {
+            color: #721c24;
+            background-color: #f8d7da;
+        }
+        .consistency-ok { background-color: #d4edda; color: #155724; font-weight: bold; text-align: center; }
+        .consistency-failed { background-color: #f8d7da; color: #721c24; font-weight: bold; text-align: center; }
+        .ref1 { color: rgb(220, 20, 60); }
+        .ref2 { color: rgb(30, 144, 255); }
+        .ref3 { color: rgb(34, 139, 34); }
+        .ref4 { color: rgb(255, 140, 0); }
+        .ref5 { color: rgb(148, 0, 211); }
+        .ref6 { color: rgb(139, 69, 19); }
+        .ref7 { color: rgb(255, 105, 180); }
+        .ref8 { color: rgb(0, 206, 209); }
+        .ref9 { color: rgb(50, 205, 50); }
+        .ref10 { color: rgb(255, 215, 0); }
     </style>
   <nav class="navbar" role="navigation" aria-label="main navigation">
     <div class="navbar-brand">
@@ -64,23 +144,18 @@
       <div class="container is-max-desktop">
         <div class="columns is-centered">
           <div class="column has-text-centered">
-            <h1 class="title is-2 publication-title">RoboData - Ontology Explorer</h1>
-            <h2 class="title is-6 publlication-title">Interactive Wikidata Navigation with LLM Agents</h2>
-            <div class="is-size-6 publication-authors">
+            <h1 class="title is-1 publication-title">RoboData</h1>
+            <h2 class="title is-4 publication-title">Toward Trustable Question Answering over Ontologies through Metacognitive Agentic Epistemology</h2>
+            <div class="is-size-5 publication-authors">
               <span class="author-block">
-                <b>Autors Anonymized for Review</b>
-                <!-- Insert Author Information Here -->
+                <b>Authors Anonymized for Review</b>
               </span>
-              <br>
-            <div class="is-size-6 publication-authors">
-              <span class="author-block">Exploring ontology visualization and interaction using Wikidata</span>
-              <br>
             </div>
 
             <div class="column has-text-centered">
                 <!-- Code Link. -->
                 <span class="link-block">
-                  <a href="https://anonymous.4open.science/r/RoboData-Wikidata_Workshop_2025_Submission_10" class="external-link button is-normal ">
+                  <a href="https://anonymous.4open.science/r/RoboData-Wikidata_Workshop_2025_Submission_10" class="external-link button is-normal" target="_blank">
                     <span class="icon">
                       <i class="fab fa-github"></i>
                     </span>
@@ -88,172 +163,778 @@
                   </a>
                 </span>
                 <span class="link-block">
-                  <a href="#features" class="external-link button is-normal ">
+                  <a href="#architecture" class="external-link button is-normal">
+                    <span class="icon">
+                        <i class="fas fa-sitemap"></i>
+                    </span>
+                    <span>Architecture</span>
+                  </a>
+                </span>
+                <span class="link-block">
+                  <a href="#methodology" class="external-link button is-normal">
                     <span class="icon">
                         <i class="fas fa-cogs"></i>
                     </span>
-                    <span>Features</span>
+                    <span>Methodology</span>
+                  </a>
+                </span>
+                <span class="link-block">
+                  <a href="#experimental-evaluation" class="external-link button is-normal">
+                    <span class="icon">
+                        <i class="fas fa-flask"></i>
+                    </span>
+                    <span>Experiments</span>
                   </a>
                 </span>
               </div>
 
-            </div>
           </div>
         </div>
       </div>
     </div>
   </section>
 
+  <section class="section" id="architecture">
+    <div class="container is-max-desktop has-text-centered">
+      <h2 class="title is-3">Architecture</h2>
+      <div class="hero-image" style="display: flex; justify-content: center; margin-bottom: 1rem;">
+        <img src="images/architecture.png" alt="RoboData Architecture" style="max-width: 80%; height: auto;">
+      </div>
+      <p style="font-style: italic;">
+        The KGQA agentic framework follows the DIKW architecture. The "Data + Information" layer is implemented as a knowledge graph. The "Knowledge" layer consists of a LLM-based orchestrator, using tools to inspect local and remote data. The "wisdom" layer provides feedback on the QA strategy.
+      </p>
+    </div>
+  </section>
 
   <section class="section" id="overview">
     <div class="container is-max-desktop has-text-centered">
-      <h2 class="title is-3">� Project Overview</h2>
-      <div class="hero-image" style="display: flex; justify-content: center; margin-bottom: 2rem;">
-        <img src="images/RoboData_light.png" alt="RoboData Visualization" style="max-width: 60%; height: auto;">
-      </div>
+      <h2 class="title is-3">Abstract</h2>
       <div style="text-align: justify; margin: 0 auto; max-width: 80%;">
         <p style="font-size: 1.1rem; margin-bottom: 1.5rem;">
-          RoboData provides an intelligent interface for exploring Wikidata ontologies through natural language queries. 
-          The system combines LLM agents with specialized tools to enable intuitive navigation of knowledge graphs, 
-          entity relationships, and semantic hierarchies.
+          Large Language Models (LLMs) have revolutionized Natural Language Processing (NLP), simplifying knowledge extraction from structured and unstructured sources. Despite pervasive usage in various applications, from Question Answering (QA) to goal-driven reasoning, they tend to produce <i>hallucinations</i>, factually incorrect responses that hindering accuracy and explainability of Knowledge-Based QA (KBQA) tasks.
+          To address this limitation, we introduce RoboData, an Agentic AI approach to verifiable knowledge extraction and reasoning over structured ontologies like Wikidata. Through metacognitive self-reflection and goal-directed commonsense reasoning, a LLM-based epistemic agent dynamically self-orchestrates a query answering process. Unlike traditional information retrieval systems, the proposed architecture incrementally builds a local knowledge graph from remote knowledge sources to answer a natural language query with traceable facts, highlighting a "support set" for each claim, a set of nodes and edges in the local knowledge graph that backs the generated claims. The resulting accumulated knowledge provides an intermediate <i>explainability layer</i>, providing a reliable epistemic substrate for using trusted ontologies in goal-driven query answering applications, such as robotic planning and semantic map enrichment.
         </p>
       </div>
     </div>
   </section>
 
-  <section style="margin-top: 2%;" class="section" id="features">
-    <div class="container is-max-desktop">
-      <div class="columns is-vcentered">
-        <div style="margin-right: 5%;" class="column is-half">
-        </div>
-        <div class="column is-half">
-          <div class="text-image-container title is-3">
-            
-                <p>🚀 Core Capabilities</p>
-            </div>
-
-            <div class="text">
-              <li><strong>Natural Language Queries:</strong> Ask questions about Wikidata entities in plain English</li>
-              <li><strong>Dynamic Tool System:</strong> Extensible architecture with automatic tool registration</li>
-              <li><strong>Multiple API Backends:</strong> Support for both REST API and KIF (Knowledge Integration Framework)</li>
-              <li><strong>Graph Database Integration:</strong> Neo4j support for local knowledge graph storage</li>
-              <li><strong>Comprehensive Testing:</strong> Real API integration tests with validation</li>
-            </div>
-        <div style = "margin-top: 10%" class="text-image-container title is-3">
-
-              <p>� Query Types</p>
-          </div>
-
-          <div class="text">
-            <li>Entity exploration and detailed information retrieval</li>
-            <li>Subclass/superclass hierarchy navigation</li>
-            <li>Instance finding and classification</li>
-            <li>Path finding between entities</li>
-            <li>Local graph construction around entities</li>
-            <li>Custom SPARQL query execution</li>
-          </div>
-          </div>
-        </div>
-
-    </div>
-    </div>
-
-  </section>
-  
-  <div style = "margin-top: 3%" class="columns is-centered has-text-centered">
-    <div class="column is-four-fifths">
-      <h2 class="title is-3">🏗️ Architecture</h2>
-      <div class="text" style="text-align: justify;width: 70%; margin-left: 15%; margin-bottom: 2rem;"> 
-        The RoboData system is built on a modular architecture that combines LLM agents with specialized tools for Wikidata exploration. 
-        The core components include a <strong>BaseAgent</strong> interface for LLM agents with tool calling capabilities, 
-        a dynamic <strong>Toolbox</strong> system for tool registration and management, and strongly typed <strong>Pydantic models</strong> 
-        for all Wikidata structures.
-      </div>
-      
-      <div class="columns is-multiline" style="margin-top: 2rem;">
-        <div class="column is-half">
-          <h3 class="title is-5">🔧 Tools Available</h3>
-          <div class="text" style="text-align: left;">
-            <h4 style="font-weight: bold; margin-top: 1rem;">Graph Tools:</h4>
-            <ul style="list-style-type: disc; margin-left: 2rem;">
-              <li>AddNodeTool, AddEdgeTool</li>
-              <li>GetNodeTool, GetEdgeTool</li>
-              <li>GetNeighborsTool, GetSubgraphTool</li>
-              <li>CypherQueryTool</li>
-            </ul>
-            
-            <h4 style="font-weight: bold; margin-top: 1rem;">Wikidata Tools:</h4>
-            <ul style="list-style-type: disc; margin-left: 2rem;">
-              <li>GetEntityInfoTool</li>
-              <li>SearchEntitiesTool</li>
-              <li>SPARQLQueryTool</li>
-              <li>SubclassQueryTool, SuperclassQueryTool</li>
-              <li>InstanceQueryTool, InstanceOfQueryTool</li>
-            </ul>
-          </div>
-        </div>
-        
-        <div class="column is-half">
-          <h3 class="title is-5">💾 Data Models</h3>
-          <div class="text" style="text-align: left;">
-            <h4 style="font-weight: bold; margin-top: 1rem;">Wikidata Models:</h4>
-            <ul style="list-style-type: disc; margin-left: 2rem;">
-              <li>WikidataEntity</li>
-              <li>WikidataProperty</li>
-              <li>WikidataStatement</li>
-              <li>SearchResult</li>
-            </ul>
-            
-            <h4 style="font-weight: bold; margin-top: 1rem;">Local Graph Models:</h4>
-            <ul style="list-style-type: disc; margin-left: 2rem;">
-              <li>Node (entities in local graph)</li>
-              <li>Edge (relationships between nodes)</li>
-              <li>Graph (NetworkX-based container)</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-
-
-  <section class="section" id="installation">
+  <section class="section" id="contributions">
     <div class="container is-max-desktop content">
-      <h2 class="title is-3">🛠️ Installation & Usage</h2>
-      
-      <div class="columns">
-        <div class="column is-half">
-          <h3 class="title is-5">Quick Start</h3>
-          <pre><code># Clone the repository
-git clone &lt;repository-url&gt;
-cd RoboData
+      <h2 class="title is-3">Contributions</h2>
+      <div class="notification is-light">
+        <p>
+          We present an architecture where a Large Language Model-based agent orchestrates a Query Answering process. This process produces both a local Knowledge Graph, built from remote reliable data sources like Wikidata, and a natural language answer. Crucially, each claim in the answer is supported by "support sets"—subsets of the local KG that provide verifiable evidence, enhancing the trustability of the output.
+        </p>
+      </div>
+      <div class="notification is-light">
+        <p>
+          Our system features an agent capable of reasoning through self-reflection on its past actions. It can dynamically correct its strategy by analyzing its own course of action. This metacognitive capability allows the agent to adapt its exploration strategy, overcome the limitations of LLM context windows, and manage long-term memory more effectively, which is particularly useful for complex, multi-hop queries.
+        </p>
+      </div>
+    </div>
+  </section>
 
-# Install dependencies
-pip install -r requirements.txt
-
-# Set up API keys
-export GEMINI_API_KEY="your-gemini-api-key"
-
-# Run the interactive terminal
-cd backend
-python -m core.orchestrator.multi_stage.multi_stage_orchestrator</code></pre>
+  <section class="section" id="methodology">
+    <div class="container is-max-desktop content">
+      <h2 class="title is-3">Methodology</h2>
+      <div style="text-align: justify; margin: 0 auto; max-width: 90%;">
+        <p>
+          The system is designed to self-orchestrate, exploring the remote Wikidata ontology or the local KG, or to update it, progressively constructing the local graph, enabling explainable query resolution. Through self-reflection and metacognition, the agent is capable of correcting its own strategy, by reasoning on the past execution. The framework is organized in layers, following the DIKW paradigm.
+        </p>
+        <p>
+          <b>Epistemic Substrate:</b> Acting as the Data+Information layer in the DIKW taxonomy, the accumulated local graph, initially empty, is progressively populated during the Query Answering. The local KG represents data using a common schema, to potentially accomodate multiple remote knowledge sources.
+        </p>
+        <p>
+          <b>Agentic Layer:</b> Acts as the main operational component, representing the Knowledge layer in the DIKW paradigm. This layer comprises several modules. The main one is the Agentic Orchestrator, modeled as a Finite-State Machine (FSM), managing how the Agent interacts with the LLM. Each state has a specific prompt and set of tools that the agent can use.
+        </p>
+        <p>
+          <b>Metacognition:</b> FSM-based orchestration balances freedom of agentic action with guidance over reasoning paths. Hallucinations induced by excessive context lengths are mitigated by a corrective strategy generated by the metacognition module and embedded in subsequent Orchestrator prompts.
+        </p>
+      </div>
+      <h3 class="title is-4" style="margin-top: 2rem;">Stateful Orchestrator</h3>
+      <div class="hero-image" style="display: flex; justify-content: center; margin-bottom: 1rem;">
+        <img src="images/orchestrator.png" alt="RoboData Orchestrator" style="max-width: 100%; height: auto;">
+      </div>
+      <div style="text-align: justify; margin: 0 auto; max-width: 90%;">
+        <p>
+            Initially, the query is evaluated in <i>Local Data Evaluation</i> and the KG is empty: the orchestrator transitions to <i>Remote Data Evaluation</i>. Here, the proper tool calls are executed. Remote data is evaluated in <i>Remote Data Evaluation</i>. Then the self-orchestration determines the remaining steps. In the orchestrator, the agent dynamically determines the order in which states are visited and tools are called and performs self-reflection, by observing previous successes or failures or evaluating data completeness. Workflows are replaced with a dynamic transition system, as the state sequence is therefore determined by the commonsense reasoning capabilities of the LLM. The orchestrator is allowed to run a predefined number of turns, after which it is forced to produce an answer.
+        </p>
+      </div>
+      <div style="margin-top: 2rem;">
+        <p style="margin-top: 1.5rem;"><b>Local Data Evaluation:</b> Evaluates whether the local knowledge graph contains enough information to answer the query. If the graph is empty, the system proceeds directly to the <em>Remote Exploration</em> state. If there is enough data to answer the original query, the orchestrator visits the <em>Produce Answer</em> state. Finally, if the local KG contents exceed the maximum allowed token count, the <em>Local Graph Exploration</em> is visited.</p>
+        <div class="prompt-box collapsible-prompt" style="margin-top: 1rem;">
+            <button class="button is-fullwidth is-justify-content-space-between">
+                <span>Local Data Evaluation (Prompt)</span>
+                <span class="icon is-small"><i class="fas fa-chevron-down"></i></span>
+            </button>
+            <div class="prompt-content" style="display: none;">
+                <p><span class="prompt-label system-prompt-label">System Prompt:</span> Evaluate if the local graph data is enough to answer the query. [<i>Exploration strategy suggestions</i>]. If you feel that key relationships are missing from the local graph, you can suggest using remote tools to gather more data and go back to remote exploration. [<i>List of possible transitions</i>]. [<i>Invitation to keep KG topologically consistent</i>].[<i>Invitation to self-reflection</i>].</p>
+                <p><span class="prompt-label assistant-prompt-label">Assistant Prompt:</span> Self-reflection, memory context, local graph data, local exploration results, and optional metacognitive strategy.</p>
+            </div>
         </div>
-        
-        <div class="column is-half">
-          <h3 class="title is-5">Available Commands</h3>
-          <ul>
-            <li><code>help</code> - Show help information and query examples</li>
-            <li><code>tools</code> - List all available tools with descriptions</li>
-            <li><code>settings</code> - Show current configuration</li>
-            <li><code>clear</code> - Clear conversation history</li>
-            <li><code>exit/quit</code> - Exit the application</li>
-          </ul>
-          
-          <h3 class="title is-5" style="margin-top: 2rem;">Neo4j Setup (Optional)</h3>
-          <p>For graph database features, install and configure Neo4j following the instructions in the README.</p>
+        <p style="margin-top: 1.5rem;"><b>Local Graph Exploration:</b> The agent uses tools to explore the local KG, gathering additional information relevant to the query but not initially visible in the truncated graph. The agent can choose to transition again to the <em>Local Data Evaluation</em> state or to keep exploring.</p>
+        <div class="prompt-box collapsible-prompt" style="margin-top: 1rem;">
+            <button class="button is-fullwidth is-justify-content-space-between">
+                <span>Local Graph Exploration (Prompt)</span>
+                <span class="icon is-small"><i class="fas fa-chevron-down"></i></span>
+            </button>
+            <div class="prompt-content" style="display: none;">
+                <p><span class="prompt-label system-prompt-label">System Prompt:</span> Explore the local knowledge graph to answer the query. Use available tools to find relevant information. Avoid redundancy. [<i>List of possible transitions</i>]. [<i>Invitation to self-reflection</i>]</p>
+                <p><span class="prompt-label assistant-prompt-label">Assistant Prompt:</span> Self-reflection, memory context, local graph data, and local exploration results.</p>
+                <div><span class="prompt-label tools-label">Tools:</span>
+                    <ul class="tool-list">
+                        <li><code>get_node</code>: retrieve node details by ID</li>
+                        <li><code>get_edge</code>: retrieve edge details by ID</li>
+                        <li><code>cypher_query</code>: execute Cypher queries on graph database</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <p style="margin-top: 1.5rem;"><b>Remote Data Exploration:</b> The agent can invoke tools to collect data from the remote ontology. It can then decide to transition to the <em>Local Data Evaluation</em> state or to keep exploring.</p>
+        <div class="prompt-box collapsible-prompt" style="margin-top: 1rem;">
+            <button class="button is-fullwidth is-justify-content-space-between">
+                <span>Remote Data Exploration (Prompt)</span>
+                <span class="icon is-small"><i class="fas fa-chevron-down"></i></span>
+            </button>
+            <div class="prompt-content" style="display: none;">
+                <p><span class="prompt-label system-prompt-label">System Prompt:</span> The local graph is insufficient. Use remote tools to gather relevant data that fills gaps. Focus on entities/relationships related to the query. [<i>List of possible transitions</i>]</p>
+                <p><span class="prompt-label assistant-prompt-label">Assistant Prompt:</span> Self-reflection, memory context, and local graph data.</p>
+                <div><span class="prompt-label tools-label">Tools:</span>
+                    <ul class="tool-list">
+                        <li><code>get_entity_info</code>: retrieve detailed information for a Wikidata entity</li>
+                        <li><code>get_property_info</code>: retrieve detailed information for a Wikidata property</li>
+                        <li><code>search_entities</code>: search for Wikidata entities by name or alias</li>
+                        <li><code>sparql_query</code>: execute SPARQL queries on the Wikidata endpoint</li>
+                        <li><code>explore_entity_neighbors</code>: retrieve all neighbors for a given Wikidata entity</li>
+                        <li><code>build_local_graph</code>: add a subgraph from remote data to the local KG</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <p style="margin-top: 1.5rem;"><b>Remote Data Evaluation:</b> The relevance of remote retrieved information to the original query is evaluated. If the data is considered relevant, the system transitions <em>Local Graph Update</em> state to integrate it into the local KG. Otherwise, the system can decide whether to keep exploring or go back to the <em>Local Data Evaluation</em> state.</p>
+        <div class="prompt-box collapsible-prompt" style="margin-top: 1rem;">
+            <button class="button is-fullwidth is-justify-content-space-between">
+                <span>Remote Data Evaluation (Prompt)</span>
+                <span class="icon is-small"><i class="fas fa-chevron-down"></i></span>
+            </button>
+            <div class="prompt-content" style="display: none;">
+                <p><span class="prompt-label system-prompt-label">System Prompt:</span> Evaluate if remote data is relevant for building a knowledge graph for the query. [<i>List of possible transitions</i>]. [<i>Invitation to self-reflection</i>].</p>
+                <p><span class="prompt-label assistant-prompt-label">Assistant Prompt:</span> Previous thoughts, local graph data, remote graph data, memory context, and optional metacognitive strategy.</p>
+            </div>
+        </div>
+        <p style="margin-top: 1.5rem;"><b>Local Graph Update:</b> The selected remote entities and relations related to the query are fetched into the local graph, then the agent transitions back to the <em>Local Data Evaluation</em> state.</p>
+        <div class="prompt-box collapsible-prompt" style="margin-top: 1rem;">
+            <button class="button is-fullwidth is-justify-content-space-between">
+                <span>Local Graph Update (Prompt)</span>
+                <span class="icon is-small"><i class="fas fa-chevron-down"></i></span>
+            </button>
+            <div class="prompt-content" style="display: none;">
+                <p><span class="prompt-label system-prompt-label">System Prompt:</span> Update the local graph with relevant remote data. Only add entities/relationships directly related to the query. Avoid isolated nodes and redundancy. [<i>Update strategy suggestions</i>]. [<i>Invitation to keep KG topologically consistent</i>].</p>
+                <p><span class="prompt-label assistant-prompt-label">Assistant Prompt:</span> Self-reflection, local graph data, remote graph data, and memory context.</p>
+                <div><span class="prompt-label tools-label">Tools:</span>
+                    <ul class="tool-list">
+                        <li><code>fetch_node</code>: add a single node from remote data to the local KG</li>
+                        <li><code>fetch_relationship_[to|from]_node</code>: add a relationship and its corresponding node to the local KG</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <p style="margin-top: 1.5rem;"><b>Answer Production:</b> Final state, where the agent generates an answer. Each sentence is associated to a set of entities and relations in the local data, acting as proof for that claim.</p>
+        <div class="prompt-box collapsible-prompt" style="margin-top: 1rem;">
+            <button class="button is-fullwidth is-justify-content-space-between">
+                <span>Answer Production (Prompt)</span>
+                <span class="icon is-small"><i class="fas fa-chevron-down"></i></span>
+            </button>
+            <div class="prompt-content" style="display: none;">
+                <p><span class="prompt-label system-prompt-label">System Prompt:</span> You are an expert agent that produces comprehensive answers using data from a local knowledge graph. Your task is to create a final answer where each sentence is backed by specific evidence from the local graph. [<i>Detailed format and consistency constraints</i>]. [<i>Format example</i>].</p>
+                <p><span class="prompt-label assistant-prompt-label">Assistant Prompt:</span> Self-reflection, local graph data, and memory context.</p>
+            </div>
         </div>
       </div>
+      <h3 class="title is-4" style="margin-top: 2rem;">Metacognition</h3>
+        <div style="text-align: justify; margin: 0 auto; max-width: 90%;">
+            <p>
+                FSM-based orchestration balances freedom of agentic action with guidance over reasoning paths. Hallucinations induced by excessive context lengths, due to the need to provide the KG to the LLM in data-related prompts, increase with complex queries requiring long answers and big underlying knowledge graphs. As a mitigation, a corrective strategy is generated by the metacognition module and embedded in subsequent Orchestrator prompts. The metacognition happens in evaluation states at two distinct levels: the first one is performed inline in the orchestrator. A self-reflection behavior in the LLM is elicited, by instructing the Agent to reflect on the past execution trace to determine corrective advices for the next selected state in the orchestrator, with the desired outcome of correcting the short-term strategy in reaction to failures or stagnation in the query answering process. Then, each time the agent reaches an evaluation state, in the ”Wisdom” layer, explicit metacognition is performed to provide a higher-order strategic evaluation of the overall agentic strategy, by analyzing the sequence of past states, tool calls and graph updates. If a previous metacognitive observation is available, the inferred strategy is compared against it. The module finally produces a metacognitive observation, a corrective plan to optimize suboptimal tendencies in the agent strategy. This observation is then injected into the prompts of the orchestrator evaluation states. As turns run out, a variable ”turn urgency” message (depending on how many orchestrator turn are left), urges the LLM to consolidate the KG, avoiding isolated nodes and unconnected components, leading to a better consistency in output KGs.
+            </p>
+            <p>
+                Metacognition components:
+                <ol>
+                    <li><b>Strategic Assessment.</b> Infer the current strategy from statistics and memory.
+                        <div style="margin-top: 1rem;">
+                            <div class="prompt-box collapsible-prompt">
+                                <button class="button is-fullwidth is-justify-content-space-between">
+                                    <span>Strategic Assessment (Prompt)</span>
+                                    <span class="icon is-small"><i class="fas fa-chevron-down"></i></span>
+                                </button>
+                                <div class="prompt-content" style="display: none;">
+                                    <p><span class="prompt-label system-prompt-label">System Prompt:</span> Analyze the sequence of actions and identify the underlying strategic approach. Focus on: high-level strategy, tool usage preferences, data retrieval patterns, knowledge graph construction strategy, and performance indicators. Turn urgency.</p>
+                                    <p><span class="prompt-label assistant-prompt-label">Assistant Prompt:</span> Action sequence, execution statistics (state and graph statistics, tool usage), available tools, memory context, local graph data, local/remote exploration results.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </li>
+                    <li><b>Meta-Observation.</b> The strategy is compared to previous ones, and corrective feedback is generated, enabling the agent to navigate complex queries and reorient sub-optimal behavior.
+                        <div style="margin-top: 1rem;">
+                            <div class="prompt-box collapsible-prompt">
+                                <button class="button is-fullwidth is-justify-content-space-between">
+                                    <span>Meta-Observation (Prompt)</span>
+                                    <span class="icon is-small"><i class="fas fa-chevron-down"></i></span>
+                                </button>
+                                <div class="prompt-content" style="display: none;">
+                                    <p><span class="prompt-label system-prompt-label">System Prompt:</span> Evaluate current strategy against task outcome and previous observations. Consider: strategy coherence, performance assessment, strategic continuity, opportunity identification, and tool optimization. Turn urgency.</p>
+                                    <p><span class="prompt-label assistant-prompt-label">Assistant Prompt:</span> Detected strategy, previous metacognition, task outcome assessment, available tools, memory context, local graph data, local/remote exploration results.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </li>
+                </ol>
+            </p>
+        </div>
+    </div>
+  </section>
+
+  <section class="section" id="experimental-evaluation">
+    <div class="container is-max-desktop content">
+      <h2 class="title is-3">Experimental Evaluation</h2>
+      <div style="text-align: justify;">
+        <p>
+          This section evaluates the proposed system across varying query complexity and ambiguity. By default, metacognition is disabled while self-reflection is enabled, as it is an established practice in the current state of the art. Experiments are conducted using GPT-4o as a Reasoning Model. The orchestrator is allowed to run for a limited number of turns, after which it is forced to produce an answer with the collected data. The only remote ontology used in these experiments is Wikidata, accessed through the official API.
+        </p>
+      </div>
+      <div class="tabs is-centered">
+        <ul>
+          <li class="is-active" data-target="baseline-kgqa"><a>Baseline KGQA</a></li>
+          <li data-target="structural-tasks"><a>Structural tasks</a></li>
+          <li data-target="metacognition"><a>Metacognition</a></li>
+        </ul>
+      </div>
+      <div id="baseline-kgqa" class="tab-content">
+        <div class="content">
+            <p>
+                In the first batch of queries, <b>Batch A</b> (A1-A7), we test RoboData on a curated set of single and multi-hop queries, at an increasing level of complexity and scope, to assess its basic KGQA capabilities. The results are reported in Table 1, containing for each experiment, the original query, the answer with its supporting set, and several statistics, including number of iterations and tool calls, exchanged tokens and execution time, number of nodes and edges added. In this batch, we allow the orchestrator to run for at most 30 turns. Queries A1-A4 assess the Question Answering capability of this system at an increasing level of complexity. In particular, A1-A3 require a single hop to answer correctly (basically a local exploration around the entity Q42 in Wikidata as all the required elements for the answer are located one relation away from the main subject of the question). A2 and A3 though require multiple relations to answer and A2 is contained in A3. The result shows consistency in the intersection of the answers to A2 and A3. The answer to A3 is only partial: the part of the answer in common with A2 is only partially found; therefore, the answer is considered wrong. Query A4 instead requires multiple hops to answer correctly, showing longer-term task execution capabilities. Queries A5-A7 are more complex both in the number of hops required and in scope. A5 requires a chain of 4 hops to answer but only 3 are found: this is due to the fact that all entities along the chain contain part of the answer already in the textual description of the Wikidata entity (in our case, the name of the german federal district containing the Veltins brewery), tricking the LLM into assuming that the answer is fully supported by the node. In A6, the answer is incomplete. Both queries A5 and A6 highlight the main limitation of this system, when operating without a metacognitive strategy observer: the orchestrator alone tends to lose track of tasks involving multiple hops or big sets of entities and properties. This is confirmed by query A7, showing how the limited context window negatively affects tasks where more working memory is required to keep track of longer-term tasks over big sets of entities (in this case, the big sets of cities to compare to find twin cities). In this query, in fact, even if the full 30 iterations are reached and 148 tool calls are performed, collecitng 480 nodes and 623 edges, the limitations due to the working memory and context window prevent the agent from returning an answer.
+            </p>
+        </div>
+        <h4 class="title is-4">Batch A: Basic KGQA Functionality</h4>
+        <table class="table is-bordered is-striped is-narrow is-hoverable is-fullwidth">
+          <thead>
+            <tr>
+              <th style="width: 20%;">Query</th>
+              <th style="width: 45%;">Answer</th>
+              <th style="width: 35%;">Support Sets</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <b>Query A1:</b> Who is the author of 'The Hitchhiker's Guide to the Galaxy?'
+                <div class="status-box status-ok">OK</div>
+              </td>
+              <td>The 1979 novel 'The Hitchhiker's Guide to the Galaxy' is authored by Douglas Adams. <span class="ref1">(1)</span> The series 'The Hitchhiker's Guide to the Galaxy,' which spans from 1979 to 1992, is also authored by Douglas Adams. <span class="ref2">(2)</span> Additionally, Eoin Colfer is an author of the series 'The Hitchhiker's Guide to the Galaxy.' <span class="ref3">(3)</span></td>
+              <td><span class="ref1">(1) &lt;The Hitchhiker's Guide to the Galaxy (Q3107329), author (P50), Douglas Adams (Q42)&gt;</span>, <span class="ref2">(2) &lt;The Hitchhiker's Guide to the Galaxy (Q25169), author (P50), Douglas Adams (Q42)&gt;</span>, <span class="ref3">(3) &lt;The Hitchhiker's Guide to the Galaxy (Q25169), author (P50), Eoin Colfer (Q211893)&gt;</span></td>
+            </tr>
+            <tr>
+                <td colspan="3" style="text-align: center;"><b>Iterations:</b> 6, <b>Tools:</b> 4, <b>Tokens:</b> 15043, <b>Time (s):</b> 12.54, <b>Nodes:</b> 4, <b>Edges:</b> 3</td>
+            </tr>
+            <tr>
+                <td colspan="3">
+                    <div class="prompt-box collapsible-prompt" style="margin-bottom: 0;">
+                        <button class="button is-fullwidth is-justify-content-space-between">
+                            <span>Click to show Knowledge Graph</span>
+                            <span class="icon is-small"><i class="fas fa-chevron-down"></i></span>
+                        </button>
+                        <div class="prompt-content" style="display: none;">
+                          <div id="batch_a_QA01-graph" class="graph-container" style="width: 100%; height: 500px; border: 1px solid lightgray;"></div>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+            <tr id="QA02-row">
+              <td>
+                <b>Query A2:</b> Who are the relatives of Douglas Adams?
+                <div class="status-box status-ok">OK</div>
+              </td>
+              <td>Douglas Adams' father is Kristofers Duglass Adamss. <span class="ref1">(1)</span> His mother is Janet Adams. <span class="ref2">(2)</span> Douglas Adams was married to Jane Belson. <span class="ref3">(3)</span> He has a daughter named Polly Adams. <span class="ref4">(4)</span></td>
+              <td><span class="ref1">(1) &lt;Douglas Adams (Q42), father (P22), Kristofers Duglass Adamss (Q14623675)&gt;</span>, <span class="ref2">(2) &lt;Q42, mother (P25), Janet Adams (Q14623678)&gt;</span>, <span class="ref3">(3) &lt;Q42, spouse (P26), Jane Belson (Q14623681)&gt;</span>, <span class="ref4">(4) &lt;Q42, child (P40), Polly Adams (Q14623683)&gt;</span></td>
+            </tr>
+            <tr>
+                <td colspan="3" style="text-align: center;"><b>Iterations:</b> 8, <b>Tools:</b> 7, <b>Tokens:</b> 17652, <b>Time (s):</b> 14.88, <b>Nodes:</b> 5, <b>Edges:</b> 4</td>
+            </tr>
+            <tr>
+                <td colspan="3">
+                    <div class="prompt-box collapsible-prompt" style="margin-bottom: 0;">
+                        <button class="button is-fullwidth is-justify-content-space-between">
+                            <span>Click to show Knowledge Graph</span>
+                            <span class="icon is-small"><i class="fas fa-chevron-down"></i></span>
+                        </button>
+                        <div class="prompt-content" style="display: none;">
+                          <div id="batch_a_QA02-graph" class="graph-container" style="width: 100%; height: 500px; border: 1px solid lightgray;"></div>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+            <tr id="QA03-row">
+                <td>
+                  <b>Query A3:</b> Among the founders of tencent company, who has been member of national people's congress?
+                  <div class="status-box status-ok">OK</div>
+                </td>
+                <td>Ma Huateng is one of the founders of Tencent. <span class="ref1">(1)</span> Ma Huateng has held the position of National People's Congress deputy. <span class="ref2">(2)</span></td>
+                <td><span class="ref1">(1) &lt;Tencent (Q860580), founded by (P112), Ma Huateng (Q1739008)&gt;</span>, <span class="ref2">(2) &lt;Q1739008, position held (P39), National People's Congress deputy (Q10891456)&gt;</span></td>
+            </tr>
+            <tr>
+                <td colspan="3" style="text-align: center;"><b>Iterations:</b> 28, <b>Tools:</b> 32, <b>Tokens:</b> 101825, <b>Time (s):</b> 84.02, <b>Nodes:</b> 11, <b>Edges:</b> 9</td>
+            </tr>
+            <tr>
+                <td colspan="3">
+                    <div class="prompt-box collapsible-prompt" style="margin-bottom: 0;">
+                        <button class="button is-fullwidth is-justify-content-space-between">
+                            <span>Click to show Knowledge Graph</span>
+                            <span class="icon is-small"><i class="fas fa-chevron-down"></i></span>
+                        </button>
+                        <div class="prompt-content" style="display: none;">
+                          <div id="batch_a_QA03-graph" class="graph-container" style="width: 100%; height: 500px; border: 1px solid lightgray;"></div>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+            <tr id="QA04-row">
+                <td>
+                  <b>Query A4:</b> Who are the relatives of Douglas Adams and what books did he write?
+                  <div class="status-box status-incomplete">INCOMPLETE</div>
+                </td>
+                <td>Polly Adams is a relative of Douglas Adams, specifically his child. <span class="ref1">(1)</span> Douglas Adams wrote "The Hitchhiker's Guide to the Galaxy." <span class="ref2">(2)</span> Douglas Adams is also the author of the "Dirk Gently series." <span class="ref3">(3)</span> Additionally, Douglas Adams co-authored "The Private Life of Genghis Khan." <span class="ref4">(4)</span></td>
+                <td><span class="ref1">(1) &lt;Douglas Adams (Q42), child (P40), Polly Adams (Q14623683)&gt;</span>, <span class="ref2">(2) &lt;Q42, notable work (P800), The Hitchhiker's Guide to the Galaxy (Q25169)&gt;</span>, <span class="ref3">(3) &lt;Q42, P800, Dirk Gently series (Q20736364)&gt;</span>, <span class="ref4">(4) &lt;Q42, P800, The Private Life of Genghis Khan (Q7758404)&gt;</span></td>
+            </tr>
+            <tr>
+                <td colspan="3" style="text-align: center;"><b>Iterations:</b> 6, <b>Tools:</b> 5, <b>Tokens:</b> 14166, <b>Time (s):</b> 14.06, <b>Nodes:</b> 5, <b>Edges:</b> 4</td>
+            </tr>
+            <tr>
+                <td colspan="3">
+                    <div class="prompt-box collapsible-prompt" style="margin-bottom: 0;">
+                        <button class="button is-fullwidth is-justify-content-space-between">
+                            <span>Click to show Knowledge Graph</span>
+                            <span class="icon is-small"><i class="fas fa-chevron-down"></i></span>
+                        </button>
+                        <div class="prompt-content" style="display: none;">
+                          <div id="batch_a_QA04-graph" class="graph-container" style="width: 100%; height: 500px; border: 1px solid lightgray;"></div>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+            <tr id="QA05-row">
+                <td>
+                  <b>Query A5:</b> In which federal state is the Veltins brewery headquarter?
+                  <div class="status-box status-incomplete">INCOMPLETE</div>
+                </td>
+                <td>The Veltins Brewery has its headquarters in Meschede. <span class="ref1">(1)</span> Meschede is a town located in the Hochsauerland district. <span class="ref2">(2)</span> The Hochsauerland district is in North Rhine-Westphalia, Germany. <span class="ref3">(3)</span></td>
+                <td><span class="ref1">(1) &lt;Veltins Brewery (Q608350), headquarters location (P159), Meschede (Q5632)&gt;</span>, <span class="ref2">(2) Meschede (Q5632)</span>, <span class="ref3">(3) Q5632</span></td>
+            </tr>
+            <tr>
+                <td colspan="3" style="text-align: center;"><b>Iterations:</b> 6, <b>Tools:</b> 4, <b>Tokens:</b> 10303, <b>Time (s):</b> 11.36, <b>Nodes:</b> 2, <b>Edges:</b> 1</td>
+            </tr>
+            <tr>
+                <td colspan="3">
+                    <div class="prompt-box collapsible-prompt" style="margin-bottom: 0;">
+                        <button class="button is-fullwidth is-justify-content-space-between">
+                            <span>Click to show Knowledge Graph</span>
+                            <span class="icon is-small"><i class="fas fa-chevron-down"></i></span>
+                        </button>
+                        <div class="prompt-content" style="display: none;">
+                          <div id="batch_a_QA05-graph" class="graph-container" style="width: 100%; height: 500px; border: 1px solid lightgray;"></div>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+            <tr id="QA06-row">
+              <td>
+                <b>Query A6:</b> Which philosophers influenced by Kant were also mathematicians?
+                <div class="status-box status-ok">OK</div>
+              </td>
+              <td>David Hilbert was a philosopher influenced by Immanuel Kant and was also a mathematician. <span class="ref1">(1)</span> Hermann Weyl was influenced by Immanuel Kant and is described as a German mathematician. <span class="ref2">(2)</span> Luitzen Egbertus Jan Brouwer was influenced by Immanuel Kant and is identified as a Dutch mathematician and logician. <span class="ref3">(3)</span> Shem-Tov Gefen was influenced by Immanuel Kant and is described as a philosopher and mathematician. <span class="ref4">(4)</span></td>
+              <td><span class="ref1">(1) &lt;David Hilbert (Q41585), influenced by (P737), Immanuel Kant (Q9312)&gt;, Q41585</span>, <span class="ref2">(2) &lt;Hermann Weyl (Q71029), P737, Q9312&gt;, Q71029</span>, <span class="ref3">(3) &lt;Luitzen Egbertus Jan Brouwer (Q155887), P737, Q9312&gt;, Q155887</span>, <span class="ref4">(4) &lt;Shem-Tov Gefen (Q6992366), P737, Q9312&gt;, Q6992366</span></td>
+            </tr>
+            <tr>
+                <td colspan="3" style="text-align: center;"><b>Iterations:</b> 22, <b>Tools:</b> 29, <b>Tokens:</b> 124613, <b>Time (s):</b> 70.51, <b>Nodes:</b> 32, <b>Edges:</b> 33</td>
+            </tr>
+            <tr>
+                <td colspan="3">
+                    <div class="prompt-box collapsible-prompt" style="margin-bottom: 0;">
+                        <button class="button is-fullwidth is-justify-content-space-between">
+                            <span>Click to show Knowledge Graph</span>
+                            <span class="icon is-small"><i class="fas fa-chevron-down"></i></span>
+                        </button>
+                        <div class="prompt-content" style="display: none;">
+                          <div id="batch_a_QA06-graph" class="graph-container" style="width: 100%; height: 500px; border: 1px solid lightgray;"></div>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+            <tr id="QA07-row">
+              <td>
+                <b>Query A7:</b> Which Italian cities are twinned with Japanese cities?
+                <div class="status-box status-wrong">WRONG</div>
+              </td>
+              <td>The agent failed to produce an answer.</td>
+              <td>N/A</td>
+            </tr>
+            <tr>
+                <td colspan="3" style="text-align: center;"><b>Iterations:</b> 30, <b>Tools:</b> 148, <b>Tokens:</b> 818300, <b>Time (s):</b> 480.21, <b>Nodes:</b> 480, <b>Edges:</b> 623</td>
+            </tr>
+            <tr>
+                <td colspan="3">
+                    <div class="prompt-box collapsible-prompt" style="margin-bottom: 0;">
+                        <button class="button is-fullwidth is-justify-content-space-between">
+                            <span>Click to show Knowledge Graph</span>
+                            <span class="icon is-small"><i class="fas fa-chevron-down"></i></span>
+                        </button>
+                        <div class="prompt-content" style="display: none;">
+                          <div id="batch_a_QA07-graph" class="graph-container" style="width: 100%; height: 500px; border: 1px solid lightgray;"></div>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div id="structural-tasks" class="tab-content" style="display: none;">
+        <div class="content">
+            <p>
+                With <b>Batch B</b> (B1-B3), we explore the behavior of RoboData in tasks requiring more structural knowledge about the ontology: we test three queries, not consisting of purely factual questions but more operational ones, designed to trigger different exploration patterns. Query B1 tests the capability of performing the simple exploratory operation of finding the subclasses of the immediate neighbors of the Wikidata entity Q42, successfully exploring the neighborhood. Queries B2 and B3 instead test the system's ability to navigate Wikidata's upper ontology and explain its taxonomic structure, by asking to fetch the Wikidata upper ontology. In particular, B2 asks to find its root (without knowing that the root is "entity" (Q35120)) and to fetch its immediate subclasses (referring to the "subclass of" property (P279)) and their subclasses, while B3 adds the "instance of" property (P31) to the request. Given the strictly operational nature of these request, both queries B2 and B3 are executed correctly, which is probably due to the operational reasoning of the instruction tuned GPT-4o model. Still, the model struggles over the more complex task in B3: this is mainly due to noisy and incorrect usage of the "instance of" and "subclass of" relationships with "entity": as an example, the answer of B3 refers to the "National Baptist Convention, USA" entity, represented as an "instance of" "entity", which is formally true, as all Wikidata entities are an instance of "entity" or one of its subclasses, but technically wrong, as it introduces noise in the upper ontology.
+            </p>
+        </div>
+        <h4 class="title is-4">Batch B: Structural Tasks</h4>
+        <table class="table is-bordered is-striped is-narrow is-hoverable is-fullwidth">
+            <thead>
+              <tr>
+                <th style="width: 20%;">Query</th>
+                <th style="width: 45%;">Answer</th>
+                <th style="width: 35%;">Support Sets</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <b>Query B1:</b> Find all subclasses of the neighbors of Q42
+                  <div class="status-box status-ok">OK</div>
+                </td>
+                <td>The entity "playwright" is a neighbor of Q42 and is a subclass of "writer." <span class="ref1">(1)</span> The entity "screenwriter" is a neighbor of Q42 and is a subclass of "writer." <span class="ref2">(2)</span> The entity "novelist" is a neighbor of Q42 and is a subclass of "writer." <span class="ref3">(3)</span> The entity "children's writer" is a neighbor of Q42 and is a subclass of "writer." <span class="ref4">(4)</span> The entity "science fiction writer" is a neighbor of Q42 and is a subclass of both "speculative fiction author" and "speculative fiction writer." <span class="ref5">(5)</span> The entity "comedian" is a neighbor of Q42 and is a subclass of both "artist" and "actor." <span class="ref6">(6)</span> The entity "writer" is a neighbor of Q42 and is a subclass of "penman," "artist," and "author." <span class="ref7">(7)</span> The entity "musician" is a neighbor of Q42 and is a subclass of "artist." <span class="ref8">(8)</span> The entity "science fiction" is a neighbor of Q42 and is a subclass of "speculative fiction." <span class="ref9">(9)</span> The entity "comedy" is a neighbor of Q42 and is a subclass of both "humor" and "work of art." <span class="ref10">(10)</span> The entity "satire" is a neighbor of Q42 and is a subclass of "humor." <span class="ref11">(11)</span></td>
+                <td><span class="ref1">(1) &lt;playwright (Q214917), subclass of (P279), writer (Q36180)&gt;</span>, <span class="ref2">(2) &lt;screenwriter (Q28389), subclass of (P279), writer (Q36180)&gt;</span>, <span class="ref3">(3) &lt;novelist (Q6625963), subclass of (P279), writer (Q36180)&gt;</span>, <span class="ref4">(4) &lt;children's writer (Q4853732), subclass of (P279), writer (Q36180)&gt;</span>, <span class="ref5">(5) &lt;science fiction writer (Q18844224), subclass of (P279), speculative fiction author (Q108710667)&gt;, &lt;science fiction writer (Q18844224), subclass of (P279), speculative fiction writer (Q108710753)&gt;</span>, <span class="ref6">(6) &lt;comedian (Q245068), subclass of (P279), artist (Q483501)&gt;, &lt;comedian (Q245068), subclass of (P279), actor (Q33999)&gt;</span>, <span class="ref7">(7) &lt;writer (Q36180), subclass of (P279), penman (Q108762424)&gt;, &lt;writer (Q36180), subclass of (P279), artist (Q483501)&gt;, &lt;writer (Q36180), subclass of (P279), author (Q482980)&gt;</span>, <span class="ref8">(8) &lt;musician (Q639669), subclass of (P279), artist (Q483501)&gt;</span>, <span class="ref9">(9) &lt;science fiction (Q24925), subclass of (P279), speculative fiction (Q9326077)&gt;</span>, <span class="ref10">(10) &lt;comedy (Q40831), subclass of (P279), humor (Q60548032)&gt;, &lt;comedy (Q40831), subclass of (P279), work of art (Q838948)&gt;</span>, <span class="ref11">(11) &lt;satire (Q128758), subclass of (P279), humor (Q60548032)&gt;</span></td>
+              </tr>
+              <tr>
+                <td colspan="3" style="text-align: center;"><b>Iterations:</b> 22, <b>Tools:</b> 42, <b>Tokens:</b> 102192, <b>Time (s):</b> 96.95, <b>Nodes:</b> 21, <b>Edges:</b> 27</td>
+              </tr>
+              <tr>
+                <td colspan="3">
+                    <div class="prompt-box collapsible-prompt" style="margin-bottom: 0;">
+                        <button class="button is-fullwidth is-justify-content-space-between">
+                            <span>Click to show Knowledge Graph</span>
+                            <span class="icon is-small"><i class="fas fa-chevron-down"></i></span>
+                        </button>
+                        <div class="prompt-content" style="display: none;">
+                          <div id="batch_b_QB01-graph" class="graph-container" style="width: 100%; height: 500px; border: 1px solid lightgray;"></div>
+                        </div>
+                    </div>
+                </td>
+              </tr>
+              <tr id="QB02-row">
+                <td>
+                  <b>Query B2:</b> Explore the ontology: Start from the root and list all direct subclasses. Then for each subclass, list its direct subclasses
+                  <div class="status-box status-incomplete">INCOMPLETE</div>
+                </td>
+                <td>The root entity in the ontology is "Q35120 (entity)." <span class="ref1">(1)</span> Q35120 (entity) is an instance of Q23958852 (variable-order class). <span class="ref2">(2)</span> Q35120 (entity) is also an instance of Q124711104 (BFO class). <span class="ref3">(3)</span> Q23958852 (variable-order class) is an instance of itself. <span class="ref4">(4)</span> Q23958852 (variable-order class) is a subclass of Q16889133 (class). <span class="ref5">(5)</span> Q124711104 (BFO class) is an instance of Q19478619 (metaclass). <span class="ref6">(6)</span> Q124711104 (BFO class) is a subclass of Q16889133 (class). <span class="ref7">(7)</span></td>
+                <td><span class="ref1">(1) entity (Q35120)</span>, <span class="ref2">(2) &lt;entity (Q35120), P31, Q23958852&gt;</span>, <span class="ref3">(3) &lt;entity (Q35120), P31, Q124711104&gt;</span>, <span class="ref4">(4) &lt;Q23958852, P31, Q23958852&gt;</span>, <span class="ref5">(5) &lt;Q23958852, subclass of (P279), Q16889133&gt;</span>, <span class="ref6">(6) &lt;Q124711104, P31, Q19478619&gt;</span>, <span class="ref7">(7) &lt;Q124711104, subclass of (P279), Q16889133&gt;</span></td>
+              </tr>
+              <tr>
+                <td colspan="3" style="text-align: center;"><b>Iterations:</b> 10, <b>Tools:</b> 11, <b>Tokens:</b> 31380, <b>Time (s):</b> 48.5, <b>Nodes:</b> 5, <b>Edges:</b> 6</td>
+              </tr>
+              <tr>
+                <td colspan="3">
+                    <div class="prompt-box collapsible-prompt" style="margin-bottom: 0;">
+                        <button class="button is-fullwidth is-justify-content-space-between">
+                            <span>Click to show Knowledge Graph</span>
+                            <span class="icon is-small"><i class="fas fa-chevron-down"></i></span>
+                        </button>
+                        <div class="prompt-content" style="display: none;">
+                          <div id="batch_b_QB02-graph" class="graph-container" style="width: 100%; height: 500px; border: 1px solid lightgray;"></div>
+                        </div>
+                    </div>
+                </td>
+              </tr>
+              <tr id="QB03-row">
+                <td>
+                  <b>Query B3:</b> Explore the ontology: Start from the root and list all direct subclasses. Then for each subclass, list its direct subclasses
+                  <div class="status-box status-wrong">WRONG</div>
+                </td>
+                <td>The root entity in the ontology is identified as Q35120, which is described as anything that can be considered, discussed, or observed. <span class="ref1">(1)</span> Q35120 is an instance of both Q124711104 (BFO class) and Q23958852 (variable-order class). <span class="ref2">(2)</span> There are no direct subclasses of Q35120 in the local knowledge graph, as indicated by the "subclass of" relationship pointing to a no_value. <span class="ref3">(3)</span> Several entities are instances of Q35120, including Q496651 (National Baptist Convention, USA), Q1647158 (V-Modell), and Q3306469 (Prairie View State College). <span class="ref4">(4)</span> Additional instances of Q35120 include Q3898136 (Paul Quinn College), Q4754087 (Anderson High School), and Q6163967 (Jasper High School). <span class="ref5">(5)</span> Other instances are Q6825726 (Mexia High School), Q7589986 (St. Mark's School of Texas), and Q7707584 (Texas College). <span class="ref6">(6)</span> Further instances include Q7934591 (Virginia State University), Q8272977 (checks and balances), and Q59284452 (Пета дивизионна област). <span class="ref7">(7)</span> Additional instances are Q59386908 (Чанта), Q108068261 (On changerait plutôt le cœur de place/01), and Q116202544 (Glove juice). <span class="ref8">(8)</span> More instances include Q116311879 (Принцип взаимности), Q116877951 (Дифракция звука), and Q116969557 (Капитанская слобода). <span class="ref9">(9)</span> Other instances are Q116995791 (Радиокип), Q123158626 (Door), and Q130631829 (Semàfors de Mortadel·lo i Filemó). <span class="ref10">(10)</span> Further instances include Q131561066 (ПРТБ-33), Q131604834 (Collège des Ministres Conseillers), and Q134506243 (Ylinen Rehabilitation Center). <span class="ref11">(11)</span> Additional instances are Q135472412 (River Basin Management Unit (Indonesia)), Q135491792 (Powell Point High School), and Q135491803 (Central High School). <span class="ref12">(12)</span></td>
+                <td><span class="ref1">(1) entity (Q35120)</span>, <span class="ref2">(2) &lt;entity (Q35120), instance of (P31), BFO class (Q124711104)&gt;, &lt;entity (Q35120), instance of (P31), variable-order class (Q23958852)&gt;</span>, <span class="ref3">(3) &lt;entity (Q35120), subclass of (P279), no_value (Q35120_P279_931456939447813722)&gt;</span>, <span class="ref4">(4) &lt;National Baptist Convention, USA (Q496651), instance of (P31), entity (Q35120)&gt;, &lt;V-Modell (Q1647158), instance of (P31), entity (Q35120)&gt;, &lt;Prairie View State College (Q3306469), instance of (P31), entity (Q35120)&gt;</span>, <span class="ref5">(5) &lt;Paul Quinn College (Q3898136), instance of (P31), entity (Q35120)&gt;, &lt;Anderson High School (Q4754087), instance of (P31), entity (Q35120)&gt;, &lt;Jasper High School (Q6163967), instance of (P31), entity (Q35120)&gt;</span>, <span class="ref6">(6) &lt;Mexia High School (Q6825726), instance of (P31), entity (Q35120)&gt;, &lt;St. Mark's School of Texas (Q7589986), instance of (P31), entity (Q35120)&gt;, &lt;Texas College (Q7707584), instance of (P31), entity (Q35120)&gt;</span>, <span class="ref7">(7) &lt;Virginia State University (Q7934591), instance of (P31), entity (Q35120)&gt;, &lt;checks and balances (Q8272977), instance of (P31), entity (Q35120)&gt;, &lt;Пета дивизионна област (Q59284452), instance of (P31), entity (Q35120)&gt;</span>, <span class="ref8">(8) &lt;Чанта (Q59386908), instance of (P31), entity (Q35120)&gt;, &lt;On changerait plutôt le cœur de place/01 (Q108068261), instance of (P31), entity (Q35120)&gt;, &lt;Glove juice (Q116202544), instance of (P31), entity (Q35120)&gt;</span>, <span class="ref9">(9) &lt;Принцип взаимности (Q116311879), instance of (P31), entity (Q35120)&gt;, &lt;Дифракция звука (Q116877951), instance of (P31), entity (Q35120)&gt;, &lt;Капитанская слобода (Q116969557), instance of (P31), entity (Q35120)&gt;</span>, <span class="ref10">(10) &lt;Радиокип (Q116995791), instance of (P31), entity (Q35120)&gt;, &lt;Door (Q123158626), instance of (P31), entity (Q35120)&gt;, &lt;Semàfors de Mortadel·lo i Filemó (Q130631829), instance of (P31), entity (Q35120)&gt;</span>, <span class="ref11">(11) &lt;ПРТБ-33 (Q131561066), instance of (P31), entity (Q35120)&gt;, &lt;Collège des Ministres Conseillers (Q131604834), instance of (P31), entity (Q35120)&gt;, &lt;Ylinen Rehabilitation Center (Q134506243), instance of (P31), entity (Q35120)&gt;</span>, <span class="ref12">(12) &lt;River Basin Management Unit (Indonesia) (Q135472412), instance of (P31), entity (Q35120)&gt;, &lt;Powell Point High School (Q135491792), instance of (P31), entity (Q35120)&gt;, &lt;Central High School (Q135491803), instance of (P31), entity (Q35120)&gt;</span></td>
+              </tr>
+              <tr>
+                <td colspan="3" style="text-align: center;"><b>Iterations:</b> 28, <b>Tools:</b> 55, <b>Tokens:</b> 165987, <b>Time (s):</b> 132.57, <b>Nodes:</b> 62, <b>Edges:</b> 30</td>
+              </tr>
+               <tr>
+                <td colspan="3">
+                    <div class="prompt-box collapsible-prompt" style="margin-bottom: 0;">
+                        <button class="button is-fullwidth is-justify-content-space-between">
+                            <span>Click to show Knowledge Graph</span>
+                            <span class="icon is-small"><i class="fas fa-chevron-down"></i></span>
+                        </button>
+                        <div class="prompt-content" style="display: none;">
+                          <div id="batch_b_QB03-graph" class="graph-container" style="width: 100%; height: 500px; border: 1px solid lightgray;"></div>
+                        </div>
+                    </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+      </div>
+      <div id="metacognition" class="tab-content" style="display: none;">
+        <div class="content">
+            <p>
+                Finally, <b>Batch C</b>, repeats several failed or incomplete queries from batch A and B, with the metacognitive layer enabled, allowing execution for 50 turns instead of 30. In general, metacognition brought an improved strategic guidance over longer-term tasks, improving performance with queries requiring to explore a bigger set of entities. This time, Query A5 is correctly answered, completing the required 4 hops to support the answer that in Batch A was only semantically available in the entity descriptions but not formally supported by the KG. Also, Query A6 is answered completely (to our knowledge), listing the missing philosopher and mathematician influenced by Kant (Q155887), in even fewer iterations than in Batch A. The operational task B2 shows an improvement: reaching the whole allowed 50 turns, it manages to find most of the subclasses of "entity" (but not all of them). Instead, answer quality even drops for query B3, where the agent collected only 4 nodes and 3 edges, against the 62/30 collected without metacognition. Finally, answer quality improves for query A7, showing a better management of the limited context window and of the long-term task. Results over queries A5-A7 support the conclusion that agentic metacognition improves performance over broader and longer KGQA and KG construction tasks, normally hindered by the limited working memory, by summarizing and evaluating previous strategies with respect to the original task, and adjusting the agentic strategy accordingly.
+            </p>
+        </div>
+        <h4 class="title is-4">Batch C: Metacognition</h4>
+        <table class="table is-bordered is-striped is-narrow is-hoverable is-fullwidth">
+            <thead>
+              <tr>
+                <th style="width: 20%;">Query</th>
+                <th style="width: 45%;">Answer</th>
+                <th style="width: 35%;">Support Sets</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <b>Query C1:</b> Who are the relatives of Douglas Adams and what books did he write?
+                  <div class="status-box status-ok">OK</div>
+                </td>
+                <td>Douglas Adams' father is Kristofers Duglass Adamss. <span class="ref1">(1)</span> His mother is Janet Adams. <span class="ref2">(2)</span> Douglas Adams was married to Jane Belson. <span class="ref3">(3)</span> He has a sibling named Susan Adams. <span class="ref4">(4)</span> Douglas Adams' child is Polly Adams. <span class="ref5">(5)</span> Douglas Adams wrote "The Hitchhiker's Guide to the Galaxy." <span class="ref6">(6)</span> He also authored the "Dirk Gently series." <span class="ref7">(7)</span> Additionally, he co-wrote "The Private Life of Genghis Khan." <span class="ref8">(8)</span></td>
+                <td><span class="ref1">(1) &lt;Douglas Adams (Q42), father (P22), Kristofers Duglass Adamss (Q14623675)&gt;</span>, <span class="ref2">(2) &lt;Q42, mother (P25), Janet Adams (Q14623678)&gt;</span>, ...</td>
+              </tr>
+              <tr>
+                <td colspan="3" style="text-align: center;"><b>Iterations:</b> 10, <b>Tools:</b> 11, <b>Tokens:</b> 32939, <b>Time (s):</b> 27.99, <b>Nodes:</b> 9, <b>Edges:</b> 8</td>
+              </tr>
+              <tr>
+                <td colspan="3">
+                    <div class="prompt-box collapsible-prompt" style="margin-bottom: 0;">
+                        <button class="button is-fullwidth is-justify-content-space-between">
+                            <span>Click to show Knowledge Graph</span>
+                            <span class="icon is-small"><i class="fas fa-chevron-down"></i></span>
+                        </button>
+                        <div class="prompt-content" style="display: none;">
+                          <div id="batch_d_QD01-graph" class="graph-container" style="width: 100%; height: 500px; border: 1px solid lightgray;"></div>
+                        </div>
+                    </div>
+                </td>
+              </tr>
+              <tr id="QD02-row">
+                <td>
+                  <b>Query C2:</b> In which federal state is the Veltins brewery headquarter?
+                  <div class="status-box status-ok">OK</div>
+                </td>
+                <td>The Veltins Brewery is headquartered in Meschede. <span class="ref1">(1)</span> Meschede is located in the Hochsauerlandkreis district. <span class="ref2">(2)</span> Hochsauerlandkreis is part of the Arnsberg Government Region. <span class="ref3">(3)</span> The Arnsberg Government Region is located in the federal state of North Rhine-Westphalia. <span class="ref4">(4)</span></td>
+                <td><span class="ref1">(1) &lt;Veltins Brewery (Q608350), headquarters location (P159), Meschede (Q5632)&gt;</span>, <span class="ref2">(2) &lt;Q5632, located in the administrative territorial entity (P131), Hochsauerlandkreis (Q5946)&gt;</span>, ...</td>
+              </tr>
+              <tr>
+                <td colspan="3" style="text-align: center;"><b>Iterations:</b> 46, <b>Tools:</b> 34, <b>Tokens:</b> 180733, <b>Time (s):</b> 122.28, <b>Nodes:</b> 7, <b>Edges:</b> 5</td>
+              </tr>
+              <tr>
+                <td colspan="3">
+                    <div class="prompt-box collapsible-prompt" style="margin-bottom: 0;">
+                        <button class="button is-fullwidth is-justify-content-space-between">
+                            <span>Click to show Knowledge Graph</span>
+                            <span class="icon is-small"><i class="fas fa-chevron-down"></i></span>
+                        </button>
+                        <div class="prompt-content" style="display: none;">
+                          <div id="batch_d_QD02-graph" class="graph-container" style="width: 100%; height: 500px; border: 1px solid lightgray;"></div>
+                        </div>
+                    </div>
+                </td>
+              </tr>
+              <tr id="QD03-row">
+                <td>
+                  <b>Query C3:</b> Which philosophers influenced by Kant were also mathematicians?
+                  <div class="status-box status-ok">OK</div>
+                </td>
+                <td>David Hilbert was influenced by Immanuel Kant and was also a mathematician. <span class="ref1">(1)</span> Edmund Husserl was influenced by Immanuel Kant and was also a mathematician. <span class="ref2">(2)</span> Hermann Weyl was influenced by Immanuel Kant and was also a mathematician. <span class="ref3">(3)</span> Luitzen Egbertus Jan Brouwer was influenced by Immanuel Kant and was also a mathematician. <span class="ref4">(4)</span> Shem-Tov Gefen was influenced by Immanuel Kant and was also a mathematician. <span class="ref5">(5)</span></td>
+                <td><span class="ref1">(1) &lt;David Hilbert (Q41585), influenced by (P737), Immanuel Kant (Q9312)&gt;, &lt;Q41585, occupation (P106), mathematician (Q170790)&gt;</span>, ...</td>
+              </tr>
+              <tr>
+                <td colspan="3" style="text-align: center;"><b>Iterations:</b> 14, <b>Tools:</b> 19, <b>Tokens:</b> 68844, <b>Time (s):</b> 38.5, <b>Nodes:</b> 31, <b>Edges:</b> 37</td>
+              </tr>
+              <tr>
+                <td colspan="3">
+                    <div class="prompt-box collapsible-prompt" style="margin-bottom: 0;">
+                        <button class="button is-fullwidth is-justify-content-space-between">
+                            <span>Click to show Knowledge Graph</span>
+                            <span class="icon is-small"><i class="fas fa-chevron-down"></i></span>
+                        </button>
+                        <div class="prompt-content" style="display: none;">
+                          <div id="batch_d_QD03-graph" class="graph-container" style="width: 100%; height: 500px; border: 1px solid lightgray;"></div>
+                        </div>
+                    </div>
+                </td>
+              </tr>
+              <tr id="QD04-row">
+                <td>
+                  <b>Query C4:</b> Find all subclasses of the neighbors of Q42
+                  <div class="status-box status-ok">OK</div>
+                </td>
+                <td>The entity "playwright" (Q214917) is a subclass of "writer" (Q36180). <span class="ref1">(1)</span> The entity "screenwriter" (Q28389) is a subclass of "writer" (Q36180). <span class="ref2">(2)</span> The entity "novelist" (Q6625963) is a subclass of "writer" (Q36180). <span class="ref3">(3)</span> The entity "children's writer" (Q4853732) is a subclass of "writer" (Q36180). <span class="ref4">(4)</span> The entity "science fiction writer" (Q18844224) is a subclass of "speculative fiction author" (Q108710667). <span class="ref5">(5)</span> The entity "science fiction writer" (Q18844224) is also a subclass of "speculative fiction writer" (Q108710753). <span class="ref6">(6)</span> The entity "comedian" (Q245068) is a subclass of "artist" (Q483501). <span class="ref7">(7)</span> The entity "comedian" (Q245068) is also a subclass of "actor" (Q33999). <span class="ref8">(8)</span> The entity "musician" (Q639669) is a subclass of "artist" (Q483501). <span class="ref9">(9)</span> The entity "science fiction literature" (Q3238422) is a subclass of "science fiction" (Q24925). <span class="ref10">(10)</span> The entity "science fiction literature" (Q3238422) is also a subclass of "literature" (Q8242). <span class="ref11">(11)</span> The entity "science fiction literature" (Q3238422) is also a subclass of "speculative fiction literature" (Q5240628). <span class="ref12">(12)</span></td>
+                <td><span class="ref1">(1) &lt;playwright (Q214917), subclass of (P279), writer (Q36180)&gt;</span>, <span class="ref2">(2) &lt;screenwriter (Q28389), subclass of (P279), writer (Q36180)&gt;</span>, <span class="ref3">(3) &lt;novelist (Q6625963), subclass of (P279), writer (Q36180)&gt;</span>, <span class="ref4">(4) &lt;children's writer (Q4853732), subclass of (P279), writer (Q36180)&gt;</span>, <span class="ref5">(5) &lt;science fiction writer (Q18844224), subclass of (P279), speculative fiction author (Q108710667)&gt;</span>, <span class="ref6">(6) &lt;science fiction writer (Q18844224), subclass of (P279), speculative fiction writer (Q108710753)&gt;</span>, <span class="ref7">(7) &lt;comedian (Q245068), subclass of (P279), artist (Q483501)&gt;</span>, <span class="ref8">(8) &lt;comedian (Q245068), subclass of (P279), actor (Q33999)&gt;</span>, <span class="ref9">(9) &lt;musician (Q639669), subclass of (P279), artist (Q483501)&gt;</span>, <span class="ref10">(10) &lt;science fiction literature (Q3238422), subclass of (P279), science fiction (Q24925)&gt;</span>, <span class="ref11">(11) &lt;science fiction literature (Q3238422), subclass of (P279), literature (Q8242)&gt;</span>, <span class="ref12">(12) &lt;science fiction literature (Q3238422), subclass of (P279), speculative fiction literature (Q5240628)&gt;</span></td>
+              </tr>
+              <tr>
+                <td colspan="3" style="text-align: center;"><b>Iterations:</b> 48, <b>Tools:</b> 120, <b>Tokens:</b> 353900, <b>Time (s):</b> 177.15, <b>Nodes:</b> 56, <b>Edges:</b> 37</td>
+              </tr>
+              <tr id="QC06-row">
+                <td>
+                  <b>Query C6:</b> Explore the ontology: Start from the root and list all direct subclasses. Then for each subclass, list its direct subclasses
+                  <div class="status-box status-ok">OK</div>
+                  <br><br>
+                  <b>Metacognition:</b> With Metacognition
+                </td>
+                <td>The root entity "anything that can be considered, discussed, or observed" (Q35120) is an instance of the "BFO class" (Q124711104). <span class="ref1">(1)</span> The root entity "anything that can be considered, discussed, or observed" (Q35120) is also an instance of the "variable-order class" (Q23958852). <span class="ref2">(2)</span> The root entity "anything that can be considered, discussed, or observed" (Q35120) has a subclass relationship with a no-value entity, indicating a lack of specific subclass information in the local graph. <span class="ref3">(3)</span></td>
+                <td><span class="ref1">(1) &lt;entity (Q35120), instance of (P31), BFO class (Q124711104)&gt;</span>, <span class="ref2">(2) &lt;entity (Q35120), instance of (P31), variable-order class (Q23958852)&gt;</span>, <span class="ref3">(3) &lt;entity (Q35120), subclass of (P279), no_value (Q35120_P279_-6580805808629383551)&gt;</span></td>
+              </tr>
+              <tr>
+                <td colspan="3" style="text-align: center;"><b>Iterations:</b> 48, <b>Tools:</b> 45, <b>Tokens:</b> 206342, <b>Time (s):</b> 134.64, <b>Nodes:</b> 4, <b>Edges:</b> 3</td>
+              </tr>
+              <tr>
+                <td colspan="3">
+                    <div class="prompt-box collapsible-prompt" style="margin-bottom: 0;">
+                        <button class="button is-fullwidth is-justify-content-space-between">
+                            <span>Click to show Knowledge Graph</span>
+                            <span class="icon is-small"><i class="fas fa-chevron-down"></i></span>
+                        </button>
+                        <div class="prompt-content" style="display: none;">
+                          <div id="batch_c_QC06-graph" class="graph-container" style="width: 100%; height: 500px; border: 1px solid lightgray;"></div>
+                        </div>
+                    </div>
+                </td>
+              </tr>
+              <tr id="QC07-row">
+                <td>
+                  <b>Query C7:</b> Explore the ontology: Start from the root and list all direct subclasses. Then for each subclass, list its direct subclasses
+                  <div class="status-box status-ok">OK</div>
+                  <br><br>
+                  <b>Metacognition:</b> With Metacognition
+                </td>
+                <td>The root entity in the ontology is "entity" (Q35120). <span class="ref1">(1)</span> The direct subclasses of "entity" (Q35120) include "substance" (Q378078), "object" (Q488383), "continuant" (Q103940464), "location" (Q115095765), "unidentified entity" (Q120725535), "conceptual entity" (Q121770302), "part" (Q13196193), "abstract entity" (Q7048977), and "collective entity" (Q99527517). <span class="ref2">(2)</span> The subclass "substance" (Q378078) does not have any direct subclasses listed in the local graph. <span class="ref3">(3)</span> The subclass "object" (Q488383) does not have any direct subclasses listed in the local graph. <span class="ref4">(4)</span> The subclass "continuant" (Q103940464) does not have any direct subclasses listed in the local graph. <span class="ref5">(5)</span> The subclass "location" (Q115095765) does not have any direct subclasses listed in the local graph. <span class="ref6">(6)</span> The subclass "unidentified entity" (Q120725535) does not have any direct subclasses listed in the local graph. <span class="ref7">(7)</span> The subclass "conceptual entity" (Q121770302) does not have any direct subclasses listed in the local graph. <span class="ref8">(8)</span> The subclass "part" (Q13196193) does not have any direct subclasses listed in the local graph. <span class="ref9">(9)</span> The subclass "abstract entity" (Q7048977) does not have any direct subclasses listed in the local graph. <span class="ref10">(10)</span> The subclass "collective entity" (Q99527517) does not have any direct subclasses listed in the local graph. <span class="ref11">(11)</span></td>
+                <td><span class="ref1">(1) entity (Q35120)</span>, <span class="ref3">(3) substance (Q378078)</span>, <span class="ref4">(4) object (Q488383)</span>, <span class="ref5">(5) continuant (Q103940464)</span>, <span class="ref6">(6) location (Q115095765)</span>, <span class="ref7">(7) unidentified entity (Q120725535)</span>, <span class="ref8">(8) conceptual entity (Q121770302)</span>, <span class="ref9">(9) part (Q13196193)</span>, <span class="ref10">(10) abstract entity (Q7048977)</span>, <span class="ref11">(11) collective entity (Q99527517)</span></td>
+              </tr>
+              <tr>
+                <td colspan="3" style="text-align: center;"><b>Iterations:</b> 48, <b>Tools:</b> 90, <b>Tokens:</b> 251921, <b>Time (s):</b> 179.52, <b>Nodes:</b> 11, <b>Edges:</b> 10</td>
+              </tr>
+              <tr>
+                <td colspan="3">
+                    <div class="prompt-box collapsible-prompt" style="margin-bottom: 0;">
+                        <button class="button is-fullwidth is-justify-content-space-between">
+                            <span>Click to show Knowledge Graph</span>
+                            <span class="icon is-small"><i class="fas fa-chevron-down"></i></span>
+                        </button>
+                        <div class="prompt-content" style="display: none;">
+                          <div id="batch_c_QC07-graph" class="graph-container" style="width: 100%; height: 500px; border: 1px solid lightgray;"></div>
+                        </div>
+                    </div>
+                </td>
+              </tr>
+              <tr id="QC08-row">
+                <td>
+                  <b>Query C8:</b> Which Italian cities are twinned with Japanese cities?
+                  <div class="status-box status-ok">OK</div>
+                  <br><br>
+                  <b>Metacognition:</b> With Metacognition
+                </td>
+                <td>Rome is twinned with Tokyo. <span class="ref1">(1)</span> Turin is twinned with Nagoya. <span class="ref2">(2)</span> Naples is twinned with Kagoshima. <span class="ref3">(3)</span> Terni is twinned with Kobe. <span class="ref4">(4)</span> Salerno is twinned with Tono. <span class="ref5">(5)</span> Como is twinned with Tokamachi. <span class="ref6">(6)</span> Biella is twinned with Kiryū. <span class="ref7">(7)</span> Bologna is twinned with Hamamatsu. <span class="ref8">(8)</span> Sanremo is twinned with Atami. <span class="ref9">(9)</span> Faenza is twinned with Toki. <span class="ref10">(10)</span> Orvieto is twinned with Maebashi. <span class="ref11">(11)</span> Pietrasanta is twinned with Utsunomiya. <span class="ref12">(12)</span> Civitavecchia is twinned with Ishinomaki. <span class="ref13">(13)</span> Pordenone is twinned with Okawa. <span class="ref14">(14)</span> Marostica is twinned with Tendo. <span class="ref15">(15)</span> Sorrento is twinned with Kumano. <span class="ref16">(16)</span> Alberobello is twinned with the Historic Villages of Shirakawa-gō and Gokayama. <span class="ref17">(17)</span> Chieti is twinned with Minamishimabara. <span class="ref18">(18)</span> Pistoia is twinned with Shirakawa. <span class="ref19">(19)</span></td>
+                <td><span class="ref1">(1) &lt;Rome (Q220), twinned administrative body (P190), Tokyo (Q1490)&gt;</span>, <span class="ref2">(2) &lt;Turin (Q495), twinned administrative body (P190), Nagoya (Q11751)&gt;</span>, <span class="ref3">(3) &lt;Naples (Q2634), twinned administrative body (P190), Kagoshima (Q15674)&gt;</span>, <span class="ref4">(4) &lt;Terni (Q8621), twinned administrative body (P190), Kobe (Q48320)&gt;</span>, <span class="ref5">(5) &lt;Salerno (Q1083), twinned administrative body (P190), Tono (Q646766)&gt;</span>, <span class="ref6">(6) &lt;Como (Q1308), twinned administrative body (P190), Tokamachi (Q858369)&gt;</span>, <span class="ref7">(7) &lt;Biella (Q18021), twinned administrative body (P190), Kiryū (Q634022)&gt;</span>, <span class="ref8">(8) &lt;Bologna (Q1891), twinned administrative body (P190), Hamamatsu (Q185125)&gt;</span>, <span class="ref9">(9) &lt;Sanremo (Q33962), twinned administrative body (P190), Atami (Q653364)&gt;</span>, <span class="ref10">(10) &lt;Faenza (Q52981), twinned administrative body (P190), Toki (Q847332)&gt;</span>, <span class="ref11">(11) &lt;Orvieto (Q541), twinned administrative body (P190), Maebashi (Q201613)&gt;</span>, <span class="ref12">(12) &lt;Pietrasanta (Q219330), twinned administrative body (P190), Utsunomiya (Q200589)&gt;</span>, <span class="ref13">(13) &lt;Civitavecchia (Q242533), twinned administrative body (P190), Ishinomaki (Q270814)&gt;</span>, <span class="ref14">(14) &lt;Pordenone (Q6606), twinned administrative body (P190), Okawa (Q385248)&gt;</span>, <span class="ref15">(15) &lt;Marostica (Q48090), twinned administrative body (P190), Tendo (Q385779)&gt;</span>, <span class="ref16">(16) &lt;Sorrento (Q72672), twinned administrative body (P190), Kumano (Q819672)&gt;</span>, <span class="ref17">(17) &lt;Alberobello (Q51812), twinned administrative body (P190), Historic Villages of Shirakawa-gō and Gokayama (Q877626)&gt;</span>, <span class="ref18">(18) &lt;Chieti (Q13138), twinned administrative body (P190), Minamishimabara (Q990376)&gt;</span>, <span class="ref19">(19) &lt;Pistoia (Q13376), twinned administrative body (P190), Shirakawa (Q1203350)&gt;</span></td>
+              </tr>
+              <tr>
+                <td colspan="3" style="text-align: center;"><b>Iterations:</b> 18, <b>Tools:</b> 68, <b>Tokens:</b> 103346, <b>Time (s):</b> 62.94, <b>Nodes:</b> 216, <b>Edges:</b> 210</td>
+              </tr>
+              <tr>
+                <td colspan="3">
+                    <div class="prompt-box collapsible-prompt" style="margin-bottom: 0;">
+                        <button class="button is-fullwidth is-justify-content-space-between">
+                            <span>Click to show Knowledge Graph</span>
+                            <span class="icon is-small"><i class="fas fa-chevron-down"></i></span>
+                        </button>
+                        <div class="prompt-content" style="display: none;">
+                          <div id="batch_c_QC08-graph" class="graph-container" style="width: 100%; height: 500px; border: 1px solid lightgray;"></div>
+                        </div>
+                    </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+      </div>
+      <div id="consistency-test-tab-content" class="tab-content">
+        <table class="table is-bordered is-striped is-narrow is-hoverable is-fullwidth">
+          <thead>
+            <tr>
+              <th>Query</th>
+              <th>Final Answer</th>
+              <th>Support Sets</th>
+            </tr>
+          </thead>
+          <tbody>
+          </tbody>
+        </table>
+      </div>
+      <h3 class="title is-4" style="margin-top: 2rem;">Consistency Experiments</h3>
+      <p>
+        These experiments where conducted on the query "What is the capital of Canada?", a simple single-hop query that succeeded every time, to evaluate the consistency of the execution trace in terms of execution statistics. As we can see the resulting final knowledge graph is always the same (the triple &lt;Canada (Q16), capital (P36), Ottawa (Q1930)&gt;), while statistics show that the execution trace has a variable nature in term of number of Tool calls and orchestrator iterations.
+      </p>
+      <table class="table is-bordered is-fullwidth">
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th>Min</th>
+            <th>Max</th>
+            <th>Avg</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Final KG</td>
+            <td colspan="3" class="consistency-ok">&lt;Canada (Q16), capital (P36), Ottawa (Q1930)&gt;</td>
+          </tr>
+          <tr>
+            <td>Iterations</td>
+            <td>5</td>
+            <td>9</td>
+            <td>5.8</td>
+          </tr>
+          <tr>
+            <td>Tool Calls</td>
+            <td>2</td>
+            <td>6</td>
+            <td>3</td>
+          </tr>
+          <tr>
+            <td>Tokens</td>
+            <td>10,751</td>
+            <td>19,007</td>
+            <td>15,044</td>
+          </tr>
+          <tr>
+            <td>Time (s)</td>
+            <td>11.47</td>
+            <td>23.48</td>
+            <td>16.48</td>
+          </tr>
+          <tr>
+            <td>KG Nodes Added</td>
+            <td>2</td>
+            <td>2</td>
+            <td>2</td>
+          </tr>
+          <tr>
+            <td>KG Edges Added</td>
+            <td>1</td>
+            <td>1</td>
+            <td>1</td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   </section>
 
@@ -299,6 +980,150 @@ python -m core.orchestrator.multi_stage.multi_stage_orchestrator</code></pre>
 
   </footer>
 
-</body>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // Tab functionality
+      const tabs = document.querySelectorAll('.tabs li');
+      const tabContent = document.querySelectorAll('.tab-content');
 
+      tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+          const target = document.getElementById(tab.dataset.target);
+
+          tabs.forEach(t => t.classList.remove('is-active'));
+          tab.classList.add('is-active');
+
+          tabContent.forEach(content => {
+            content.style.display = 'none';
+          });
+          target.style.display = 'block';
+        });
+      });
+
+      // Collapsible functionality
+      const promptCollapsibles = document.querySelectorAll('.collapsible-prompt .button');
+      promptCollapsibles.forEach(collapsible => {
+        collapsible.addEventListener('click', () => {
+          const content = collapsible.nextElementSibling;
+          const icon = collapsible.querySelector('.icon i');
+
+          collapsible.classList.toggle('is-active');
+          if (content.style.display === 'block') {
+            content.style.display = 'none';
+            if (icon) {
+              icon.classList.remove('fa-chevron-up');
+              icon.classList.add('fa-chevron-down');
+            }
+          } else {
+            content.style.display = 'block';
+            if (icon) {
+              icon.classList.remove('fa-chevron-down');
+              icon.classList.add('fa-chevron-up');
+            }
+          }
+        });
+      });
+    });
+  </script>
+
+  <!-- Embedded Graph Visualization Script -->
+  <script>
+    $(document).ready(function() {
+      // Embedded graph data
+      const graphData = {
+        'batch_b_QB01': {
+          nodes: [{"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q214917", "label": "playwright\nQ214917", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q36180", "label": "writer\nQ36180", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q28389", "label": "screenwriter\nQ28389", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q6625963", "label": "novelist\nQ6625963", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q4853732", "label": "children's writer\nQ4853732", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q18844224", "label": "science fiction writer\nQ18844224", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q108710753", "label": "speculative fiction writer\nQ108710753", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q108710667", "label": "speculative fiction author\nQ108710667", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q245068", "label": "comedian\nQ245068", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q33999", "label": "actor\nQ33999", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q483501", "label": "artist\nQ483501", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q482980", "label": "author\nQ482980", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q108762424", "label": "penman\nQ108762424", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q639669", "label": "musician\nQ639669", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q24925", "label": "science fiction\nQ24925", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q9326077", "label": "speculative fiction\nQ9326077", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q40831", "label": "comedy\nQ40831", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q838948", "label": "work of art\nQ838948", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q60548032", "label": "humor\nQ60548032", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q128758", "label": "satire\nQ128758", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q42", "label": "Douglas Adams\nQ42", "shape": "dot", "size": 30}],
+          edges: [{"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q214917", "label": "subclass of (P279)", "to": "Q36180", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q36180", "label": "subclass of (P279)", "to": "Q108762424", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q36180", "label": "subclass of (P279)", "to": "Q483501", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q36180", "label": "subclass of (P279)", "to": "Q482980", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q28389", "label": "subclass of (P279)", "to": "Q36180", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q6625963", "label": "subclass of (P279)", "to": "Q36180", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q4853732", "label": "subclass of (P279)", "to": "Q36180", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q18844224", "label": "subclass of (P279)", "to": "Q108710667", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q18844224", "label": "subclass of (P279)", "to": "Q108710753", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q245068", "label": "subclass of (P279)", "to": "Q483501", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q245068", "label": "subclass of (P279)", "to": "Q33999", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q639669", "label": "subclass of (P279)", "to": "Q483501", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q24925", "label": "subclass of (P279)", "to": "Q9326077", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q40831", "label": "subclass of (P279)", "to": "Q60548032", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q40831", "label": "subclass of (P279)", "to": "Q838948", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q128758", "label": "subclass of (P279)", "to": "Q60548032", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "occupation (P106)", "to": "Q214917", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "occupation (P106)", "to": "Q36180", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "occupation (P106)", "to": "Q28389", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "occupation (P106)", "to": "Q6625963", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "occupation (P106)", "to": "Q4853732", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "occupation (P106)", "to": "Q18844224", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "occupation (P106)", "to": "Q245068", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "occupation (P106)", "to": "Q639669", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "genre (P136)", "to": "Q24925", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "genre (P136)", "to": "Q40831", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "genre (P136)", "to": "Q128758", "width": 2}]
+        },
+        'batch_b_QB02': {
+          nodes: [{"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q35120", "label": "entity\nQ35120", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q378078", "label": "substance\nQ378078", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q488383", "label": "object\nQ488383", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q2995644", "label": "result\nQ2995644", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q3799040", "label": "unobservable entity\nQ3799040", "shape": "dot", "size": 30}],
+          edges: [{"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q378078", "label": "subclass of (P279)", "to": "Q35120", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q488383", "label": "subclass of (P279)", "to": "Q35120", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q2995644", "label": "subclass of (P279)", "to": "Q35120", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q3799040", "label": "subclass of (P279)", "to": "Q35120", "width": 2}]
+        }
+        // Add more graphs here as needed
+      };
+
+      const loadedGraphs = {};
+
+      // Handle collapsible graph buttons
+      $('.collapsible-prompt .button').on('click', function() {
+        const content = $(this).next('.prompt-content');
+        const graphContainer = content.find('.graph-container');
+        const graphId = graphContainer.attr('id');
+
+        if (content.is(':visible')) {
+          // Collapsing
+        } else {
+          // Expanding - load graph if not already loaded
+          if (graphId && !loadedGraphs[graphId]) {
+            loadGraph(graphContainer, graphId);
+          }
+        }
+      });
+
+      function loadGraph(container, graphId) {
+        // Map container ID to data ID
+        const dataId = graphId.replace('-graph', '');
+        
+        if (!graphData[dataId]) {
+          container.html("Knowledge graph data not available for " + dataId);
+          return;
+        }
+
+        try {
+          // Set white background
+          container.css('background-color', '#ffffff');
+          
+          // Create vis.js datasets
+          const nodes = new vis.DataSet(graphData[dataId].nodes);
+          const edges = new vis.DataSet(graphData[dataId].edges);
+
+          // Create the network
+          const data = { nodes: nodes, edges: edges };
+          const options = {
+            nodes: {
+              shape: 'box',
+              font: {
+                size: 14,
+                face: 'arial'
+              }
+            },
+            edges: {
+              font: {
+                size: 12,
+                align: 'middle'
+              },
+              arrows: 'to'
+            },
+            physics: {
+              solver: 'repulsion',
+              repulsion: {
+                nodeDistance: 200
+              }
+            },
+            interaction: {
+              dragNodes: true,
+              dragView: true,
+              zoomView: true
+            }
+          };
+
+          const network = new vis.Network(container[0], data, options);
+          
+          // Fit the network when stabilization is done
+          network.on("stabilizationIterationsDone", function () {
+            network.fit();
+          });
+          
+          loadedGraphs[graphId] = { network, nodes, edges };
+          console.log("Successfully loaded graph:", dataId);
+
+        } catch (error) {
+          console.error("Error loading graph:", error);
+          container.html("Error loading knowledge graph: " + error.message);
+        }
+      }
+    });
+  </script>
+
+</body>
 </html>
