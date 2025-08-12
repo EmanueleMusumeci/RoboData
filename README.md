@@ -107,9 +107,9 @@ RoboData/
 
 3. **Set up API keys**:
    ```bash
-   export GEMINI_API_KEY="your-gemini-api-key"
+   export OPENAI_API_KEY="your-openai-api-key"
    # OR create a .env file with:
-   # GEMINI_API_KEY=your-gemini-api-key
+   # OPENAI_API_KEY=your-openai-api-key
    ```
 
 4. **Set up Neo4j** (for graph database features):
@@ -144,224 +144,101 @@ RoboData/
    ```
 
 5. **Configure settings** (optional):
-   Edit `config.yaml` to customize behavior
+   Edit `default_config.yaml` to customize behavior. Key configuration sections include:
+
+   **Orchestrator Settings:**
+   - `orchestrator.type`: Orchestrator type (currently "multi_stage")
+   - `orchestrator.context_length`: Maximum context window for LLM (default: 16000)
+   - `orchestrator.max_turns`: Maximum conversation turns (default: 30)
+   - `orchestrator.enable_question_decomposition`: Break complex queries into sub-questions
+   - `orchestrator.enable_metacognition`: Enable strategic assessment and meta-observation
+   - `orchestrator.memory.use_summary_memory`: Enable conversation memory summarization
+   - `orchestrator.memory.max_memory_slots`: Maximum memory slots to retain (default: 30)
+
+   **LLM Configuration:**
+   - `llm.provider`: LLM provider ("openai")
+   - `llm.model`: Default model ("gpt-4o")
+   - `llm.temperature`: Creativity level (0.0-1.0, default: 0.7)
+   - `llm.max_tokens`: Maximum response tokens (default: 4096)
+   - `llm.metacognition_model`: Model for strategic assessment
+   - `llm.evaluation_model`: Model for data evaluation
+   - `llm.exploration_model`: Model for graph exploration
+   - `llm.update_model`: Model for knowledge graph updates
+
+   **Output Settings:**
+   - `output.save_results`: Save experiment results to files
+   - `output.export_formats`: Export formats ["json", "cypher"]
+   - `output.create_visualizations`: Generate graph visualizations
+   - `output.results_directory`: Directory for saving results (default: "experiments")
+
+   **Query Configuration:**
+   - `queries`: List of queries to process sequentially
+   - `experiment_id`: Unique identifier for the experiment
+   - `dataset.path`: Path to dataset file for batch processing
+   - `dataset.type`: Dataset format ("auto", "json", "jsonl", "lcquad") 
 
 ## 🎯 Usage
 
+To run the ALL experiments in the paper, run the `run_experiments.sh` script.
+
+
+
+Otherwise, to run inference with a custom query, use the following command-line commands:
+
+### Basic Query Execution
+
+**Simple query without metacognition:**
+```bash
+. .venv/bin/activate && python -m backend.main -q "Who was Albert Einstein?"
+```
+
+**Query with metacognition (strategic assessment and meta-observation):**
+```bash
+. .venv/bin/activate && python -m backend.main -q "What are the connections between Tesla and Edison?" --enable-metacognition
+```
+
+### Configuration-Based Execution
+
+**Using a custom configuration file:**
+```bash
+. .venv/bin/activate && python -m backend.main -c experiment_configs/QA01_single_hop_hitchhikers_guide.yaml
+```
+
+**Override query in configuration file:**
+```bash
+. .venv/bin/activate && python -m backend.main -c default_config.yaml -q "What is quantum mechanics?"
+```
+
+### Additional Options
+
+**Skip saving results to files:**
+```bash
+. .venv/bin/activate && python -m backend.main -q "What is machine learning?" --no-save
+```
+
 ### Interactive Terminal
 
-Start the interactive terminal session:
-
+**Start interactive mode (simple terminal interface):**
 ```bash
-cd backend
-python -m core.orchestrator.multi_stage.multi_stage_orchestrator
+. .venv/bin/activate && python -m backend.main --interactive
 ```
 
-### Using the Local SLM (eaddario/Watt-Tool-8B-GGUF)
-
-To test the performance of the local SLM, follow these steps:
-
-1.  **Download the GGUF model**:
-    You can download the quantized model from [Hugging Face](https://huggingface.co/eaddario/Watt-Tool-8B-GGUF). Choose a quantization level that suits your hardware.
-
-2.  **Install `llama-cpp-python`**:
-    This library is needed to run the GGUF model and serve it through an OpenAI-compatible API.
-    ```bash
-    pip install llama-cpp-python
-    ```
-    For GPU acceleration, refer to the `llama-cpp-python` documentation for installation with specific backends (e.g., cuBLAS for NVIDIA).
-
-3.  **Start the local server**:
-    Run the following command, replacing `<path_to_gguf_model>` with the path to your downloaded model file.
-    ```bash
-    python3 -m llama_cpp.server --model <path_to_gguf_model> --chat_format functionary
-    ```
-    The `functionary` chat format is crucial for tool-calling capabilities.
-
-4.  **Configure the Orchestrator**:
-    In `backend/core/orchestrator/multi_stage/multi_stage_orchestrator.py`, set the `USE_SLM` flag to `True`:
-    ```python
-    # ... inside if __name__ == "__main__":
-    USE_SLM = True
-    ```
-
-5.  **Run the application**:
-    With the local server running, start the orchestrator as usual:
-    ```bash
-    cd backend
-    python -m core.orchestrator.multi_stage.multi_stage_orchestrator
-    ```
-    The orchestrator will now use the local `WatToolSLMAgent` to process queries.
-
-### Available Commands
-
-- `help` - Show help information and query examples
-- `tools` - List all available tools with descriptions
-- `settings` - Show current configuration
-- `clear` - Clear conversation history
-- `exit`/`quit` - Exit the application
-
-## 🔧 Tools
-
-The system includes comprehensive tool sets for different domains:
-
-### Graph Tools
-- **AddNodeTool**: Adds nodes to the graph database.
-- **AddEdgeTool**: Adds edges to the graph database.
-- **GetNodeTool**: Retrieves a node from the graph database by ID.
-- **GetEdgeTool**: Retrieves an edge from the graph database.
-- **RemoveNodeTool**: Removes a node from the graph database.
-- **RemoveEdgeTool**: Removes an edge from the graph database.
-- **FindNodesTool**: Finds nodes of a given type in the graph database.
-- **FindEdgesTool**: Finds edges of a given type in the graph database.
-- **GetNeighborsTool**: Retrieves neighboring nodes of a given node.
-- **GetSubgraphTool**: Retrieves a subgraph around a given node.
-- **GetGraphStatsTool**: Retrieves statistics about the graph.
-- **CypherQueryTool**: Executes a Cypher query on the graph database.
-
-### Wikidata Tools
-
-#### Base Tools
-- **GetEntityInfoTool**: Gets basic information about a Wikidata entity.
-- **GetEntityPropertiesTool**: Gets all properties of a Wikidata entity.
-- **GetPropertyInfoTool**: Gets information about a Wikidata property.
-- **SearchEntitiesTool**: Searches for Wikidata entities by a text query.
-
-#### Query Tools
-- **SPARQLQueryTool**: Executes a raw SPARQL query.
-- **SubclassQueryTool**: Finds subclasses of a Wikidata entity.
-- **SuperclassQueryTool**: Finds superclasses of a Wikidata entity.
-- **InstanceQueryTool**: Finds all instances of a given class.
-- **InstanceOfQueryTool**: Finds what classes a given entity is an instance of.
-- **PropertyQueryTool**: Finds entities that have a specific property with a specific value.
-
-#### Exploration Tools
-- **NeighborsExplorationTool**: Explores the neighbors and relationships of an entity.
-- **LocalGraphTool**: Builds a local graph around a central entity.
-
-## ⚙️ Configuration
-
-Configure the system via `config.yaml`:
-
-```yaml
-llm:
-  provider: "gemini"
-  model: "gemini-pro"
-  temperature: 0.7
-  api_key: null  # Set via environment variable
-
-wikidata:
-  timeout: 30
-  max_results: 100
-  default_language: "en"
-
-toolbox:
-  auto_register_wikidata_tools: true
-  max_tool_execution_time: 60
-
-interactive:
-  show_tool_calls: true
-  show_intermediate_steps: true
-  max_history_length: 100
+**Interactive mode with question decomposition:**
+```bash
+. .venv/bin/activate && python -m backend.main --interactive --enable-question-decomposition
 ```
 
-## 🏗️ Architecture
-
-### Core Components
-
-1. **BaseAgent**: Abstract interface for LLM agents with tool calling capabilities
-2. **Toolbox**: Dynamic tool registration and management with validation
-3. **Data Models**: Strongly typed Pydantic models for all Wikidata structures
-4. **API Abstraction**: Multiple backend support (REST, KIF) with consistent interface
-5. **Settings Management**: YAML configuration with environment variable overrides
-
-
-### API Backends
-
-- **REST API**: Using the `wikidata` Python library for standard operations
-- **KIF API**: IBM's Knowledge Integration Framework for advanced queries
-- **SPARQL**: Direct SPARQL endpoint access for custom queries
-
-## 📊 Data Models
-
-The project employs two distinct types of data models: one for handling data from the remote Wikidata source and another for representing the local knowledge graph.
-
-### Wikidata Data Models
-
-The system uses strongly typed Pydantic models for all Wikidata structures, ensuring data consistency and validation when interacting with Wikidata APIs.
-
-```python
-# Example entity model from Wikidata
-WikidataEntity(
-    id="Q42",
-    label="Douglas Adams",
-    description="British author and humorist",
-    aliases=["Douglas Noel Adams", "DNA"],
-    statements={
-        "P31": [WikidataStatement(...)],  # instance of
-        "P106": [WikidataStatement(...)]  # occupation
-    }
-)
+**Interactive mode with metacognition:**
+```bash
+. .venv/bin/activate && python -m backend.main --interactive --enable-metacognition
 ```
 
-Models include:
-- **WikidataEntity**: Complete entity representation from Wikidata.
-- **WikidataProperty**: Property definitions and constraints from Wikidata.
-- **WikidataStatement**: Individual claims with qualifiers.
-- **SearchResult**: Search result metadata.
+### Command-Line Reference
 
-### Knowledge Graph Abstraction
-
-For building, visualizing, and storing local graphs (e.g., in Neo4j), a simpler, more generic graph abstraction is used. This decouples the local graph representation from the complex structure of the Wikidata source.
-
-```python
-# Example local graph node and edge
-Node(
-    id="Q42",
-    type="entity",
-    label="Douglas Adams",
-    description="British author and humorist"
-)
-
-Edge(
-    source_id="Q42",
-    target_id="Q5",
-    type="P31", # instance of
-    label="instance of"
-)
-```
-
-This abstraction includes:
-- **Node**: Represents any entity in the local graph.
-- **Edge**: Represents a relationship between two nodes.
-- **Graph**: A container for nodes and edges, built on `networkx`, with methods for manipulation and export (e.g., to JSON or RDF).
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Add comprehensive tests for new functionality
-4. Ensure all tests pass with real API calls
-5. Update documentation as needed
-6. Submit a pull request
-
-### Development Guidelines
-- Follow the existing tool pattern for new tools
-- Add both unit and integration tests
-- Use type hints and Pydantic models
-- Include docstrings with examples
-
-## 📚 Documentation
-
-- **Tool Development**: See `core/toolbox/toolbox.py` for the tool interface
-- **Data Models**: Check `core/toolbox/wikidata/datamodel.py` for schemas
-- **API Usage**: Examples in test files demonstrate real usage patterns
-- **Configuration**: All settings are documented in `settings.py`
-
-## 📄 License
-
-This project is licensed under the MIT License.
-
-## 🙏 Acknowledgments
-
-[Anonymized]
+| Argument | Description |
+|----------|-------------|
+| `-q, --query` | Natural language query to process |
+| `-c, --config` | Path to experiment configuration YAML file |
+| `--no-save` | Skip saving results to files |
+| `--interactive` | Run in interactive mode |
+| `--enable-metacognition` | Enable strategic assessment and meta-observation |
