@@ -124,6 +124,16 @@
         .ref8 { color: rgb(0, 206, 209); }
         .ref9 { color: rgb(50, 205, 50); }
         .ref10 { color: rgb(255, 215, 0); }
+        .ref11 { color: rgb(128, 0, 128); }
+        .ref12 { color: rgb(255, 69, 0); }
+        .ref13 { color: rgb(0, 128, 128); }
+        .ref14 { color: rgb(128, 128, 0); }
+        .ref15 { color: rgb(218, 112, 214); }
+        .ref16 { color: rgb(0, 191, 255); }
+        .ref17 { color: rgb(255, 20, 147); }
+        .ref18 { color: rgb(46, 139, 87); }
+        .ref19 { color: rgb(255, 165, 0); }
+        .ref20 { color: rgb(75, 0, 130); }
         
         /* Custom query group styling - override Bulma's striped table behavior */
         .table.is-striped tbody tr {
@@ -858,9 +868,22 @@
               <tr>
                 <td colspan="3" style="text-align: center;"><b>Iterations:</b> 48, <b>Tools:</b> 120, <b>Tokens:</b> 353900, <b>Time (s):</b> 177.15, <b>Nodes:</b> 56, <b>Edges:</b> 37</td>
               </tr>
-              <tr id="QD06-row">
+              <tr>
+                <td colspan="3">
+                    <div class="prompt-box collapsible-prompt" style="margin-bottom: 0;">
+                        <button class="button is-fullwidth is-justify-content-space-between">
+                            <span>Click to show Knowledge Graph</span>
+                            <span class="icon is-small"><i class="fas fa-chevron-down"></i></span>
+                        </button>
+                        <div class="prompt-content" style="display: none;">
+                          <div id="batch_d_QD04-graph" class="graph-container" style="width: 100%; height: 500px; border: 1px solid lightgray;"></div>
+                        </div>
+                    </div>
+                </td>
+              </tr>
+              <tr id="QD05-row">
                 <td>
-                  <b>Query C6:</b> Explore the ontology: Start from the root and list all direct subclasses. Then for each subclass, list its direct subclasses
+                  <b>Query C5:</b> Explore the ontology: Start from the root and list all direct subclasses. Then for each subclass, list its direct subclasses
                   <div class="status-box status-ok">OK</div>
                   <br><br>
                   <b>Metacognition:</b> With Metacognition
@@ -879,14 +902,14 @@
                             <span class="icon is-small"><i class="fas fa-chevron-down"></i></span>
                         </button>
                         <div class="prompt-content" style="display: none;">
-                          <div id="batch_d_QD06-graph" class="graph-container" style="width: 100%; height: 500px; border: 1px solid lightgray;"></div>
+                          <div id="batch_d_QD05-graph" class="graph-container" style="width: 100%; height: 500px; border: 1px solid lightgray;"></div>
                         </div>
                     </div>
                 </td>
               </tr>
-              <tr id="QD07-row">
+              <tr id="QD06-row">
                 <td>
-                  <b>Query C7:</b> Explore the ontology: Start from the root and list all direct subclasses. Then for each subclass, list its direct subclasses
+                  <b>Query C6:</b> Explore the ontology: Start from the root and list all direct subclasses. Then for each subclass, list its direct subclasses
                   <div class="status-box status-ok">OK</div>
                   <br><br>
                   <b>Metacognition:</b> With Metacognition
@@ -905,14 +928,14 @@
                             <span class="icon is-small"><i class="fas fa-chevron-down"></i></span>
                         </button>
                         <div class="prompt-content" style="display: none;">
-                          <div id="batch_d_QD07-graph" class="graph-container" style="width: 100%; height: 500px; border: 1px solid lightgray;"></div>
+                          <div id="batch_d_QD06-graph" class="graph-container" style="width: 100%; height: 500px; border: 1px solid lightgray;"></div>
                         </div>
                     </div>
                 </td>
               </tr>
-              <tr id="QD08-row">
+              <tr id="QD07-row">
                 <td>
-                  <b>Query C8:</b> Which Italian cities are twinned with Japanese cities?
+                  <b>Query C7:</b> Which Italian cities are twinned with Japanese cities?
                   <div class="status-box status-ok">OK</div>
                   <br><br>
                   <b>Metacognition:</b> With Metacognition
@@ -931,7 +954,7 @@
                             <span class="icon is-small"><i class="fas fa-chevron-down"></i></span>
                         </button>
                         <div class="prompt-content" style="display: none;">
-                          <div id="batch_d_QD08-graph" class="graph-container" style="width: 100%; height: 500px; border: 1px solid lightgray;"></div>
+                          <div id="batch_d_QD07-graph" class="graph-container" style="width: 100%; height: 500px; border: 1px solid lightgray;"></div>
                         </div>
                     </div>
                 </td>
@@ -1328,19 +1351,19 @@
         "edges": [{"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q214917", "label": "subclass of (P279)", "to": "Q36180", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q28389", "label": "subclass of (P279)", "to": "Q36180", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q6625963", "label": "subclass of (P279)", "to": "Q36180", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q4853732", "label": "subclass of (P279)", "to": "Q36180", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q18844224", "label": "subclass of (P279)", "to": "Q108710667", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q18844224", "label": "subclass of (P279)", "to": "Q108710753", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q245068", "label": "subclass of (P279)", "to": "Q483501", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q245068", "label": "subclass of (P279)", "to": "Q33999", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q639669", "label": "subclass of (P279)", "to": "Q483501", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q3238422", "label": "subclass of (P279)", "to": "Q24925", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q3238422", "label": "subclass of (P279)", "to": "Q8242", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q3238422", "label": "subclass of (P279)", "to": "Q5240628", "width": 2}]
     }
   </script>
-  <script id="data-for-batch_d_QD06-graph" type="application/json">
+  <script id="data-for-batch_d_QD05-graph" type="application/json">
     {
         "nodes": [{"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q35120", "label": "entity\nQ35120", "shape": "dot", "size": 30}, {"color": "#4CAF50", "font": {"color": "black"}, "id": "Q124711104", "label": "BFO class\nQ124711104", "shape": "dot", "size": 25}, {"color": "#2196F3", "font": {"color": "black"}, "id": "Q23958852", "label": "variable-order class\nQ23958852", "shape": "dot", "size": 25}],
         "edges": [{"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q35120", "label": "instance of (P31)", "to": "Q124711104", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q35120", "label": "instance of (P31)", "to": "Q23958852", "width": 2}]
     }
   </script>
-  <script id="data-for-batch_d_QD07-graph" type="application/json">
+  <script id="data-for-batch_d_QD06-graph" type="application/json">
     {
         "nodes": [{"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q35120", "label": "entity\nQ35120", "shape": "dot", "size": 30}, {"color": "#4CAF50", "font": {"color": "black"}, "id": "Q378078", "label": "substance\nQ378078", "shape": "dot", "size": 25}, {"color": "#2196F3", "font": {"color": "black"}, "id": "Q488383", "label": "object\nQ488383", "shape": "dot", "size": 25}, {"color": "#9C27B0", "font": {"color": "black"}, "id": "Q103940464", "label": "continuant\nQ103940464", "shape": "dot", "size": 25}, {"color": "#FF9800", "font": {"color": "black"}, "id": "Q115095765", "label": "location\nQ115095765", "shape": "dot", "size": 25}, {"color": "#795548", "font": {"color": "black"}, "id": "Q120725535", "label": "unidentified entity\nQ120725535", "shape": "dot", "size": 25}, {"color": "#607D8B", "font": {"color": "black"}, "id": "Q121770302", "label": "conceptual entity\nQ121770302", "shape": "dot", "size": 25}, {"color": "#E91E63", "font": {"color": "black"}, "id": "Q13196193", "label": "part\nQ13196193", "shape": "dot", "size": 25}, {"color": "#3F51B5", "font": {"color": "black"}, "id": "Q7048977", "label": "abstract entity\nQ7048977", "shape": "dot", "size": 25}, {"color": "#009688", "font": {"color": "black"}, "id": "Q99527517", "label": "collective entity\nQ99527517", "shape": "dot", "size": 25}],
         "edges": [{"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q378078", "label": "subclass of (P279)", "to": "Q35120", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q488383", "label": "subclass of (P279)", "to": "Q35120", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q103940464", "label": "subclass of (P279)", "to": "Q35120", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q115095765", "label": "subclass of (P279)", "to": "Q35120", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q120725535", "label": "subclass of (P279)", "to": "Q35120", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q121770302", "label": "subclass of (P279)", "to": "Q35120", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q13196193", "label": "subclass of (P279)", "to": "Q35120", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q7048977", "label": "subclass of (P279)", "to": "Q35120", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q99527517", "label": "subclass of (P279)", "to": "Q35120", "width": 2}]
     }
   </script>
-  <script id="data-for-batch_d_QD08-graph" type="application/json">
+  <script id="data-for-batch_d_QD07-graph" type="application/json">
     {
         "nodes": [{"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q220", "label": "Rome\nQ220", "shape": "dot", "size": 30}, {"color": "#4CAF50", "font": {"color": "black"}, "id": "Q1490", "label": "Tokyo\nQ1490", "shape": "dot", "size": 25}, {"color": "#2196F3", "font": {"color": "black"}, "id": "Q495", "label": "Turin\nQ495", "shape": "dot", "size": 25}, {"color": "#9C27B0", "font": {"color": "black"}, "id": "Q11751", "label": "Nagoya\nQ11751", "shape": "dot", "size": 25}, {"color": "#FF9800", "font": {"color": "black"}, "id": "Q2634", "label": "Naples\nQ2634", "shape": "dot", "size": 25}, {"color": "#795548", "font": {"color": "black"}, "id": "Q15674", "label": "Kagoshima\nQ15674", "shape": "dot", "size": 25}, {"color": "#607D8B", "font": {"color": "black"}, "id": "Q8621", "label": "Terni\nQ8621", "shape": "dot", "size": 25}, {"color": "#E91E63", "font": {"color": "black"}, "id": "Q48320", "label": "Kobe\nQ48320", "shape": "dot", "size": 25}, {"color": "#3F51B5", "font": {"color": "black"}, "id": "Q1083", "label": "Salerno\nQ1083", "shape": "dot", "size": 25}, {"color": "#009688", "font": {"color": "black"}, "id": "Q646766", "label": "Tono\nQ646766", "shape": "dot", "size": 25}, {"color": "#FF5722", "font": {"color": "black"}, "id": "Q1308", "label": "Como\nQ1308", "shape": "dot", "size": 25}, {"color": "#8BC34A", "font": {"color": "black"}, "id": "Q858369", "label": "Tokamachi\nQ858369", "shape": "dot", "size": 25}, {"color": "#FFEB3B", "font": {"color": "black"}, "id": "Q18021", "label": "Biella\nQ18021", "shape": "dot", "size": 25}, {"color": "#CDDC39", "font": {"color": "black"}, "id": "Q634022", "label": "Kiryū\nQ634022", "shape": "dot", "size": 25}, {"color": "#FFC107", "font": {"color": "black"}, "id": "Q1891", "label": "Bologna\nQ1891", "shape": "dot", "size": 25}, {"color": "#03A9F4", "font": {"color": "black"}, "id": "Q185125", "label": "Hamamatsu\nQ185125", "shape": "dot", "size": 25}, {"color": "#4CAF50", "font": {"color": "black"}, "id": "Q33962", "label": "Sanremo\nQ33962", "shape": "dot", "size": 25}, {"color": "#2196F3", "font": {"color": "black"}, "id": "Q653364", "label": "Atami\nQ653364", "shape": "dot", "size": 25}, {"color": "#9C27B0", "font": {"color": "black"}, "id": "Q52981", "label": "Faenza\nQ52981", "shape": "dot", "size": 25}, {"color": "#FF9800", "font": {"color": "black"}, "id": "Q847332", "label": "Toki\nQ847332", "shape": "dot", "size": 25}, {"color": "#795548", "font": {"color": "black"}, "id": "Q541", "label": "Orvieto\nQ541", "shape": "dot", "size": 25}, {"color": "#607D8B", "font": {"color": "black"}, "id": "Q201613", "label": "Maebashi\nQ201613", "shape": "dot", "size": 25}, {"color": "#E91E63", "font": {"color": "black"}, "id": "Q219330", "label": "Pietrasanta\nQ219330", "shape": "dot", "size": 25}, {"color": "#3F51B5", "font": {"color": "black"}, "id": "Q200589", "label": "Utsunomiya\nQ200589", "shape": "dot", "size": 25}, {"color": "#009688", "font": {"color": "black"}, "id": "Q242533", "label": "Civitavecchia\nQ242533", "shape": "dot", "size": 25}, {"color": "#FF5722", "font": {"color": "black"}, "id": "Q270814", "label": "Ishinomaki\nQ270814", "shape": "dot", "size": 25}, {"color": "#8BC34A", "font": {"color": "black"}, "id": "Q6606", "label": "Pordenone\nQ6606", "shape": "dot", "size": 25}, {"color": "#FFEB3B", "font": {"color": "black"}, "id": "Q385248", "label": "Okawa\nQ385248", "shape": "dot", "size": 25}, {"color": "#CDDC39", "font": {"color": "black"}, "id": "Q48090", "label": "Marostica\nQ48090", "shape": "dot", "size": 25}, {"color": "#FFC107", "font": {"color": "black"}, "id": "Q385779", "label": "Tendo\nQ385779", "shape": "dot", "size": 25}, {"color": "#03A9F4", "font": {"color": "black"}, "id": "Q72672", "label": "Sorrento\nQ72672", "shape": "dot", "size": 25}, {"color": "#4CAF50", "font": {"color": "black"}, "id": "Q819672", "label": "Kumano\nQ819672", "shape": "dot", "size": 25}, {"color": "#2196F3", "font": {"color": "black"}, "id": "Q51812", "label": "Alberobello\nQ51812", "shape": "dot", "size": 25}, {"color": "#9C27B0", "font": {"color": "black"}, "id": "Q877626", "label": "Historic Villages of Shirakawa-gō and Gokayama\nQ877626", "shape": "dot", "size": 25}, {"color": "#FF9800", "font": {"color": "black"}, "id": "Q13138", "label": "Chieti\nQ13138", "shape": "dot", "size": 25}, {"color": "#795548", "font": {"color": "black"}, "id": "Q990376", "label": "Minamishimabara\nQ990376", "shape": "dot", "size": 25}, {"color": "#607D8B", "font": {"color": "black"}, "id": "Q13376", "label": "Pistoia\nQ13376", "shape": "dot", "size": 25}, {"color": "#E91E63", "font": {"color": "black"}, "id": "Q1203350", "label": "Shirakawa\nQ1203350", "shape": "dot", "size": 25}],
         "edges": [{"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q220", "label": "twinned administrative body (P190)", "to": "Q1490", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q495", "label": "twinned administrative body (P190)", "to": "Q11751", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q2634", "label": "twinned administrative body (P190)", "to": "Q15674", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q8621", "label": "twinned administrative body (P190)", "to": "Q48320", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q1083", "label": "twinned administrative body (P190)", "to": "Q646766", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q1308", "label": "twinned administrative body (P190)", "to": "Q858369", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q18021", "label": "twinned administrative body (P190)", "to": "Q634022", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q1891", "label": "twinned administrative body (P190)", "to": "Q185125", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q33962", "label": "twinned administrative body (P190)", "to": "Q653364", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q52981", "label": "twinned administrative body (P190)", "to": "Q847332", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q541", "label": "twinned administrative body (P190)", "to": "Q201613", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q219330", "label": "twinned administrative body (P190)", "to": "Q200589", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q242533", "label": "twinned administrative body (P190)", "to": "Q270814", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q6606", "label": "twinned administrative body (P190)", "to": "Q385248", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q48090", "label": "twinned administrative body (P190)", "to": "Q385779", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q72672", "label": "twinned administrative body (P190)", "to": "Q819672", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q51812", "label": "twinned administrative body (P190)", "to": "Q877626", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q13138", "label": "twinned administrative body (P190)", "to": "Q990376", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q13376", "label": "twinned administrative body (P190)", "to": "Q1203350", "width": 2}]
