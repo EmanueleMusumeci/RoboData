@@ -124,6 +124,79 @@
         .ref8 { color: rgb(0, 206, 209); }
         .ref9 { color: rgb(50, 205, 50); }
         .ref10 { color: rgb(255, 215, 0); }
+        
+        /* Custom query group styling - override Bulma's striped table behavior */
+        .table.is-striped tbody tr {
+            background-color: white !important;
+        }
+        
+        /* Query rows (odd positioned in groups of 3) get light background */
+        .table.is-striped tbody tr:nth-child(6n+1) {
+            background-color: #fafafa !important;
+        }
+        
+        /* Statistics rows follow their query row background */
+        .table.is-striped tbody tr:nth-child(6n+2) {
+            background-color: #fafafa !important;
+        }
+        
+        /* Graph visualization rows follow their query row background */
+        .table.is-striped tbody tr:nth-child(6n+3) {
+            background-color: #fafafa !important;
+        }
+        
+        /* Query rows (even positioned in groups of 3) get white background */
+        .table.is-striped tbody tr:nth-child(6n+4) {
+            background-color: white !important;
+        }
+        
+        /* Statistics rows follow their query row background */
+        .table.is-striped tbody tr:nth-child(6n+5) {
+            background-color: white !important;
+        }
+        
+        /* Graph visualization rows follow their query row background */
+        .table.is-striped tbody tr:nth-child(6n+6) {
+            background-color: white !important;
+        }
+        
+        /* Add thicker borders between query groups */
+        .table tr[id$="-row"] {
+            border-top: 4px solid #363636 !important;
+        }
+        
+        /* First query row doesn't need top border */
+        .table tbody tr:first-child {
+            border-top: none !important;
+        }
+        
+        /* Graph container styling for proper fit */
+        .graph-container {
+            width: 100% !important;
+            height: 500px !important;
+            border: 1px solid lightgray !important;
+            overflow: hidden !important;
+            box-sizing: border-box !important;
+            position: relative !important;
+        }
+        
+        /* Ensure vis-network canvas fits container */
+        .graph-container canvas {
+            max-width: 100% !important;
+            max-height: 100% !important;
+        }
+        
+        /* Ensure graph visualization takes full container */
+        .graph-container .vis-network {
+            width: 100% !important;
+            height: 100% !important;
+        }
+        
+        /* Prevent graph content from overflowing */
+        .graph-container > div {
+            width: 100% !important;
+            height: 100% !important;
+        }
     </style>
   <nav class="navbar" role="navigation" aria-label="main navigation">
     <div class="navbar-brand">
@@ -443,7 +516,7 @@
                             <span class="icon is-small"><i class="fas fa-chevron-down"></i></span>
                         </button>
                         <div class="prompt-content" style="display: none;">
-                          <div id="batch_a_QA01-graph" class="graph-container" style="width: 100%; height: 500px; border: 1px solid lightgray;"></div>
+                            <div id="batch_a_QA01-graph" class="graph-container" style="width: 100%; height: 500px; border: 1px solid lightgray;"></div>
                         </div>
                     </div>
                 </td>
@@ -708,7 +781,7 @@
                   <div class="status-box status-ok">OK</div>
                 </td>
                 <td>Douglas Adams' father is Kristofers Duglass Adamss. <span class="ref1">(1)</span> His mother is Janet Adams. <span class="ref2">(2)</span> Douglas Adams was married to Jane Belson. <span class="ref3">(3)</span> He has a sibling named Susan Adams. <span class="ref4">(4)</span> Douglas Adams' child is Polly Adams. <span class="ref5">(5)</span> Douglas Adams wrote "The Hitchhiker's Guide to the Galaxy." <span class="ref6">(6)</span> He also authored the "Dirk Gently series." <span class="ref7">(7)</span> Additionally, he co-wrote "The Private Life of Genghis Khan." <span class="ref8">(8)</span></td>
-                <td><span class="ref1">(1) &lt;Douglas Adams (Q42), father (P22), Kristofers Duglass Adamss (Q14623675)&gt;</span>, <span class="ref2">(2) &lt;Q42, mother (P25), Janet Adams (Q14623678)&gt;</span>, ...</td>
+                <td><span class="ref1">(1) &lt;Douglas Adams (Q42), father (P22), Kristofers Duglass Adamss (Q14623675)&gt;</span>, <span class="ref2">(2) &lt;Q42, mother (P25), Janet Adams (Q14623678)&gt;</span>, <span class="ref3">(3) &lt;Q42, spouse (P26), Jane Belson (Q14623681)&gt;</span>, <span class="ref4">(4) &lt;Q42, sibling (S1), Susan Adams (Q14623684)&gt;</span>, <span class="ref5">(5) &lt;Q42, child (P40), Polly Adams (Q14623683)&gt;</span>, <span class="ref6">(6) &lt;Q42, notable work (P800), The Hitchhiker's Guide to the Galaxy (Q25169)&gt;</span>, <span class="ref7">(7) &lt;Q42, P800, Dirk Gently series (Q20736364)&gt;</span>, <span class="ref8">(8) &lt;Q42, P800, The Private Life of Genghis Khan (Q7758404)&gt;</span></td>
               </tr>
               <tr>
                 <td colspan="3" style="text-align: center;"><b>Iterations:</b> 10, <b>Tools:</b> 11, <b>Tokens:</b> 32939, <b>Time (s):</b> 27.99, <b>Nodes:</b> 9, <b>Edges:</b> 8</td>
@@ -756,7 +829,7 @@
                   <div class="status-box status-ok">OK</div>
                 </td>
                 <td>David Hilbert was influenced by Immanuel Kant and was also a mathematician. <span class="ref1">(1)</span> Edmund Husserl was influenced by Immanuel Kant and was also a mathematician. <span class="ref2">(2)</span> Hermann Weyl was influenced by Immanuel Kant and was also a mathematician. <span class="ref3">(3)</span> Luitzen Egbertus Jan Brouwer was influenced by Immanuel Kant and was also a mathematician. <span class="ref4">(4)</span> Shem-Tov Gefen was influenced by Immanuel Kant and was also a mathematician. <span class="ref5">(5)</span></td>
-                <td><span class="ref1">(1) &lt;David Hilbert (Q41585), influenced by (P737), Immanuel Kant (Q9312)&gt;, &lt;Q41585, occupation (P106), mathematician (Q170790)&gt;</span>, ...</td>
+                <td><span class="ref1">(1) &lt;David Hilbert (Q41585), influenced by (P737), Immanuel Kant (Q9312)&gt;, &lt;Q41585, occupation (P106), mathematician (Q170790)&gt;</span>, <span class="ref2">(2) &lt;Edmund Husserl (Q37924), influenced by (P737), Immanuel Kant (Q9312)&gt;, &lt;Q37924, occupation (P106), philosopher (Q49642)&gt;</span>, <span class="ref3">(3) &lt;Hermann Weyl (Q71029), influenced by (P737), Immanuel Kant (Q9312)&gt;, &lt;Q71029, occupation (P106), mathematician (Q170790)&gt;</span>, <span class="ref4">(4) &lt;Luitzen Egbertus Jan Brouwer (Q155887), influenced by (P737), Immanuel Kant (Q9312)&gt;, &lt;Q155887, occupation (P106), mathematician (Q170790)&gt;</span>, <span class="ref5">(5) &lt;Shem-Tov Gefen (Q6992366), influenced by (P737), Immanuel Kant (Q9312)&gt;, &lt;Q6992366, occupation (P106), philosopher (Q49642)&gt;</span></td>
               </tr>
               <tr>
                 <td colspan="3" style="text-align: center;"><b>Iterations:</b> 14, <b>Tools:</b> 19, <b>Tokens:</b> 68844, <b>Time (s):</b> 38.5, <b>Nodes:</b> 31, <b>Edges:</b> 37</td>
@@ -785,7 +858,7 @@
               <tr>
                 <td colspan="3" style="text-align: center;"><b>Iterations:</b> 48, <b>Tools:</b> 120, <b>Tokens:</b> 353900, <b>Time (s):</b> 177.15, <b>Nodes:</b> 56, <b>Edges:</b> 37</td>
               </tr>
-              <tr id="QC06-row">
+              <tr id="QD06-row">
                 <td>
                   <b>Query C6:</b> Explore the ontology: Start from the root and list all direct subclasses. Then for each subclass, list its direct subclasses
                   <div class="status-box status-ok">OK</div>
@@ -806,12 +879,12 @@
                             <span class="icon is-small"><i class="fas fa-chevron-down"></i></span>
                         </button>
                         <div class="prompt-content" style="display: none;">
-                          <div id="batch_c_QC06-graph" class="graph-container" style="width: 100%; height: 500px; border: 1px solid lightgray;"></div>
+                          <div id="batch_d_QD06-graph" class="graph-container" style="width: 100%; height: 500px; border: 1px solid lightgray;"></div>
                         </div>
                     </div>
                 </td>
               </tr>
-              <tr id="QC07-row">
+              <tr id="QD07-row">
                 <td>
                   <b>Query C7:</b> Explore the ontology: Start from the root and list all direct subclasses. Then for each subclass, list its direct subclasses
                   <div class="status-box status-ok">OK</div>
@@ -832,12 +905,12 @@
                             <span class="icon is-small"><i class="fas fa-chevron-down"></i></span>
                         </button>
                         <div class="prompt-content" style="display: none;">
-                          <div id="batch_c_QC07-graph" class="graph-container" style="width: 100%; height: 500px; border: 1px solid lightgray;"></div>
+                          <div id="batch_d_QD07-graph" class="graph-container" style="width: 100%; height: 500px; border: 1px solid lightgray;"></div>
                         </div>
                     </div>
                 </td>
               </tr>
-              <tr id="QC08-row">
+              <tr id="QD08-row">
                 <td>
                   <b>Query C8:</b> Which Italian cities are twinned with Japanese cities?
                   <div class="status-box status-ok">OK</div>
@@ -858,7 +931,7 @@
                             <span class="icon is-small"><i class="fas fa-chevron-down"></i></span>
                         </button>
                         <div class="prompt-content" style="display: none;">
-                          <div id="batch_c_QC08-graph" class="graph-container" style="width: 100%; height: 500px; border: 1px solid lightgray;"></div>
+                          <div id="batch_d_QD08-graph" class="graph-container" style="width: 100%; height: 500px; border: 1px solid lightgray;"></div>
                         </div>
                     </div>
                 </td>
@@ -1020,109 +1093,258 @@
               icon.classList.remove('fa-chevron-down');
               icon.classList.add('fa-chevron-up');
             }
+            
+            // Check if this content contains a graph and refresh it
+            const graphContainer = content.querySelector('.graph-container');
+            if (graphContainer) {
+              const graphId = graphContainer.id;
+              const network = window.knowledgeGraphs[graphId];
+              if (network) {
+                // Small delay to ensure container is fully visible
+                setTimeout(() => {
+                  network.redraw();
+                  network.fit({
+                    padding: {
+                      top: 20,
+                      bottom: 20,
+                      left: 20,
+                      right: 20
+                    }
+                  });
+                }, 100);
+              }
+            }
           }
         });
       });
     });
   </script>
 
-  <!-- Embedded Graph Visualization Script -->
+  <!-- Embedded Graph Visualization Scripts -->
   <script>
-    $(document).ready(function() {
-      // Embedded graph data
-      const graphData = {
-        'batch_b_QB01': {
-          nodes: [{"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q214917", "label": "playwright\nQ214917", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q36180", "label": "writer\nQ36180", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q28389", "label": "screenwriter\nQ28389", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q6625963", "label": "novelist\nQ6625963", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q4853732", "label": "children's writer\nQ4853732", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q18844224", "label": "science fiction writer\nQ18844224", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q108710753", "label": "speculative fiction writer\nQ108710753", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q108710667", "label": "speculative fiction author\nQ108710667", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q245068", "label": "comedian\nQ245068", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q33999", "label": "actor\nQ33999", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q483501", "label": "artist\nQ483501", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q482980", "label": "author\nQ482980", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q108762424", "label": "penman\nQ108762424", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q639669", "label": "musician\nQ639669", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q24925", "label": "science fiction\nQ24925", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q9326077", "label": "speculative fiction\nQ9326077", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q40831", "label": "comedy\nQ40831", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q838948", "label": "work of art\nQ838948", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q60548032", "label": "humor\nQ60548032", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q128758", "label": "satire\nQ128758", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q42", "label": "Douglas Adams\nQ42", "shape": "dot", "size": 30}],
-          edges: [{"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q214917", "label": "subclass of (P279)", "to": "Q36180", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q36180", "label": "subclass of (P279)", "to": "Q108762424", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q36180", "label": "subclass of (P279)", "to": "Q483501", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q36180", "label": "subclass of (P279)", "to": "Q482980", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q28389", "label": "subclass of (P279)", "to": "Q36180", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q6625963", "label": "subclass of (P279)", "to": "Q36180", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q4853732", "label": "subclass of (P279)", "to": "Q36180", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q18844224", "label": "subclass of (P279)", "to": "Q108710667", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q18844224", "label": "subclass of (P279)", "to": "Q108710753", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q245068", "label": "subclass of (P279)", "to": "Q483501", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q245068", "label": "subclass of (P279)", "to": "Q33999", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q639669", "label": "subclass of (P279)", "to": "Q483501", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q24925", "label": "subclass of (P279)", "to": "Q9326077", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q40831", "label": "subclass of (P279)", "to": "Q60548032", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q40831", "label": "subclass of (P279)", "to": "Q838948", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q128758", "label": "subclass of (P279)", "to": "Q60548032", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "occupation (P106)", "to": "Q214917", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "occupation (P106)", "to": "Q36180", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "occupation (P106)", "to": "Q28389", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "occupation (P106)", "to": "Q6625963", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "occupation (P106)", "to": "Q4853732", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "occupation (P106)", "to": "Q18844224", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "occupation (P106)", "to": "Q245068", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "occupation (P106)", "to": "Q639669", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "genre (P136)", "to": "Q24925", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "genre (P136)", "to": "Q40831", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "genre (P136)", "to": "Q128758", "width": 2}]
-        },
-        'batch_b_QB02': {
-          nodes: [{"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q35120", "label": "entity\nQ35120", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q378078", "label": "substance\nQ378078", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q488383", "label": "object\nQ488383", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q2995644", "label": "result\nQ2995644", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q3799040", "label": "unobservable entity\nQ3799040", "shape": "dot", "size": 30}],
-          edges: [{"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q378078", "label": "subclass of (P279)", "to": "Q35120", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q488383", "label": "subclass of (P279)", "to": "Q35120", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q2995644", "label": "subclass of (P279)", "to": "Q35120", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q3799040", "label": "subclass of (P279)", "to": "Q35120", "width": 2}]
-        }
-        // Add more graphs here as needed
-      };
+    // Global storage for network instances
+    window.knowledgeGraphs = {};
 
-      const loadedGraphs = {};
-
-      // Handle collapsible graph buttons
-      $('.collapsible-prompt .button').on('click', function() {
-        const content = $(this).next('.prompt-content');
-        const graphContainer = content.find('.graph-container');
-        const graphId = graphContainer.attr('id');
-
-        if (content.is(':visible')) {
-          // Collapsing
-        } else {
-          // Expanding - load graph if not already loaded
-          if (graphId && !loadedGraphs[graphId]) {
-            loadGraph(graphContainer, graphId);
-          }
-        }
-      });
-
-      function loadGraph(container, graphId) {
-        // Map container ID to data ID
-        const dataId = graphId.replace('-graph', '');
-        
-        if (!graphData[dataId]) {
-          container.html("Knowledge graph data not available for " + dataId);
-          return;
+    function createGraph(containerId, nodesData, edgesData) {
+        var container = document.getElementById(containerId);
+        if (!container || window.knowledgeGraphs[containerId]) {
+            // Don't re-create if it already exists
+            return;
         }
 
-        try {
-          // Set white background
-          container.css('background-color', '#ffffff');
-          
-          // Create vis.js datasets
-          const nodes = new vis.DataSet(graphData[dataId].nodes);
-          const edges = new vis.DataSet(graphData[dataId].edges);
-
-          // Create the network
-          const data = { nodes: nodes, edges: edges };
-          const options = {
+        var nodes = new vis.DataSet(nodesData);
+        var edges = new vis.DataSet(edgesData);
+        var data = { nodes: nodes, edges: edges };
+        var options = {
+            physics: {
+                enabled: true,
+                solver: 'forceAtlas2Based',
+                forceAtlas2Based: {
+                    gravitationalConstant: -50,
+                    centralGravity: 0.01,
+                    springLength: 200,
+                    springConstant: 0.08,
+                    avoidOverlap: 0.5
+                },
+                stabilization: {
+                    iterations: 150,
+                    updateInterval: 25
+                }
+            },
             nodes: {
-              shape: 'box',
-              font: {
-                size: 14,
-                face: 'arial'
-              }
+                shape: 'dot',
+                size: 20,
+                font: { size: 14, color: '#333' },
+                borderWidth: 2
             },
             edges: {
-              font: {
-                size: 12,
-                align: 'middle'
-              },
-              arrows: 'to'
+                width: 2,
+                font: { size: 12, align: 'middle' },
+                arrows: { to: { enabled: true, scaleFactor: 1 } }
             },
-            physics: {
-              solver: 'repulsion',
-              repulsion: {
-                nodeDistance: 200
-              }
+            layout: {
+                improvedLayout: true
             },
             interaction: {
-              dragNodes: true,
-              dragView: true,
-              zoomView: true
+                dragNodes: true,
+                dragView: true,
+                zoomView: true
+            },
+            configure: {
+                enabled: false
+            },
+            autoResize: true
+        };
+        var network = new vis.Network(container, data, options);
+
+        // Ensure proper fitting when stabilization is done
+        network.on("stabilizationIterationsDone", function () {
+            network.fit({
+                padding: {
+                    top: 20,
+                    bottom: 20,
+                    left: 20,
+                    right: 20
+                }
+            });
+        });
+
+        // Also fit when the graph is first ready
+        network.once("initRedraw", function() {
+            network.fit({
+                padding: {
+                    top: 20,
+                    bottom: 20,
+                    left: 20,
+                    right: 20
+                }
+            });
+        });
+
+        // Handle container resize
+        const resizeObserver = new ResizeObserver(entries => {
+            for (let entry of entries) {
+                network.redraw();
+                network.fit({
+                    padding: {
+                        top: 20,
+                        bottom: 20,
+                        left: 20,
+                        right: 20
+                    }
+                });
             }
-          };
+        });
+        resizeObserver.observe(container);
 
-          const network = new vis.Network(container[0], data, options);
-          
-          // Fit the network when stabilization is done
-          network.on("stabilizationIterationsDone", function () {
-            network.fit();
-          });
-          
-          loadedGraphs[graphId] = { network, nodes, edges };
-          console.log("Successfully loaded graph:", dataId);
+        window.knowledgeGraphs[containerId] = network;
+    }
 
-        } catch (error) {
-          console.error("Error loading graph:", error);
-          container.html("Error loading knowledge graph: " + error.message);
-        }
-      }
+    document.addEventListener('DOMContentLoaded', function() {
+        // Load all knowledge graphs immediately when DOM is ready
+        const allGraphContainers = document.querySelectorAll('.graph-container');
+        
+        allGraphContainers.forEach(graphContainer => {
+            const graphId = graphContainer.id;
+            
+            // Skip if graph is already created
+            if (window.knowledgeGraphs[graphId]) return;
+            
+            // The graph data is stored in a script tag with id `data-for-${graphId}`
+            const dataScript = document.getElementById(`data-for-${graphId}`);
+            if (dataScript) {
+                const graphData = JSON.parse(dataScript.textContent);
+                if (graphData.nodes && graphData.edges && (graphData.nodes.length > 0 || graphData.edges.length > 0)) {
+                    createGraph(graphId, graphData.nodes, graphData.edges);
+                } else {
+                    graphContainer.innerHTML = '<div style="text-align: center; padding: 50px; color: #666;">No knowledge graph data available for this query.</div>';
+                }
+            } else {
+                graphContainer.innerHTML = '<div style="text-align: center; padding: 50px; color: #666;">Knowledge graph data script not found.</div>';
+            }
+        });
     });
+  </script>
+
+  <!-- Graph Data -->
+  <script id="data-for-batch_a_QA01-graph" type="application/json">
+    {
+      "nodes": [{"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q3107329", "label": "The Hitchhiker's Guide to the Galaxy\nQ3107329", "shape": "dot", "size": 30, "title": "\n            <b>The Hitchhiker's Guide to the Galaxy</b><br>\n            ID: Q3107329<br>\n            Depth: 0<br>\n            Description: 1979 novel by Douglas Adams...\n            "}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q42", "label": "Douglas Adams\nQ42", "shape": "dot", "size": 30, "title": "\n            <b>Douglas Adams</b><br>\n            ID: Q42<br>\n            Depth: 0<br>\n            Description: English science fiction writer and humorist (1952–2001)...\n            "}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q25169", "label": "The Hitchhiker's Guide to the Galaxy\nQ25169", "shape": "dot", "size": 30, "title": "\n            <b>The Hitchhiker's Guide to the Galaxy</b><br>\n            ID: Q25169<br>\n            Depth: 0<br>\n            Description: 1979–1992 series of five books by Douglas Adams...\n            "}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q211893", "label": "Eoin Colfer\nQ211893", "shape": "dot", "size": 30, "title": "\n            <b>Eoin Colfer</b><br>\n            ID: Q211893<br>\n            Depth: 0<br>\n            Description: Irish author of children's books...\n            "}],
+      "edges": [{"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q3107329", "label": "author (P50)", "to": "Q42", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q25169", "label": "author (P50)", "to": "Q42", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q25169", "label": "author (P50)", "to": "Q211893", "width": 2}]
+    }
+  </script>
+  <script id="data-for-batch_a_QA02-graph" type="application/json">
+    {
+      "nodes": [{"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q42", "label": "Douglas Adams\nQ42", "shape": "dot", "size": 30}, {"color": "#4CAF50", "font": {"color": "black"}, "id": "Q14623675", "label": "Kristofers Duglass Adamss\nQ14623675", "shape": "dot", "size": 25}, {"color": "#2196F3", "font": {"color": "black"}, "id": "Q14623678", "label": "Janet Adams\nQ14623678", "shape": "dot", "size": 25}, {"color": "#9C27B0", "font": {"color": "black"}, "id": "Q14623681", "label": "Jane Belson\nQ14623681", "shape": "dot", "size": 25}, {"color": "#FF9800", "font": {"color": "black"}, "id": "Q14623683", "label": "Polly Adams\nQ14623683", "shape": "dot", "size": 25}],
+      "edges": [{"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "father (P22)", "to": "Q14623675", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "mother (P25)", "to": "Q14623678", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "spouse (P26)", "to": "Q14623681", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "child (P40)", "to": "Q14623683", "width": 2}]
+    }
+  </script>
+  <script id="data-for-batch_a_QA03-graph" type="application/json">
+    {
+        "nodes": [{"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q1739008", "label": "Ma Huateng\nQ1739008", "shape": "dot", "size": 30}, {"color": "#4CAF50", "font": {"color": "black"}, "id": "Q860580", "label": "Tencent\nQ860580", "shape": "dot", "size": 25}, {"color": "#2196F3", "font": {"color": "black"}, "id": "Q10891456", "label": "National People's Congress deputy\nQ10891456", "shape": "dot", "size": 25}],
+        "edges": [{"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q860580", "label": "founded by (P112)", "to": "Q1739008", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q1739008", "label": "position held (P39)", "to": "Q10891456", "width": 2}]
+    }
+  </script>
+  <script id="data-for-batch_a_QA04-graph" type="application/json">
+    {
+        "nodes": [{"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q42", "label": "Douglas Adams\nQ42", "shape": "dot", "size": 30}, {"color": "#4CAF50", "font": {"color": "black"}, "id": "Q14623683", "label": "Polly Adams\nQ14623683", "shape": "dot", "size": 25}, {"color": "#2196F3", "font": {"color": "black"}, "id": "Q25169", "label": "The Hitchhiker's Guide to the Galaxy\nQ25169", "shape": "dot", "size": 25}, {"color": "#9C27B0", "font": {"color": "black"}, "id": "Q20736364", "label": "Dirk Gently series\nQ20736364", "shape": "dot", "size": 25}, {"color": "#FF9800", "font": {"color": "black"}, "id": "Q7758404", "label": "The Private Life of Genghis Khan\nQ7758404", "shape": "dot", "size": 25}],
+        "edges": [{"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "child (P40)", "to": "Q14623683", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "notable work (P800)", "to": "Q25169", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "notable work (P800)", "to": "Q20736364", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "notable work (P800)", "to": "Q7758404", "width": 2}]
+    }
+  </script>
+  <script id="data-for-batch_a_QA05-graph" type="application/json">
+    {
+        "nodes": [{"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q608350", "label": "Veltins Brewery\nQ608350", "shape": "dot", "size": 30}, {"color": "#4CAF50", "font": {"color": "black"}, "id": "Q5632", "label": "Meschede\nQ5632", "shape": "dot", "size": 25}],
+        "edges": [{"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q608350", "label": "headquarters location (P159)", "to": "Q5632", "width": 2}]
+    }
+  </script>
+  <script id="data-for-batch_a_QA06-graph" type="application/json">
+    {
+        "nodes": [{"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q9312", "label": "Immanuel Kant\nQ9312", "shape": "dot", "size": 30}, {"color": "#4CAF50", "font": {"color": "black"}, "id": "Q41585", "label": "David Hilbert\nQ41585", "shape": "dot", "size": 25}, {"color": "#2196F3", "font": {"color": "black"}, "id": "Q71029", "label": "Hermann Weyl\nQ71029", "shape": "dot", "size": 25}, {"color": "#9C27B0", "font": {"color": "black"}, "id": "Q155887", "label": "Luitzen Egbertus Jan Brouwer\nQ155887", "shape": "dot", "size": 25}, {"color": "#FF9800", "font": {"color": "black"}, "id": "Q6992366", "label": "Shem-Tov Gefen\nQ6992366", "shape": "dot", "size": 25}],
+        "edges": [{"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q41585", "label": "influenced by (P737)", "to": "Q9312", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q71029", "label": "influenced by (P737)", "to": "Q9312", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q155887", "label": "influenced by (P737)", "to": "Q9312", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q6992366", "label": "influenced by (P737)", "to": "Q9312", "width": 2}]
+    }
+  </script>
+  <script id="data-for-batch_a_QA07-graph" type="application/json">
+    { "nodes": [], "edges": [] }
+  </script>
+  <script id="data-for-batch_b_QB01-graph" type="application/json">
+    {
+      "nodes": [{"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q214917", "label": "playwright\nQ214917", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q36180", "label": "writer\nQ36180", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q28389", "label": "screenwriter\nQ28389", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q6625963", "label": "novelist\nQ6625963", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q4853732", "label": "children's writer\nQ4853732", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q18844224", "label": "science fiction writer\nQ18844224", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q108710753", "label": "speculative fiction writer\nQ108710753", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q108710667", "label": "speculative fiction author\nQ108710667", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q245068", "label": "comedian\nQ245068", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q33999", "label": "actor\nQ33999", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q483501", "label": "artist\nQ483501", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q482980", "label": "author\nQ482980", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q108762424", "label": "penman\nQ108762424", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q639669", "label": "musician\nQ639669", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q24925", "label": "science fiction\nQ24925", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q9326077", "label": "speculative fiction\nQ9326077", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q40831", "label": "comedy\nQ40831", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q838948", "label": "work of art\nQ838948", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q60548032", "label": "humor\nQ60548032", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q128758", "label": "satire\nQ128758", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q42", "label": "Douglas Adams\nQ42", "shape": "dot", "size": 30}],
+      "edges": [{"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q214917", "label": "subclass of (P279)", "to": "Q36180", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q36180", "label": "subclass of (P279)", "to": "Q108762424", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q36180", "label": "subclass of (P279)", "to": "Q483501", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q36180", "label": "subclass of (P279)", "to": "Q482980", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q28389", "label": "subclass of (P279)", "to": "Q36180", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q6625963", "label": "subclass of (P279)", "to": "Q36180", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q4853732", "label": "subclass of (P279)", "to": "Q36180", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q18844224", "label": "subclass of (P279)", "to": "Q108710667", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q18844224", "label": "subclass of (P279)", "to": "Q108710753", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q245068", "label": "subclass of (P279)", "to": "Q483501", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q245068", "label": "subclass of (P279)", "to": "Q33999", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q639669", "label": "subclass of (P279)", "to": "Q483501", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q24925", "label": "subclass of (P279)", "to": "Q9326077", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q40831", "label": "subclass of (P279)", "to": "Q60548032", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q40831", "label": "subclass of (P279)", "to": "Q838948", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q128758", "label": "subclass of (P279)", "to": "Q60548032", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "occupation (P106)", "to": "Q214917", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "occupation (P106)", "to": "Q36180", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "occupation (P106)", "to": "Q28389", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "occupation (P106)", "to": "Q6625963", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "occupation (P106)", "to": "Q4853732", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "occupation (P106)", "to": "Q18844224", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "occupation (P106)", "to": "Q245068", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "occupation (P106)", "to": "Q639669", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "genre (P136)", "to": "Q24925", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "genre (P136)", "to": "Q40831", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "genre (P136)", "to": "Q128758", "width": 2}]
+    }
+  </script>
+  <script id="data-for-batch_b_QB02-graph" type="application/json">
+    {
+        "nodes": [{"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q35120", "label": "entity\nQ35120", "shape": "dot", "size": 30}, {"color": "#4CAF50", "font": {"color": "black"}, "id": "Q23958852", "label": "variable-order class\nQ23958852", "shape": "dot", "size": 25}, {"color": "#2196F3", "font": {"color": "black"}, "id": "Q124711104", "label": "BFO class\nQ124711104", "shape": "dot", "size": 25}, {"color": "#9C27B0", "font": {"color": "black"}, "id": "Q16889133", "label": "class\nQ16889133", "shape": "dot", "size": 25}, {"color": "#FF9800", "font": {"color": "black"}, "id": "Q19478619", "label": "metaclass\nQ19478619", "shape": "dot", "size": 25}],
+        "edges": [{"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q35120", "label": "instance of (P31)", "to": "Q23958852", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q35120", "label": "instance of (P31)", "to": "Q124711104", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q23958852", "label": "instance of (P31)", "to": "Q23958852", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q23958852", "label": "subclass of (P279)", "to": "Q16889133", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q124711104", "label": "instance of (P31)", "to": "Q19478619", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q124711104", "label": "subclass of (P279)", "to": "Q16889133", "width": 2}]
+    }
+  </script>
+  <script id="data-for-batch_b_QB03-graph" type="application/json">
+    {
+        "nodes": [{"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q35120", "label": "entity\nQ35120", "shape": "dot", "size": 30}, {"color": "#4CAF50", "font": {"color": "black"}, "id": "Q124711104", "label": "BFO class\nQ124711104", "shape": "dot", "size": 25}, {"color": "#2196F3", "font": {"color": "black"}, "id": "Q23958852", "label": "variable-order class\nQ23958852", "shape": "dot", "size": 25}],
+        "edges": [{"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q35120", "label": "instance of (P31)", "to": "Q124711104", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q35120", "label": "instance of (P31)", "to": "Q23958852", "width": 2}]
+    }
+  </script>
+  <script id="data-for-batch_d_QD01-graph" type="application/json">
+    {
+        "nodes": [{"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q42", "label": "Douglas Adams\nQ42", "shape": "dot", "size": 30}, {"color": "#4CAF50", "font": {"color": "black"}, "id": "Q14623675", "label": "Kristofers Duglass Adamss\nQ14623675", "shape": "dot", "size": 25}, {"color": "#2196F3", "font": {"color": "black"}, "id": "Q14623678", "label": "Janet Adams\nQ14623678", "shape": "dot", "size": 25}, {"color": "#9C27B0", "font": {"color": "black"}, "id": "Q14623681", "label": "Jane Belson\nQ14623681", "shape": "dot", "size": 25}, {"color": "#FF9800", "font": {"color": "black"}, "id": "Q14623684", "label": "Susan Adams\nQ14623684", "shape": "dot", "size": 25}, {"color": "#795548", "font": {"color": "black"}, "id": "Q14623683", "label": "Polly Adams\nQ14623683", "shape": "dot", "size": 25}, {"color": "#607D8B", "font": {"color": "black"}, "id": "Q25169", "label": "The Hitchhiker's Guide to the Galaxy\nQ25169", "shape": "dot", "size": 25}, {"color": "#E91E63", "font": {"color": "black"}, "id": "Q20736364", "label": "Dirk Gently series\nQ20736364", "shape": "dot", "size": 25}, {"color": "#3F51B5", "font": {"color": "black"}, "id": "Q7758404", "label": "The Private Life of Genghis Khan\nQ7758404", "shape": "dot", "size": 25}],
+        "edges": [{"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "father (P22)", "to": "Q14623675", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "mother (P25)", "to": "Q14623678", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "spouse (P26)", "to": "Q14623681", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "sibling (S1)", "to": "Q14623684", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "child (P40)", "to": "Q14623683", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "notable work (P800)", "to": "Q25169", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "notable work (P800)", "to": "Q20736364", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "notable work (P800)", "to": "Q7758404", "width": 2}]
+    }
+  </script>
+  <script id="data-for-batch_d_QD02-graph" type="application/json">
+    {
+        "nodes": [{"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q608350", "label": "Veltins Brewery\nQ608350", "shape": "dot", "size": 30}, {"color": "#4CAF50", "font": {"color": "black"}, "id": "Q5632", "label": "Meschede\nQ5632", "shape": "dot", "size": 25}, {"color": "#2196F3", "font": {"color": "black"}, "id": "Q5946", "label": "Hochsauerlandkreis\nQ5946", "shape": "dot", "size": 25}, {"color": "#9C27B0", "font": {"color": "black"}, "id": "Q6125", "label": "Arnsberg Government Region\nQ6125", "shape": "dot", "size": 25}, {"color": "#FF9800", "font": {"color": "black"}, "id": "Q1198", "label": "North Rhine-Westphalia\nQ1198", "shape": "dot", "size": 25}],
+        "edges": [{"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q608350", "label": "headquarters location (P159)", "to": "Q5632", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q5632", "label": "located in the administrative territorial entity (P131)", "to": "Q5946", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q5946", "label": "located in the administrative territorial entity (P131)", "to": "Q6125", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q6125", "label": "located in the administrative territorial entity (P131)", "to": "Q1198", "width": 2}]
+    }
+  </script>
+  <script id="data-for-batch_d_QD03-graph" type="application/json">
+    {
+        "nodes": [{"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q9312", "label": "Immanuel Kant\nQ9312", "shape": "dot", "size": 30}, {"color": "#4CAF50", "font": {"color": "black"}, "id": "Q41585", "label": "David Hilbert\nQ41585", "shape": "dot", "size": 25}, {"color": "#2196F3", "font": {"color": "black"}, "id": "Q37924", "label": "Edmund Husserl\nQ37924", "shape": "dot", "size": 25}, {"color": "#9C27B0", "font": {"color": "black"}, "id": "Q71029", "label": "Hermann Weyl\nQ71029", "shape": "dot", "size": 25}, {"color": "#FF9800", "font": {"color": "black"}, "id": "Q155887", "label": "Luitzen Egbertus Jan Brouwer\nQ155887", "shape": "dot", "size": 25}, {"color": "#795548", "font": {"color": "black"}, "id": "Q6992366", "label": "Shem-Tov Gefen\nQ6992366", "shape": "dot", "size": 25}],
+        "edges": [{"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q41585", "label": "influenced by (P737)", "to": "Q9312", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q37924", "label": "influenced by (P737)", "to": "Q9312", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q71029", "label": "influenced by (P737)", "to": "Q9312", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q155887", "label": "influenced by (P737)", "to": "Q9312", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q6992366", "label": "influenced by (P737)", "to": "Q9312", "width": 2}]
+    }
+  </script>
+  <script id="data-for-batch_d_QD04-graph" type="application/json">
+    {
+        "nodes": [{"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q214917", "label": "playwright\nQ214917", "shape": "dot", "size": 30}, {"color": "#4CAF50", "font": {"color": "black"}, "id": "Q36180", "label": "writer\nQ36180", "shape": "dot", "size": 25}, {"color": "#2196F3", "font": {"color": "black"}, "id": "Q28389", "label": "screenwriter\nQ28389", "shape": "dot", "size": 25}, {"color": "#9C27B0", "font": {"color": "black"}, "id": "Q6625963", "label": "novelist\nQ6625963", "shape": "dot", "size": 25}, {"color": "#FF9800", "font": {"color": "black"}, "id": "Q4853732", "label": "children's writer\nQ4853732", "shape": "dot", "size": 25}, {"color": "#795548", "font": {"color": "black"}, "id": "Q18844224", "label": "science fiction writer\nQ18844224", "shape": "dot", "size": 25}, {"color": "#607D8B", "font": {"color": "black"}, "id": "Q108710667", "label": "speculative fiction author\nQ108710667", "shape": "dot", "size": 25}, {"color": "#E91E63", "font": {"color": "black"}, "id": "Q108710753", "label": "speculative fiction writer\nQ108710753", "shape": "dot", "size": 25}, {"color": "#3F51B5", "font": {"color": "black"}, "id": "Q245068", "label": "comedian\nQ245068", "shape": "dot", "size": 25}, {"color": "#009688", "font": {"color": "black"}, "id": "Q483501", "label": "artist\nQ483501", "shape": "dot", "size": 25}, {"color": "#FF5722", "font": {"color": "black"}, "id": "Q33999", "label": "actor\nQ33999", "shape": "dot", "size": 25}, {"color": "#8BC34A", "font": {"color": "black"}, "id": "Q639669", "label": "musician\nQ639669", "shape": "dot", "size": 25}, {"color": "#FFEB3B", "font": {"color": "black"}, "id": "Q3238422", "label": "science fiction literature\nQ3238422", "shape": "dot", "size": 25}, {"color": "#CDDC39", "font": {"color": "black"}, "id": "Q24925", "label": "science fiction\nQ24925", "shape": "dot", "size": 25}, {"color": "#FFC107", "font": {"color": "black"}, "id": "Q8242", "label": "literature\nQ8242", "shape": "dot", "size": 25}, {"color": "#03A9F4", "font": {"color": "black"}, "id": "Q5240628", "label": "speculative fiction literature\nQ5240628", "shape": "dot", "size": 25}],
+        "edges": [{"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q214917", "label": "subclass of (P279)", "to": "Q36180", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q28389", "label": "subclass of (P279)", "to": "Q36180", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q6625963", "label": "subclass of (P279)", "to": "Q36180", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q4853732", "label": "subclass of (P279)", "to": "Q36180", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q18844224", "label": "subclass of (P279)", "to": "Q108710667", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q18844224", "label": "subclass of (P279)", "to": "Q108710753", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q245068", "label": "subclass of (P279)", "to": "Q483501", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q245068", "label": "subclass of (P279)", "to": "Q33999", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q639669", "label": "subclass of (P279)", "to": "Q483501", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q3238422", "label": "subclass of (P279)", "to": "Q24925", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q3238422", "label": "subclass of (P279)", "to": "Q8242", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q3238422", "label": "subclass of (P279)", "to": "Q5240628", "width": 2}]
+    }
+  </script>
+  <script id="data-for-batch_d_QD06-graph" type="application/json">
+    {
+        "nodes": [{"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q35120", "label": "entity\nQ35120", "shape": "dot", "size": 30}, {"color": "#4CAF50", "font": {"color": "black"}, "id": "Q124711104", "label": "BFO class\nQ124711104", "shape": "dot", "size": 25}, {"color": "#2196F3", "font": {"color": "black"}, "id": "Q23958852", "label": "variable-order class\nQ23958852", "shape": "dot", "size": 25}],
+        "edges": [{"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q35120", "label": "instance of (P31)", "to": "Q124711104", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q35120", "label": "instance of (P31)", "to": "Q23958852", "width": 2}]
+    }
+  </script>
+  <script id="data-for-batch_d_QD07-graph" type="application/json">
+    {
+        "nodes": [{"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q35120", "label": "entity\nQ35120", "shape": "dot", "size": 30}, {"color": "#4CAF50", "font": {"color": "black"}, "id": "Q378078", "label": "substance\nQ378078", "shape": "dot", "size": 25}, {"color": "#2196F3", "font": {"color": "black"}, "id": "Q488383", "label": "object\nQ488383", "shape": "dot", "size": 25}, {"color": "#9C27B0", "font": {"color": "black"}, "id": "Q103940464", "label": "continuant\nQ103940464", "shape": "dot", "size": 25}, {"color": "#FF9800", "font": {"color": "black"}, "id": "Q115095765", "label": "location\nQ115095765", "shape": "dot", "size": 25}, {"color": "#795548", "font": {"color": "black"}, "id": "Q120725535", "label": "unidentified entity\nQ120725535", "shape": "dot", "size": 25}, {"color": "#607D8B", "font": {"color": "black"}, "id": "Q121770302", "label": "conceptual entity\nQ121770302", "shape": "dot", "size": 25}, {"color": "#E91E63", "font": {"color": "black"}, "id": "Q13196193", "label": "part\nQ13196193", "shape": "dot", "size": 25}, {"color": "#3F51B5", "font": {"color": "black"}, "id": "Q7048977", "label": "abstract entity\nQ7048977", "shape": "dot", "size": 25}, {"color": "#009688", "font": {"color": "black"}, "id": "Q99527517", "label": "collective entity\nQ99527517", "shape": "dot", "size": 25}],
+        "edges": [{"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q378078", "label": "subclass of (P279)", "to": "Q35120", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q488383", "label": "subclass of (P279)", "to": "Q35120", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q103940464", "label": "subclass of (P279)", "to": "Q35120", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q115095765", "label": "subclass of (P279)", "to": "Q35120", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q120725535", "label": "subclass of (P279)", "to": "Q35120", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q121770302", "label": "subclass of (P279)", "to": "Q35120", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q13196193", "label": "subclass of (P279)", "to": "Q35120", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q7048977", "label": "subclass of (P279)", "to": "Q35120", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q99527517", "label": "subclass of (P279)", "to": "Q35120", "width": 2}]
+    }
+  </script>
+  <script id="data-for-batch_d_QD08-graph" type="application/json">
+    {
+        "nodes": [{"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q220", "label": "Rome\nQ220", "shape": "dot", "size": 30}, {"color": "#4CAF50", "font": {"color": "black"}, "id": "Q1490", "label": "Tokyo\nQ1490", "shape": "dot", "size": 25}, {"color": "#2196F3", "font": {"color": "black"}, "id": "Q495", "label": "Turin\nQ495", "shape": "dot", "size": 25}, {"color": "#9C27B0", "font": {"color": "black"}, "id": "Q11751", "label": "Nagoya\nQ11751", "shape": "dot", "size": 25}, {"color": "#FF9800", "font": {"color": "black"}, "id": "Q2634", "label": "Naples\nQ2634", "shape": "dot", "size": 25}, {"color": "#795548", "font": {"color": "black"}, "id": "Q15674", "label": "Kagoshima\nQ15674", "shape": "dot", "size": 25}, {"color": "#607D8B", "font": {"color": "black"}, "id": "Q8621", "label": "Terni\nQ8621", "shape": "dot", "size": 25}, {"color": "#E91E63", "font": {"color": "black"}, "id": "Q48320", "label": "Kobe\nQ48320", "shape": "dot", "size": 25}, {"color": "#3F51B5", "font": {"color": "black"}, "id": "Q1083", "label": "Salerno\nQ1083", "shape": "dot", "size": 25}, {"color": "#009688", "font": {"color": "black"}, "id": "Q646766", "label": "Tono\nQ646766", "shape": "dot", "size": 25}, {"color": "#FF5722", "font": {"color": "black"}, "id": "Q1308", "label": "Como\nQ1308", "shape": "dot", "size": 25}, {"color": "#8BC34A", "font": {"color": "black"}, "id": "Q858369", "label": "Tokamachi\nQ858369", "shape": "dot", "size": 25}, {"color": "#FFEB3B", "font": {"color": "black"}, "id": "Q18021", "label": "Biella\nQ18021", "shape": "dot", "size": 25}, {"color": "#CDDC39", "font": {"color": "black"}, "id": "Q634022", "label": "Kiryū\nQ634022", "shape": "dot", "size": 25}, {"color": "#FFC107", "font": {"color": "black"}, "id": "Q1891", "label": "Bologna\nQ1891", "shape": "dot", "size": 25}, {"color": "#03A9F4", "font": {"color": "black"}, "id": "Q185125", "label": "Hamamatsu\nQ185125", "shape": "dot", "size": 25}, {"color": "#4CAF50", "font": {"color": "black"}, "id": "Q33962", "label": "Sanremo\nQ33962", "shape": "dot", "size": 25}, {"color": "#2196F3", "font": {"color": "black"}, "id": "Q653364", "label": "Atami\nQ653364", "shape": "dot", "size": 25}, {"color": "#9C27B0", "font": {"color": "black"}, "id": "Q52981", "label": "Faenza\nQ52981", "shape": "dot", "size": 25}, {"color": "#FF9800", "font": {"color": "black"}, "id": "Q847332", "label": "Toki\nQ847332", "shape": "dot", "size": 25}, {"color": "#795548", "font": {"color": "black"}, "id": "Q541", "label": "Orvieto\nQ541", "shape": "dot", "size": 25}, {"color": "#607D8B", "font": {"color": "black"}, "id": "Q201613", "label": "Maebashi\nQ201613", "shape": "dot", "size": 25}, {"color": "#E91E63", "font": {"color": "black"}, "id": "Q219330", "label": "Pietrasanta\nQ219330", "shape": "dot", "size": 25}, {"color": "#3F51B5", "font": {"color": "black"}, "id": "Q200589", "label": "Utsunomiya\nQ200589", "shape": "dot", "size": 25}, {"color": "#009688", "font": {"color": "black"}, "id": "Q242533", "label": "Civitavecchia\nQ242533", "shape": "dot", "size": 25}, {"color": "#FF5722", "font": {"color": "black"}, "id": "Q270814", "label": "Ishinomaki\nQ270814", "shape": "dot", "size": 25}, {"color": "#8BC34A", "font": {"color": "black"}, "id": "Q6606", "label": "Pordenone\nQ6606", "shape": "dot", "size": 25}, {"color": "#FFEB3B", "font": {"color": "black"}, "id": "Q385248", "label": "Okawa\nQ385248", "shape": "dot", "size": 25}, {"color": "#CDDC39", "font": {"color": "black"}, "id": "Q48090", "label": "Marostica\nQ48090", "shape": "dot", "size": 25}, {"color": "#FFC107", "font": {"color": "black"}, "id": "Q385779", "label": "Tendo\nQ385779", "shape": "dot", "size": 25}, {"color": "#03A9F4", "font": {"color": "black"}, "id": "Q72672", "label": "Sorrento\nQ72672", "shape": "dot", "size": 25}, {"color": "#4CAF50", "font": {"color": "black"}, "id": "Q819672", "label": "Kumano\nQ819672", "shape": "dot", "size": 25}, {"color": "#2196F3", "font": {"color": "black"}, "id": "Q51812", "label": "Alberobello\nQ51812", "shape": "dot", "size": 25}, {"color": "#9C27B0", "font": {"color": "black"}, "id": "Q877626", "label": "Historic Villages of Shirakawa-gō and Gokayama\nQ877626", "shape": "dot", "size": 25}, {"color": "#FF9800", "font": {"color": "black"}, "id": "Q13138", "label": "Chieti\nQ13138", "shape": "dot", "size": 25}, {"color": "#795548", "font": {"color": "black"}, "id": "Q990376", "label": "Minamishimabara\nQ990376", "shape": "dot", "size": 25}, {"color": "#607D8B", "font": {"color": "black"}, "id": "Q13376", "label": "Pistoia\nQ13376", "shape": "dot", "size": 25}, {"color": "#E91E63", "font": {"color": "black"}, "id": "Q1203350", "label": "Shirakawa\nQ1203350", "shape": "dot", "size": 25}],
+        "edges": [{"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q220", "label": "twinned administrative body (P190)", "to": "Q1490", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q495", "label": "twinned administrative body (P190)", "to": "Q11751", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q2634", "label": "twinned administrative body (P190)", "to": "Q15674", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q8621", "label": "twinned administrative body (P190)", "to": "Q48320", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q1083", "label": "twinned administrative body (P190)", "to": "Q646766", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q1308", "label": "twinned administrative body (P190)", "to": "Q858369", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q18021", "label": "twinned administrative body (P190)", "to": "Q634022", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q1891", "label": "twinned administrative body (P190)", "to": "Q185125", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q33962", "label": "twinned administrative body (P190)", "to": "Q653364", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q52981", "label": "twinned administrative body (P190)", "to": "Q847332", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q541", "label": "twinned administrative body (P190)", "to": "Q201613", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q219330", "label": "twinned administrative body (P190)", "to": "Q200589", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q242533", "label": "twinned administrative body (P190)", "to": "Q270814", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q6606", "label": "twinned administrative body (P190)", "to": "Q385248", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q48090", "label": "twinned administrative body (P190)", "to": "Q385779", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q72672", "label": "twinned administrative body (P190)", "to": "Q819672", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q51812", "label": "twinned administrative body (P190)", "to": "Q877626", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q13138", "label": "twinned administrative body (P190)", "to": "Q990376", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q13376", "label": "twinned administrative body (P190)", "to": "Q1203350", "width": 2}]
+    }
   </script>
 
 </body>
