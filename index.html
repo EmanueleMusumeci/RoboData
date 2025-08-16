@@ -561,7 +561,7 @@
                   <div class="status-box status-ok">OK</div>
                 </td>
                 <td>Ma Huateng is one of the founders of Tencent. <span class="ref1">(1)</span> Ma Huateng has held the position of National People's Congress deputy. <span class="ref2">(2)</span></td>
-                <td><span class="ref1">(1) &lt;Tencent (Q860580), founded by (P112), Ma Huateng (Q1739008)&gt;</span>, <span class="ref2">(2) &lt;Q1739008, position held (P39), National People's Congress deputy (Q10891456)&gt;</span></td>
+                <td><span class="ref1">(1) &lt;Tencent (Q860580), founded by (P112), Ma Huateng (Q1739008)&gt;</span>, <span class="ref2">(2) &lt;Ma Huateng (Q1739008), position held (P39), National People's Congress deputy (Q10891456)&gt;</span></td>
             </tr>
             <tr>
                 <td colspan="3" style="text-align: center;"><b>Iterations:</b> 28, <b>Tools:</b> 32, <b>Tokens:</b> 101825, <b>Time (s):</b> 84.02, <b>Nodes:</b> 11, <b>Edges:</b> 9</td>
@@ -839,7 +839,7 @@
                   <div class="status-box status-ok">OK</div>
                 </td>
                 <td>David Hilbert was influenced by Immanuel Kant and was also a mathematician. <span class="ref1">(1)</span> Edmund Husserl was influenced by Immanuel Kant and was also a mathematician. <span class="ref2">(2)</span> Hermann Weyl was influenced by Immanuel Kant and was also a mathematician. <span class="ref3">(3)</span> Luitzen Egbertus Jan Brouwer was influenced by Immanuel Kant and was also a mathematician. <span class="ref4">(4)</span> Shem-Tov Gefen was influenced by Immanuel Kant and was also a mathematician. <span class="ref5">(5)</span></td>
-                <td><span class="ref1">(1) &lt;David Hilbert (Q41585), influenced by (P737), Immanuel Kant (Q9312)&gt;, &lt;Q41585, occupation (P106), mathematician (Q170790)&gt;</span>, <span class="ref2">(2) &lt;Edmund Husserl (Q37924), influenced by (P737), Immanuel Kant (Q9312)&gt;, &lt;Q37924, occupation (P106), philosopher (Q49642)&gt;</span>, <span class="ref3">(3) &lt;Hermann Weyl (Q71029), influenced by (P737), Immanuel Kant (Q9312)&gt;, &lt;Q71029, occupation (P106), mathematician (Q170790)&gt;</span>, <span class="ref4">(4) &lt;Luitzen Egbertus Jan Brouwer (Q155887), influenced by (P737), Immanuel Kant (Q9312)&gt;, &lt;Q155887, occupation (P106), mathematician (Q170790)&gt;</span>, <span class="ref5">(5) &lt;Shem-Tov Gefen (Q6992366), influenced by (P737), Immanuel Kant (Q9312)&gt;, &lt;Q6992366, occupation (P106), philosopher (Q49642)&gt;</span></td>
+                <td><span class="ref1">(1) &lt;David Hilbert (Q41585), influenced by (P737), Immanuel Kant (Q9312)&gt;, &lt;David Hilbert (Q41585), occupation (P106), mathematician (Q170790)&gt;</span>, <span class="ref2">(2) &lt;Edmund Husserl (Q37924), influenced by (P737), Immanuel Kant (Q9312)&gt;, &lt;Edmund Husserl (Q37924), occupation (P106), mathematician (Q170790)&gt;</span>, <span class="ref3">(3) &lt;Hermann Weyl (Q71029), influenced by (P737), Immanuel Kant (Q9312)&gt;, &lt;Hermann Weyl (Q71029), occupation (P106), mathematician (Q170790)&gt;</span>, <span class="ref4">(4) &lt;Luitzen Egbertus Jan Brouwer (Q155887), influenced by (P737), Immanuel Kant (Q9312)&gt;, &lt;Luitzen Egbertus Jan Brouwer (Q155887), occupation (P106), mathematician (Q170790)&gt;</span>, <span class="ref5">(5) &lt;Shem-Tov Gefen (Q6992366), influenced by (P737), Immanuel Kant (Q9312)&gt;, &lt;Shem-Tov Gefen (Q6992366), occupation (P106), mathematician (Q170790)&gt;</span></td>
               </tr>
               <tr>
                 <td colspan="3" style="text-align: center;"><b>Iterations:</b> 14, <b>Tools:</b> 19, <b>Tokens:</b> 68844, <b>Time (s):</b> 38.5, <b>Nodes:</b> 31, <b>Edges:</b> 37</td>
@@ -1148,6 +1148,107 @@
     // Global storage for network instances
     window.knowledgeGraphs = {};
 
+    function parseSupportSetsForGraph(containerId) {
+        // Find the table row that contains the graph
+        var graphContainer = document.getElementById(containerId);
+        if (!graphContainer) return { nodes: new Set(), edges: new Set() };
+        
+        // Find the table row containing this graph (it should be in a collapsible section)
+        var tableRow = graphContainer.closest('tr');
+        if (!tableRow) return { nodes: new Set(), edges: new Set() };
+        
+        // Go back two rows to find the query/answer/support sets row
+        // Row structure: [query row] -> [stats row] -> [graph row]
+        var queryRow = tableRow.previousElementSibling;
+        if (queryRow) {
+            queryRow = queryRow.previousElementSibling;
+        }
+        if (!queryRow) return { nodes: new Set(), edges: new Set() };
+        
+        // Find the support sets cell (third column)
+        var supportSetsCell = queryRow.querySelector('td:nth-child(3)');
+        if (!supportSetsCell) return { nodes: new Set(), edges: new Set() };
+        
+        var supportNodes = new Set();
+        var supportEdges = new Set();
+        
+        // Parse support set triples like: <entity1 (Q123), relation (P456), entity2 (Q789)>
+        var supportText = supportSetsCell.textContent || '';
+        
+        // Pattern to match support set triples with HTML entities: &lt;entity (Q123), relation (P456), entity (Q789)&gt;
+        // Handle various formats:
+        // - Full: <Entity Name (Q123), relation (P456), Entity Name (Q789)>
+        // - Short: <Q123, P456, Q789>
+        // - Mixed: <Q42, notable work (P800), Entity Name (Q25169)>
+        var triplePattern = /(?:&lt;|<)\s*([^,&<>]*(?:\([^)]+\))?[^,&<>]*),\s*([^,&<>]*(?:\([^)]+\))?[^,&<>]*),\s*([^,&<>]*(?:\([^)]+\))?[^,&<>]*)(?:&gt;|>)/g;
+        var match;
+        
+        while ((match = triplePattern.exec(supportText)) !== null) {
+            var sourceText = match[1].trim();
+            var relationText = match[2].trim();
+            var targetText = match[3].trim();
+            
+            // Extract IDs from the text (look for patterns like Q123, P456)
+            var sourceId = extractId(sourceText);
+            var relationId = extractId(relationText);
+            var targetId = extractId(targetText);
+            
+            if (sourceId && targetId) {
+                // Add nodes to support set
+                supportNodes.add(sourceId);
+                supportNodes.add(targetId);
+                
+                // Add edge to support set (source_target format)
+                supportEdges.add(sourceId + '_' + targetId);
+                supportEdges.add(targetId + '_' + sourceId); // Add both directions for undirected representation
+            }
+        }
+        
+        return { nodes: supportNodes, edges: supportEdges };
+    }
+
+    function extractId(text) {
+        // Look for patterns like Q123 or P456 in parentheses or standalone
+        var idPattern = /([QP]\d+)/;
+        var match = idPattern.exec(text);
+        return match ? match[1] : null;
+    }
+
+    function applyGrayStyleToNodes(nodesData, supportSets) {
+        return nodesData.map(function(node) {
+            var nodeId = node.id;
+            var isInSupportSet = supportSets.nodes.has(nodeId);
+            
+            if (!isInSupportSet) {
+                // Make node gray if not in support set
+                var grayNode = Object.assign({}, node);
+                grayNode.color = '#cccccc'; // Gray color
+                grayNode.font = Object.assign({}, node.font || {}, { color: '#666666' }); // Dark gray text
+                return grayNode;
+            }
+            
+            return node;
+        });
+    }
+
+    function applyGrayStyleToEdges(edgesData, supportSets) {
+        return edgesData.map(function(edge) {
+            var edgeKey = edge.from + '_' + edge.to;
+            var reverseEdgeKey = edge.to + '_' + edge.from;
+            var isInSupportSet = supportSets.edges.has(edgeKey) || supportSets.edges.has(reverseEdgeKey);
+            
+            if (!isInSupportSet) {
+                // Make edge gray if not in support set
+                var grayEdge = Object.assign({}, edge);
+                grayEdge.color = '#cccccc'; // Gray color
+                grayEdge.font = Object.assign({}, edge.font || {}, { color: '#666666' }); // Dark gray text
+                return grayEdge;
+            }
+            
+            return edge;
+        });
+    }
+
     function createGraph(containerId, nodesData, edgesData) {
         var container = document.getElementById(containerId);
         if (!container || window.knowledgeGraphs[containerId]) {
@@ -1155,8 +1256,15 @@
             return;
         }
 
-        var nodes = new vis.DataSet(nodesData);
-        var edges = new vis.DataSet(edgesData);
+        // Parse support sets for this graph
+        var supportSets = parseSupportSetsForGraph(containerId);
+        
+        // Apply gray styling to nodes/edges not in support sets
+        var processedNodesData = applyGrayStyleToNodes(nodesData, supportSets);
+        var processedEdgesData = applyGrayStyleToEdges(edgesData, supportSets);
+
+        var nodes = new vis.DataSet(processedNodesData);
+        var edges = new vis.DataSet(processedEdgesData);
         var data = { nodes: nodes, edges: edges };
         var options = {
             physics: {
@@ -1272,38 +1380,269 @@
   <!-- Graph Data -->
   <script id="data-for-batch_a_QA01-graph" type="application/json">
     {
-      "nodes": [{"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q3107329", "label": "The Hitchhiker's Guide to the Galaxy\nQ3107329", "shape": "dot", "size": 30, "title": "\n            <b>The Hitchhiker's Guide to the Galaxy</b><br>\n            ID: Q3107329<br>\n            Depth: 0<br>\n            Description: 1979 novel by Douglas Adams...\n            "}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q42", "label": "Douglas Adams\nQ42", "shape": "dot", "size": 30, "title": "\n            <b>Douglas Adams</b><br>\n            ID: Q42<br>\n            Depth: 0<br>\n            Description: English science fiction writer and humorist (1952–2001)...\n            "}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q25169", "label": "The Hitchhiker's Guide to the Galaxy\nQ25169", "shape": "dot", "size": 30, "title": "\n            <b>The Hitchhiker's Guide to the Galaxy</b><br>\n            ID: Q25169<br>\n            Depth: 0<br>\n            Description: 1979–1992 series of five books by Douglas Adams...\n            "}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q211893", "label": "Eoin Colfer\nQ211893", "shape": "dot", "size": 30, "title": "\n            <b>Eoin Colfer</b><br>\n            ID: Q211893<br>\n            Depth: 0<br>\n            Description: Irish author of children's books...\n            "}],
-      "edges": [{"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q3107329", "label": "author (P50)", "to": "Q42", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q25169", "label": "author (P50)", "to": "Q42", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q25169", "label": "author (P50)", "to": "Q211893", "width": 2}]
+      "nodes": [{"color": "rgb(220, 20, 60)", "font": {"color": "black"}, "id": "Q3107329", "label": "The Hitchhiker's Guide to the Galaxy\nQ3107329", "shape": "dot", "size": 30, "title": "\n            <b>The Hitchhiker's Guide to the Galaxy</b><br>\n            ID: Q3107329<br>\n            Depth: 0<br>\n            Description: 1979 novel by Douglas Adams...\n            "}, {"color": "rgb(220, 20, 60)", "font": {"color": "black"}, "id": "Q42", "label": "Douglas Adams\nQ42", "shape": "dot", "size": 30, "title": "\n            <b>Douglas Adams</b><br>\n            ID: Q42<br>\n            Depth: 0<br>\n            Description: English science fiction writer and humorist (1952–2001)...\n            "}, {"color": "rgb(30, 144, 255)", "font": {"color": "black"}, "id": "Q25169", "label": "The Hitchhiker's Guide to the Galaxy\nQ25169", "shape": "dot", "size": 30, "title": "\n            <b>The Hitchhiker's Guide to the Galaxy</b><br>\n            ID: Q25169<br>\n            Depth: 0<br>\n            Description: 1979–1992 series of five books by Douglas Adams...\n            "}, {"color": "rgb(34, 139, 34)", "font": {"color": "black"}, "id": "Q211893", "label": "Eoin Colfer\nQ211893", "shape": "dot", "size": 30, "title": "\n            <b>Eoin Colfer</b><br>\n            ID: Q211893<br>\n            Depth: 0<br>\n            Description: Irish author of children's books...\n            "}],
+      "edges": [{"arrows": "to", "color": "rgb(220, 20, 60)", "font": {"color": "black", "size": 10}, "from": "Q3107329", "label": "author (P50)", "to": "Q42", "width": 2}, {"arrows": "to", "color": "rgb(30, 144, 255)", "font": {"color": "black", "size": 10}, "from": "Q25169", "label": "author (P50)", "to": "Q42", "width": 2}, {"arrows": "to", "color": "rgb(34, 139, 34)", "font": {"color": "black", "size": 10}, "from": "Q25169", "label": "author (P50)", "to": "Q211893", "width": 2}]
     }
   </script>
   <script id="data-for-batch_a_QA02-graph" type="application/json">
     {
-      "nodes": [{"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q42", "label": "Douglas Adams\nQ42", "shape": "dot", "size": 30}, {"color": "#4CAF50", "font": {"color": "black"}, "id": "Q14623675", "label": "Kristofers Duglass Adamss\nQ14623675", "shape": "dot", "size": 25}, {"color": "#2196F3", "font": {"color": "black"}, "id": "Q14623678", "label": "Janet Adams\nQ14623678", "shape": "dot", "size": 25}, {"color": "#9C27B0", "font": {"color": "black"}, "id": "Q14623681", "label": "Jane Belson\nQ14623681", "shape": "dot", "size": 25}, {"color": "#FF9800", "font": {"color": "black"}, "id": "Q14623683", "label": "Polly Adams\nQ14623683", "shape": "dot", "size": 25}],
-      "edges": [{"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "father (P22)", "to": "Q14623675", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "mother (P25)", "to": "Q14623678", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "spouse (P26)", "to": "Q14623681", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "child (P40)", "to": "Q14623683", "width": 2}]
+      "nodes": [{"color": "rgb(220, 20, 60)", "font": {"color": "black"}, "id": "Q42", "label": "Douglas Adams\nQ42", "shape": "dot", "size": 30}, {"color": "rgb(220, 20, 60)", "font": {"color": "black"}, "id": "Q14623675", "label": "Kristofers Duglass Adamss\nQ14623675", "shape": "dot", "size": 25}, {"color": "rgb(30, 144, 255)", "font": {"color": "black"}, "id": "Q14623678", "label": "Janet Adams\nQ14623678", "shape": "dot", "size": 25}, {"color": "rgb(34, 139, 34)", "font": {"color": "black"}, "id": "Q14623681", "label": "Jane Belson\nQ14623681", "shape": "dot", "size": 25}, {"color": "rgb(255, 140, 0)", "font": {"color": "black"}, "id": "Q14623683", "label": "Polly Adams\nQ14623683", "shape": "dot", "size": 25}],
+      "edges": [{"arrows": "to", "color": "rgb(220, 20, 60)", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "father (P22)", "to": "Q14623675", "width": 2}, {"arrows": "to", "color": "rgb(30, 144, 255)", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "mother (P25)", "to": "Q14623678", "width": 2}, {"arrows": "to", "color": "rgb(34, 139, 34)", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "spouse (P26)", "to": "Q14623681", "width": 2}, {"arrows": "to", "color": "rgb(255, 140, 0)", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "child (P40)", "to": "Q14623683", "width": 2}]
     }
   </script>
   <script id="data-for-batch_a_QA03-graph" type="application/json">
     {
-        "nodes": [{"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q1739008", "label": "Ma Huateng\nQ1739008", "shape": "dot", "size": 30}, {"color": "#4CAF50", "font": {"color": "black"}, "id": "Q860580", "label": "Tencent\nQ860580", "shape": "dot", "size": 25}, {"color": "#2196F3", "font": {"color": "black"}, "id": "Q10891456", "label": "National People's Congress deputy\nQ10891456", "shape": "dot", "size": 25}],
-        "edges": [{"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q860580", "label": "founded by (P112)", "to": "Q1739008", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q1739008", "label": "position held (P39)", "to": "Q10891456", "width": 2}]
+        "nodes": [
+            {
+                "id": "Q8606",
+                "label": "Neuwied\\nQ8606",
+                "color": "#cccccc",
+                "size": 30,
+                "shape": "dot",
+                "font": {
+                    "color": "#666666"
+                },
+                "title": "\\n            <b>Neuwied</b><br>\\n            ID: Q8606<br>\\n            Description: district of Rhineland-Palatinate, Germany\\n            "
+            },
+            {
+                "id": "Q1768108",
+                "label": "Climate Alliance\\nQ1768108",
+                "color": "#cccccc",
+                "size": 30,
+                "shape": "dot",
+                "font": {
+                    "color": "#666666"
+                },
+                "title": "\\n            <b>Climate Alliance</b><br>\\n            ID: Q1768108<br>\\n            Description: organization\\n            "
+            },
+            {
+                "id": "Q1701420",
+                "label": "Landkreistag Rheinland-Pfalz\\nQ1701420",
+                "color": "#cccccc",
+                "size": 30,
+                "shape": "dot",
+                "font": {
+                    "color": "#666666"
+                },
+                "title": "\\n            <b>Landkreistag Rheinland-Pfalz</b><br>\\n            ID: Q1701420<br>\\n            Description: \\n            "
+            },
+            {
+                "id": "Q1739008",
+                "label": "Ma Huateng\\nQ1739008",
+                "color": "rgb(220, 20, 60)",
+                "size": 30,
+                "shape": "dot",
+                "font": {
+                    "color": "black"
+                },
+                "title": "\\n            <b>Ma Huateng</b><br>\\n            ID: Q1739008<br>\\n            Description: Chinese internet entrepreneur (1971-)\\n            "
+            },
+            {
+                "id": "Q10891456",
+                "label": "National People's Congress deputy\\nQ10891456",
+                "color": "rgb(30, 144, 255)",
+                "size": 30,
+                "shape": "dot",
+                "font": {
+                    "color": "black"
+                },
+                "title": "\\n            <b>National People's Congress deputy</b><br>\\n            ID: Q10891456<br>\\n            Description: member of Chinese National People's Congress\\n            "
+            },
+            {
+                "id": "Q484876",
+                "label": "chief executive officer\\nQ484876",
+                "color": "#cccccc",
+                "size": 30,
+                "shape": "dot",
+                "font": {
+                    "color": "#666666"
+                },
+                "title": "\\n            <b>chief executive officer</b><br>\\n            ID: Q484876<br>\\n            Description: highest-ranking corporate officer\\n            "
+            },
+            {
+                "id": "Q860580",
+                "label": "Tencent\\nQ860580",
+                "color": "rgb(220, 20, 60)",
+                "size": 40,
+                "shape": "dot",
+                "font": {
+                    "color": "black"
+                },
+                "title": "\\n            <b>Tencent</b><br>\\n            ID: Q860580<br>\\n            Description: Chinese multinational investment holding conglomerate\\n            "
+            },
+            {
+                "id": "Q15934341",
+                "label": "Zhang Zhidong\\nQ15934341",
+                "color": "#cccccc",
+                "size": 30,
+                "shape": "dot",
+                "font": {
+                    "color": "#666666"
+                },
+                "title": "\\n            <b>Zhang Zhidong</b><br>\\n            ID: Q15934341<br>\\n            Description: Chinese businessman\\n            "
+            },
+            {
+                "id": "Q20689208",
+                "label": "Chen Yidan\\nQ20689208",
+                "color": "#cccccc",
+                "size": 35,
+                "shape": "dot",
+                "font": {
+                    "color": "#666666"
+                },
+                "title": "\\n            <b>Chen Yidan</b><br>\\n            ID: Q20689208<br>\\n            Description: Founder, Chen Yidan Charity Foundation\\n            "
+            },
+            {
+                "id": "Q18659347",
+                "label": "Daniel Xu\\nQ18659347",
+                "color": "#cccccc",
+                "size": 35,
+                "shape": "dot",
+                "font": {
+                    "color": "#666666"
+                },
+                "title": "\\n            <b>Daniel Xu</b><br>\\n            ID: Q18659347<br>\\n            Description: Co-Founder and Chief Information Officer, Tencent\\n            "
+            },
+            {
+                "id": "Q18653685",
+                "label": "Zeng Liqing\\nQ18653685",
+                "color": "#cccccc",
+                "size": 30,
+                "shape": "dot",
+                "font": {
+                    "color": "#666666"
+                },
+                "title": "\\n            <b>Zeng Liqing</b><br>\\n            ID: Q18653685<br>\\n            Description: Chinese businessman\\n            "
+            }
+        ],
+        "edges": [
+            {
+                "from": "Q8606",
+                "to": "Q1701420",
+                "label": "member of (P463)",
+                "arrows": "to",
+                "color": "#cccccc",
+                "width": 2,
+                "font": {
+                    "color": "#666666",
+                    "size": 10
+                }
+            },
+            {
+                "from": "Q8606",
+                "to": "Q1768108",
+                "label": "member of (P463)",
+                "arrows": "to",
+                "color": "#cccccc",
+                "width": 2,
+                "font": {
+                    "color": "#666666",
+                    "size": 10
+                }
+            },
+            {
+                "from": "Q1739008",
+                "to": "Q484876",
+                "label": "position held (P39)",
+                "arrows": "to",
+                "color": "#cccccc",
+                "width": 2,
+                "font": {
+                    "color": "#666666",
+                    "size": 10
+                }
+            },
+            {
+                "from": "Q1739008",
+                "to": "Q10891456",
+                "label": "position held (P39)",
+                "arrows": "to",
+                "color": "rgb(30, 144, 255)",
+                "width": 2,
+                "font": {
+                    "color": "black",
+                    "size": 10
+                }
+            },
+            {
+                "from": "Q860580",
+                "to": "Q1739008",
+                "label": "founded by (P112)",
+                "arrows": "to",
+                "color": "rgb(220, 20, 60)",
+                "width": 2,
+                "font": {
+                    "color": "black",
+                    "size": 10
+                }
+            },
+            {
+                "from": "Q860580",
+                "to": "Q18653685",
+                "label": "founded by (P112)",
+                "arrows": "to",
+                "color": "#cccccc",
+                "width": 2,
+                "font": {
+                    "color": "#666666",
+                    "size": 10
+                }
+            },
+            {
+                "from": "Q860580",
+                "to": "Q18659347",
+                "label": "founded by (P112)",
+                "arrows": "to",
+                "color": "#cccccc",
+                "width": 2,
+                "font": {
+                    "color": "#666666",
+                    "size": 10
+                }
+            },
+            {
+                "from": "Q860580",
+                "to": "Q20689208",
+                "label": "founded by (P112)",
+                "arrows": "to",
+                "color": "#cccccc",
+                "width": 2,
+                "font": {
+                    "color": "#666666",
+                    "size": 10
+                }
+            },
+            {
+                "from": "Q860580",
+                "to": "Q15934341",
+                "label": "founded by (P112)",
+                "arrows": "to",
+                "color": "#cccccc",
+                "width": 2,
+                "font": {
+                    "color": "#666666",
+                    "size": 10
+                }
+            }
+        ]
     }
   </script>
   <script id="data-for-batch_a_QA04-graph" type="application/json">
     {
-        "nodes": [{"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q42", "label": "Douglas Adams\nQ42", "shape": "dot", "size": 30}, {"color": "#4CAF50", "font": {"color": "black"}, "id": "Q14623683", "label": "Polly Adams\nQ14623683", "shape": "dot", "size": 25}, {"color": "#2196F3", "font": {"color": "black"}, "id": "Q25169", "label": "The Hitchhiker's Guide to the Galaxy\nQ25169", "shape": "dot", "size": 25}, {"color": "#9C27B0", "font": {"color": "black"}, "id": "Q20736364", "label": "Dirk Gently series\nQ20736364", "shape": "dot", "size": 25}, {"color": "#FF9800", "font": {"color": "black"}, "id": "Q7758404", "label": "The Private Life of Genghis Khan\nQ7758404", "shape": "dot", "size": 25}],
-        "edges": [{"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "child (P40)", "to": "Q14623683", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "notable work (P800)", "to": "Q25169", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "notable work (P800)", "to": "Q20736364", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "notable work (P800)", "to": "Q7758404", "width": 2}]
+        "nodes": [{"color": "rgb(220, 20, 60)", "font": {"color": "black"}, "id": "Q42", "label": "Douglas Adams\nQ42", "shape": "dot", "size": 30}, {"color": "rgb(220, 20, 60)", "font": {"color": "black"}, "id": "Q14623683", "label": "Polly Adams\nQ14623683", "shape": "dot", "size": 25}, {"color": "rgb(30, 144, 255)", "font": {"color": "black"}, "id": "Q25169", "label": "The Hitchhiker's Guide to the Galaxy\nQ25169", "shape": "dot", "size": 25}, {"color": "rgb(34, 139, 34)", "font": {"color": "black"}, "id": "Q20736364", "label": "Dirk Gently series\nQ20736364", "shape": "dot", "size": 25}, {"color": "rgb(255, 140, 0)", "font": {"color": "black"}, "id": "Q7758404", "label": "The Private Life of Genghis Khan\nQ7758404", "shape": "dot", "size": 25}],
+        "edges": [{"arrows": "to", "color": "rgb(220, 20, 60)", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "child (P40)", "to": "Q14623683", "width": 2}, {"arrows": "to", "color": "rgb(30, 144, 255)", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "notable work (P800)", "to": "Q25169", "width": 2}, {"arrows": "to", "color": "rgb(34, 139, 34)", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "notable work (P800)", "to": "Q20736364", "width": 2}, {"arrows": "to", "color": "rgb(255, 140, 0)", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "notable work (P800)", "to": "Q7758404", "width": 2}]
     }
   </script>
   <script id="data-for-batch_a_QA05-graph" type="application/json">
     {
-        "nodes": [{"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q608350", "label": "Veltins Brewery\nQ608350", "shape": "dot", "size": 30}, {"color": "#4CAF50", "font": {"color": "black"}, "id": "Q5632", "label": "Meschede\nQ5632", "shape": "dot", "size": 25}],
-        "edges": [{"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q608350", "label": "headquarters location (P159)", "to": "Q5632", "width": 2}]
+        "nodes": [{"color": "rgb(220, 20, 60)", "font": {"color": "black"}, "id": "Q608350", "label": "Veltins Brewery\nQ608350", "shape": "dot", "size": 30}, {"color": "rgb(220, 20, 60)", "font": {"color": "black"}, "id": "Q5632", "label": "Meschede\nQ5632", "shape": "dot", "size": 25}],
+        "edges": [{"arrows": "to", "color": "rgb(220, 20, 60)", "font": {"color": "black", "size": 10}, "from": "Q608350", "label": "headquarters location (P159)", "to": "Q5632", "width": 2}]
     }
   </script>
   <script id="data-for-batch_a_QA06-graph" type="application/json">
     {
-        "nodes": [{"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q9312", "label": "Immanuel Kant\nQ9312", "shape": "dot", "size": 30}, {"color": "#4CAF50", "font": {"color": "black"}, "id": "Q41585", "label": "David Hilbert\nQ41585", "shape": "dot", "size": 25}, {"color": "#2196F3", "font": {"color": "black"}, "id": "Q71029", "label": "Hermann Weyl\nQ71029", "shape": "dot", "size": 25}, {"color": "#9C27B0", "font": {"color": "black"}, "id": "Q155887", "label": "Luitzen Egbertus Jan Brouwer\nQ155887", "shape": "dot", "size": 25}, {"color": "#FF9800", "font": {"color": "black"}, "id": "Q6992366", "label": "Shem-Tov Gefen\nQ6992366", "shape": "dot", "size": 25}],
-        "edges": [{"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q41585", "label": "influenced by (P737)", "to": "Q9312", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q71029", "label": "influenced by (P737)", "to": "Q9312", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q155887", "label": "influenced by (P737)", "to": "Q9312", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q6992366", "label": "influenced by (P737)", "to": "Q9312", "width": 2}]
+        "nodes": [{"color": "rgb(220, 20, 60)", "font": {"color": "black"}, "id": "Q9312", "label": "Immanuel Kant\nQ9312", "shape": "dot", "size": 30}, {"color": "rgb(220, 20, 60)", "font": {"color": "black"}, "id": "Q41585", "label": "David Hilbert\nQ41585", "shape": "dot", "size": 25}, {"color": "rgb(30, 144, 255)", "font": {"color": "black"}, "id": "Q71029", "label": "Hermann Weyl\nQ71029", "shape": "dot", "size": 25}, {"color": "rgb(34, 139, 34)", "font": {"color": "black"}, "id": "Q155887", "label": "Luitzen Egbertus Jan Brouwer\nQ155887", "shape": "dot", "size": 25}, {"color": "rgb(255, 140, 0)", "font": {"color": "black"}, "id": "Q6992366", "label": "Shem-Tov Gefen\nQ6992366", "shape": "dot", "size": 25}],
+        "edges": [{"arrows": "to", "color": "rgb(220, 20, 60)", "font": {"color": "black", "size": 10}, "from": "Q41585", "label": "influenced by (P737)", "to": "Q9312", "width": 2}, {"arrows": "to", "color": "rgb(30, 144, 255)", "font": {"color": "black", "size": 10}, "from": "Q71029", "label": "influenced by (P737)", "to": "Q9312", "width": 2}, {"arrows": "to", "color": "rgb(34, 139, 34)", "font": {"color": "black", "size": 10}, "from": "Q155887", "label": "influenced by (P737)", "to": "Q9312", "width": 2}, {"arrows": "to", "color": "rgb(255, 140, 0)", "font": {"color": "black", "size": 10}, "from": "Q6992366", "label": "influenced by (P737)", "to": "Q9312", "width": 2}]
     }
   </script>
   <script id="data-for-batch_a_QA07-graph" type="application/json">
@@ -1311,62 +1650,622 @@
   </script>
   <script id="data-for-batch_b_QB01-graph" type="application/json">
     {
-      "nodes": [{"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q214917", "label": "playwright\nQ214917", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q36180", "label": "writer\nQ36180", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q28389", "label": "screenwriter\nQ28389", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q6625963", "label": "novelist\nQ6625963", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q4853732", "label": "children's writer\nQ4853732", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q18844224", "label": "science fiction writer\nQ18844224", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q108710753", "label": "speculative fiction writer\nQ108710753", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q108710667", "label": "speculative fiction author\nQ108710667", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q245068", "label": "comedian\nQ245068", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q33999", "label": "actor\nQ33999", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q483501", "label": "artist\nQ483501", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q482980", "label": "author\nQ482980", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q108762424", "label": "penman\nQ108762424", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q639669", "label": "musician\nQ639669", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q24925", "label": "science fiction\nQ24925", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q9326077", "label": "speculative fiction\nQ9326077", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q40831", "label": "comedy\nQ40831", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q838948", "label": "work of art\nQ838948", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q60548032", "label": "humor\nQ60548032", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q128758", "label": "satire\nQ128758", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q42", "label": "Douglas Adams\nQ42", "shape": "dot", "size": 30}],
-      "edges": [{"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q214917", "label": "subclass of (P279)", "to": "Q36180", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q36180", "label": "subclass of (P279)", "to": "Q108762424", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q36180", "label": "subclass of (P279)", "to": "Q483501", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q36180", "label": "subclass of (P279)", "to": "Q482980", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q28389", "label": "subclass of (P279)", "to": "Q36180", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q6625963", "label": "subclass of (P279)", "to": "Q36180", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q4853732", "label": "subclass of (P279)", "to": "Q36180", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q18844224", "label": "subclass of (P279)", "to": "Q108710667", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q18844224", "label": "subclass of (P279)", "to": "Q108710753", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q245068", "label": "subclass of (P279)", "to": "Q483501", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q245068", "label": "subclass of (P279)", "to": "Q33999", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q639669", "label": "subclass of (P279)", "to": "Q483501", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q24925", "label": "subclass of (P279)", "to": "Q9326077", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q40831", "label": "subclass of (P279)", "to": "Q60548032", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q40831", "label": "subclass of (P279)", "to": "Q838948", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q128758", "label": "subclass of (P279)", "to": "Q60548032", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "occupation (P106)", "to": "Q214917", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "occupation (P106)", "to": "Q36180", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "occupation (P106)", "to": "Q28389", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "occupation (P106)", "to": "Q6625963", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "occupation (P106)", "to": "Q4853732", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "occupation (P106)", "to": "Q18844224", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "occupation (P106)", "to": "Q245068", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "occupation (P106)", "to": "Q639669", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "genre (P136)", "to": "Q24925", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "genre (P136)", "to": "Q40831", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "genre (P136)", "to": "Q128758", "width": 2}]
+      "nodes": [{"color": "rgb(220, 20, 60)", "font": {"color": "black"}, "id": "Q214917", "label": "playwright\nQ214917", "shape": "dot", "size": 30}, {"color": "rgb(220, 20, 60)", "font": {"color": "black"}, "id": "Q36180", "label": "writer\nQ36180", "shape": "dot", "size": 30}, {"color": "rgb(30, 144, 255)", "font": {"color": "black"}, "id": "Q28389", "label": "screenwriter\nQ28389", "shape": "dot", "size": 30}, {"color": "rgb(34, 139, 34)", "font": {"color": "black"}, "id": "Q6625963", "label": "novelist\nQ6625963", "shape": "dot", "size": 30}, {"color": "rgb(255, 140, 0)", "font": {"color": "black"}, "id": "Q4853732", "label": "children's writer\nQ4853732", "shape": "dot", "size": 30}, {"color": "rgb(148, 0, 211)", "font": {"color": "black"}, "id": "Q18844224", "label": "science fiction writer\nQ18844224", "shape": "dot", "size": 30}, {"color": "rgb(148, 0, 211)", "font": {"color": "black"}, "id": "Q108710753", "label": "speculative fiction writer\nQ108710753", "shape": "dot", "size": 30}, {"color": "rgb(148, 0, 211)", "font": {"color": "black"}, "id": "Q108710667", "label": "speculative fiction author\nQ108710667", "shape": "dot", "size": 30}, {"color": "rgb(139, 69, 19)", "font": {"color": "black"}, "id": "Q245068", "label": "comedian\nQ245068", "shape": "dot", "size": 30}, {"color": "rgb(139, 69, 19)", "font": {"color": "black"}, "id": "Q33999", "label": "actor\nQ33999", "shape": "dot", "size": 30}, {"color": "rgb(139, 69, 19)", "font": {"color": "black"}, "id": "Q483501", "label": "artist\nQ483501", "shape": "dot", "size": 30}, {"color": "rgb(255, 105, 180)", "font": {"color": "black"}, "id": "Q482980", "label": "author\nQ482980", "shape": "dot", "size": 30}, {"color": "rgb(255, 105, 180)", "font": {"color": "black"}, "id": "Q108762424", "label": "penman\nQ108762424", "shape": "dot", "size": 30}, {"color": "rgb(0, 206, 209)", "font": {"color": "black"}, "id": "Q639669", "label": "musician\nQ639669", "shape": "dot", "size": 30}, {"color": "rgb(50, 205, 50)", "font": {"color": "black"}, "id": "Q24925", "label": "science fiction\nQ24925", "shape": "dot", "size": 30}, {"color": "rgb(50, 205, 50)", "font": {"color": "black"}, "id": "Q9326077", "label": "speculative fiction\nQ9326077", "shape": "dot", "size": 30}, {"color": "rgb(255, 215, 0)", "font": {"color": "black"}, "id": "Q40831", "label": "comedy\nQ40831", "shape": "dot", "size": 30}, {"color": "rgb(255, 215, 0)", "font": {"color": "black"}, "id": "Q838948", "label": "work of art\nQ838948", "shape": "dot", "size": 30}, {"color": "rgb(255, 215, 0)", "font": {"color": "black"}, "id": "Q60548032", "label": "humor\nQ60548032", "shape": "dot", "size": 30}, {"color": "rgb(128, 0, 128)", "font": {"color": "black"}, "id": "Q128758", "label": "satire\nQ128758", "shape": "dot", "size": 30}, {"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q42", "label": "Douglas Adams\nQ42", "shape": "dot", "size": 30}],
+      "edges": [{"arrows": "to", "color": "rgb(220, 20, 60)", "font": {"color": "black", "size": 10}, "from": "Q214917", "label": "subclass of (P279)", "to": "Q36180", "width": 2}, {"arrows": "to", "color": "rgb(255, 105, 180)", "font": {"color": "black", "size": 10}, "from": "Q36180", "label": "subclass of (P279)", "to": "Q108762424", "width": 2}, {"arrows": "to", "color": "rgb(255, 105, 180)", "font": {"color": "black", "size": 10}, "from": "Q36180", "label": "subclass of (P279)", "to": "Q483501", "width": 2}, {"arrows": "to", "color": "rgb(255, 105, 180)", "font": {"color": "black", "size": 10}, "from": "Q36180", "label": "subclass of (P279)", "to": "Q482980", "width": 2}, {"arrows": "to", "color": "rgb(30, 144, 255)", "font": {"color": "black", "size": 10}, "from": "Q28389", "label": "subclass of (P279)", "to": "Q36180", "width": 2}, {"arrows": "to", "color": "rgb(34, 139, 34)", "font": {"color": "black", "size": 10}, "from": "Q6625963", "label": "subclass of (P279)", "to": "Q36180", "width": 2}, {"arrows": "to", "color": "rgb(255, 140, 0)", "font": {"color": "black", "size": 10}, "from": "Q4853732", "label": "subclass of (P279)", "to": "Q36180", "width": 2}, {"arrows": "to", "color": "rgb(148, 0, 211)", "font": {"color": "black", "size": 10}, "from": "Q18844224", "label": "subclass of (P279)", "to": "Q108710667", "width": 2}, {"arrows": "to", "color": "rgb(148, 0, 211)", "font": {"color": "black", "size": 10}, "from": "Q18844224", "label": "subclass of (P279)", "to": "Q108710753", "width": 2}, {"arrows": "to", "color": "rgb(139, 69, 19)", "font": {"color": "black", "size": 10}, "from": "Q245068", "label": "subclass of (P279)", "to": "Q483501", "width": 2}, {"arrows": "to", "color": "rgb(139, 69, 19)", "font": {"color": "black", "size": 10}, "from": "Q245068", "label": "subclass of (P279)", "to": "Q33999", "width": 2}, {"arrows": "to", "color": "rgb(0, 206, 209)", "font": {"color": "black", "size": 10}, "from": "Q639669", "label": "subclass of (P279)", "to": "Q483501", "width": 2}, {"arrows": "to", "color": "rgb(50, 205, 50)", "font": {"color": "black", "size": 10}, "from": "Q24925", "label": "subclass of (P279)", "to": "Q9326077", "width": 2}, {"arrows": "to", "color": "rgb(255, 215, 0)", "font": {"color": "black", "size": 10}, "from": "Q40831", "label": "subclass of (P279)", "to": "Q60548032", "width": 2}, {"arrows": "to", "color": "rgb(255, 215, 0)", "font": {"color": "black", "size": 10}, "from": "Q40831", "label": "subclass of (P279)", "to": "Q838948", "width": 2}, {"arrows": "to", "color": "rgb(128, 0, 128)", "font": {"color": "black", "size": 10}, "from": "Q128758", "label": "subclass of (P279)", "to": "Q60548032", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "occupation (P106)", "to": "Q214917", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "occupation (P106)", "to": "Q36180", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "occupation (P106)", "to": "Q28389", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "occupation (P106)", "to": "Q6625963", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "occupation (P106)", "to": "Q4853732", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "occupation (P106)", "to": "Q18844224", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "occupation (P106)", "to": "Q245068", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "occupation (P106)", "to": "Q639669", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "genre (P136)", "to": "Q24925", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "genre (P136)", "to": "Q40831", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "genre (P136)", "to": "Q128758", "width": 2}]
     }
   </script>
   <script id="data-for-batch_b_QB02-graph" type="application/json">
     {
-        "nodes": [{"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q35120", "label": "entity\nQ35120", "shape": "dot", "size": 30}, {"color": "#4CAF50", "font": {"color": "black"}, "id": "Q23958852", "label": "variable-order class\nQ23958852", "shape": "dot", "size": 25}, {"color": "#2196F3", "font": {"color": "black"}, "id": "Q124711104", "label": "BFO class\nQ124711104", "shape": "dot", "size": 25}, {"color": "#9C27B0", "font": {"color": "black"}, "id": "Q16889133", "label": "class\nQ16889133", "shape": "dot", "size": 25}, {"color": "#FF9800", "font": {"color": "black"}, "id": "Q19478619", "label": "metaclass\nQ19478619", "shape": "dot", "size": 25}],
-        "edges": [{"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q35120", "label": "instance of (P31)", "to": "Q23958852", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q35120", "label": "instance of (P31)", "to": "Q124711104", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q23958852", "label": "instance of (P31)", "to": "Q23958852", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q23958852", "label": "subclass of (P279)", "to": "Q16889133", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q124711104", "label": "instance of (P31)", "to": "Q19478619", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q124711104", "label": "subclass of (P279)", "to": "Q16889133", "width": 2}]
+        "nodes": [{"color": "rgb(220, 20, 60)", "font": {"color": "black"}, "id": "Q35120", "label": "entity\nQ35120", "shape": "dot", "size": 30}, {"color": "rgb(30, 144, 255)", "font": {"color": "black"}, "id": "Q23958852", "label": "variable-order class\nQ23958852", "shape": "dot", "size": 25}, {"color": "rgb(34, 139, 34)", "font": {"color": "black"}, "id": "Q124711104", "label": "BFO class\nQ124711104", "shape": "dot", "size": 25}, {"color": "rgb(148, 0, 211)", "font": {"color": "black"}, "id": "Q16889133", "label": "class\nQ16889133", "shape": "dot", "size": 25}, {"color": "rgb(139, 69, 19)", "font": {"color": "black"}, "id": "Q19478619", "label": "metaclass\nQ19478619", "shape": "dot", "size": 25}],
+        "edges": [{"arrows": "to", "color": "rgb(30, 144, 255)", "font": {"color": "black", "size": 10}, "from": "Q35120", "label": "instance of (P31)", "to": "Q23958852", "width": 2}, {"arrows": "to", "color": "rgb(34, 139, 34)", "font": {"color": "black", "size": 10}, "from": "Q35120", "label": "instance of (P31)", "to": "Q124711104", "width": 2}, {"arrows": "to", "color": "rgb(255, 140, 0)", "font": {"color": "black", "size": 10}, "from": "Q23958852", "label": "instance of (P31)", "to": "Q23958852", "width": 2}, {"arrows": "to", "color": "rgb(148, 0, 211)", "font": {"color": "black", "size": 10}, "from": "Q23958852", "label": "subclass of (P279)", "to": "Q16889133", "width": 2}, {"arrows": "to", "color": "rgb(139, 69, 19)", "font": {"color": "black", "size": 10}, "from": "Q124711104", "label": "instance of (P31)", "to": "Q19478619", "width": 2}, {"arrows": "to", "color": "rgb(255, 105, 180)", "font": {"color": "black", "size": 10}, "from": "Q124711104", "label": "subclass of (P279)", "to": "Q16889133", "width": 2}]
     }
   </script>
   <script id="data-for-batch_b_QB03-graph" type="application/json">
     {
-        "nodes": [{"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q35120", "label": "entity\nQ35120", "shape": "dot", "size": 30}, {"color": "#4CAF50", "font": {"color": "black"}, "id": "Q124711104", "label": "BFO class\nQ124711104", "shape": "dot", "size": 25}, {"color": "#2196F3", "font": {"color": "black"}, "id": "Q23958852", "label": "variable-order class\nQ23958852", "shape": "dot", "size": 25}],
-        "edges": [{"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q35120", "label": "instance of (P31)", "to": "Q124711104", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q35120", "label": "instance of (P31)", "to": "Q23958852", "width": 2}]
+        "nodes": [
+            {
+                "id": "Q35120",
+                "label": "entity\\nQ35120",
+                "color": "rgb(220, 20, 60)",
+                "size": 40,
+                "shape": "dot",
+                "font": {
+                    "color": "black"
+                },
+                "title": "\\n            <b>entity</b><br>\\n            ID: Q35120<br>\\n            Description: anything that can be considered, discussed, or observed\\n            "
+            },
+            {
+                "id": "Q35120_P279_931456939447813722",
+                "label": "no_value\\nQ35120_P279_931456939447813722",
+                "color": "rgb(30, 144, 255)",
+                "size": 30,
+                "shape": "dot",
+                "font": {
+                    "color": "black"
+                },
+                "title": "\\n            <b>no_value</b><br>\\n            ID: Q35120_P279_931456939447813722<br>\\n            Description: wikibase-item value: no_value\\n            "
+            },
+            {
+                "id": "Q496651",
+                "label": "National Baptist Convention, USA\\nQ496651",
+                "color": "rgb(34, 139, 34)",
+                "size": 30,
+                "shape": "dot",
+                "font": {
+                    "color": "black"
+                },
+                "title": "\\n            <b>National Baptist Convention, USA</b><br>\\n            ID: Q496651<br>\\n            Description: American Christian denomination (1895-)\\n            "
+            },
+            {
+                "id": "Q1647158",
+                "label": "V-Modell\\nQ1647158",
+                "color": "rgb(255, 140, 0)",
+                "size": 30,
+                "shape": "dot",
+                "font": {
+                    "color": "black"
+                },
+                "title": "\\n            <b>V-Modell</b><br>\\n            ID: Q1647158<br>\\n            Description: Vorgehensmodell für IT-Entwicklungsprojekte der Bundesrepublik Deutschland\\n            "
+            },
+            {
+                "id": "Q3306469",
+                "label": "Prairie View State College\\nQ3306469",
+                "color": "rgb(148, 0, 211)",
+                "size": 30,
+                "shape": "dot",
+                "font": {
+                    "color": "black"
+                },
+                "title": "\\n            <b>Prairie View State College</b><br>\\n            ID: Q3306469<br>\\n            Description: historically black university located in Prairie View, Texas, United States\\n            "
+            },
+            {
+                "id": "Q3898136",
+                "label": "Paul Quinn College\\nQ3898136",
+                "color": "rgb(139, 69, 19)",
+                "size": 30,
+                "shape": "dot",
+                "font": {
+                    "color": "black"
+                },
+                "title": "\\n            <b>Paul Quinn College</b><br>\\n            ID: Q3898136<br>\\n            Description: College in Dallas, Texas\\n            "
+            },
+            {
+                "id": "Q4754087",
+                "label": "Anderson High School\\nQ4754087",
+                "color": "rgb(255, 105, 180)",
+                "size": 30,
+                "shape": "dot",
+                "font": {
+                    "color": "black"
+                },
+                "title": "\\n            <b>Anderson High School</b><br>\\n            ID: Q4754087<br>\\n            Description: public high school in Austin, Texas, USA\\n            "
+            },
+            {
+                "id": "Q6163967",
+                "label": "Jasper High School\\nQ6163967",
+                "color": "rgb(0, 206, 209)",
+                "size": 30,
+                "shape": "dot",
+                "font": {
+                    "color": "black"
+                },
+                "title": "\\n            <b>Jasper High School</b><br>\\n            ID: Q6163967<br>\\n            Description: high school in Jasper, Texas\\n            "
+            },
+            {
+                "id": "Q6825726",
+                "label": "Mexia High School\\nQ6825726",
+                "color": "rgb(50, 205, 50)",
+                "size": 30,
+                "shape": "dot",
+                "font": {
+                    "color": "black"
+                },
+                "title": "\\n            <b>Mexia High School</b><br>\\n            ID: Q6825726<br>\\n            Description: high school in Texas, United States\\n            "
+            },
+            {
+                "id": "Q7589986",
+                "label": "St. Mark's School of Texas\\nQ7589986",
+                "color": "rgb(255, 215, 0)",
+                "size": 30,
+                "shape": "dot",
+                "font": {
+                    "color": "black"
+                },
+                "title": "\\n            <b>St. Mark's School of Texas</b><br>\\n            ID: Q7589986<br>\\n            Description: private, day, college-prep boys' school in Dallas, Texas, United States\\n            "
+            },
+            {
+                "id": "Q7707584",
+                "label": "Texas College\\nQ7707584",
+                "color": "rgb(128, 0, 128)",
+                "size": 30,
+                "shape": "dot",
+                "font": {
+                    "color": "black"
+                },
+                "title": "\\n            <b>Texas College</b><br>\\n            ID: Q7707584<br>\\n            Description: college in Tyler, Texas, US\\n            "
+            },
+            {
+                "id": "Q7934591",
+                "label": "Virginia State University\\nQ7934591",
+                "color": "rgb(255, 69, 0)",
+                "size": 30,
+                "shape": "dot",
+                "font": {
+                    "color": "black"
+                },
+                "title": "\\n            <b>Virginia State University</b><br>\\n            ID: Q7934591<br>\\n            Description: college in Virginia, United States\\n            "
+            },
+            {
+                "id": "Q8272977",
+                "label": "checks and balances\\nQ8272977",
+                "color": "rgb(0, 128, 128)",
+                "size": 30,
+                "shape": "dot",
+                "font": {
+                    "color": "black"
+                },
+                "title": "\\n            <b>checks and balances</b><br>\\n            ID: Q8272977<br>\\n            Description: Mechanisms which distribute power throughout a political system – preventing any one institution or ...\\n            "
+            },
+            {
+                "id": "Q59284452",
+                "label": "Пета дивизионна област\\nQ59284452",
+                "color": "rgb(128, 128, 0)",
+                "size": 30,
+                "shape": "dot",
+                "font": {
+                    "color": "black"
+                },
+                "title": "\\n            <b>Пета дивизионна област</b><br>\\n            ID: Q59284452<br>\\n            Description: военна област на 5-а пехотна дунавска дивизия\\n            "
+            },
+            {
+                "id": "Q59386908",
+                "label": "Чанта\\nQ59386908",
+                "color": "rgb(218, 112, 214)",
+                "size": 30,
+                "shape": "dot",
+                "font": {
+                    "color": "black"
+                },
+                "title": "\\n            <b>Чанта</b><br>\\n            ID: Q59386908<br>\\n            Description: аксесоар, предназначен за пренасяне на малки предмети или товари\\n            "
+            },
+            {
+                "id": "Q108068261",
+                "label": "On changerait plutôt le cœur de place/01\\nQ108068261",
+                "color": "rgb(0, 191, 255)",
+                "size": 30,
+                "shape": "dot",
+                "font": {
+                    "color": "black"
+                },
+                "title": "\\n            <b>On changerait plutôt le cœur de place/01</b><br>\\n            ID: Q108068261<br>\\n            Description: \\n            "
+            },
+            {
+                "id": "Q116202544",
+                "label": "Glove juice\\nQ116202544",
+                "color": "rgb(255, 20, 147)",
+                "size": 30,
+                "shape": "dot",
+                "font": {
+                    "color": "black"
+                },
+                "title": "\\n            <b>Glove juice</b><br>\\n            ID: Q116202544<br>\\n            Description: \\n            "
+            },
+            {
+                "id": "Q116311879",
+                "label": "Принцип взаимности\\nQ116311879",
+                "color": "rgb(46, 139, 87)",
+                "size": 30,
+                "shape": "dot",
+                "font": {
+                    "color": "black"
+                },
+                "title": "\\n            <b>Принцип взаимности</b><br>\\n            ID: Q116311879<br>\\n            Description: Универсальный принцип взаимности\\n            "
+            },
+            {
+                "id": "Q116877951",
+                "label": "Дифракция звука\\nQ116877951",
+                "color": "rgb(255, 165, 0)",
+                "size": 30,
+                "shape": "dot",
+                "font": {
+                    "color": "black"
+                },
+                "title": "\\n            <b>Дифракция звука</b><br>\\n            ID: Q116877951<br>\\n            Description: явление огибания звуковой волной малого препятствия, размер которого равен длине волны или меньше её\\n            "
+            },
+            {
+                "id": "Q116969557",
+                "label": "Капитанская слобода\\nQ116969557",
+                "color": "rgb(75, 0, 130)",
+                "size": 30,
+                "shape": "dot",
+                "font": {
+                    "color": "black"
+                },
+                "title": "\\n            <b>Капитанская слобода</b><br>\\n            ID: Q116969557<br>\\n            Description: \\n            "
+            },
+            {
+                "id": "Q378078",
+                "label": "substance\\nQ378078",
+                "color": "rgb(220, 20, 60)",
+                "size": 30,
+                "shape": "dot",
+                "font": {
+                    "color": "black"
+                },
+                "title": "\\n            <b>substance</b><br>\\n            ID: Q378078<br>\\n            Description: basic ontological concept\\n            "
+            },
+            {
+                "id": "Q488383",
+                "label": "object\\nQ488383",
+                "color": "rgb(30, 144, 255)",
+                "size": 30,
+                "shape": "dot",
+                "font": {
+                    "color": "black"
+                },
+                "title": "\\n            <b>object</b><br>\\n            ID: Q488383<br>\\n            Description: anything that may be observed or acted upon by a subject\\n            "
+            },
+            {
+                "id": "Q2995644",
+                "label": "result\\nQ2995644",
+                "color": "rgb(34, 139, 34)",
+                "size": 30,
+                "shape": "dot",
+                "font": {
+                    "color": "black"
+                },
+                "title": "\\n            <b>result</b><br>\\n            ID: Q2995644<br>\\n            Description: final consequence or product of a sequence of actions or events\\n            "
+            },
+            {
+                "id": "Q3799040",
+                "label": "unobservable entity\\nQ3799040",
+                "color": "rgb(255, 140, 0)",
+                "size": 30,
+                "shape": "dot",
+                "font": {
+                    "color": "black"
+                },
+                "title": "\\n            <b>unobservable entity</b><br>\\n            ID: Q3799040<br>\\n            Description: entity whose existence, nature, properties, qualities or relations are not directly observable by hu...\\n            "
+            },
+            {
+                "id": "Q3826351",
+                "label": "referent\\nQ3826351",
+                "color": "rgb(148, 0, 211)",
+                "size": 30,
+                "shape": "dot",
+                "font": {
+                    "color": "black"
+                },
+                "title": "\\n            <b>referent</b><br>\\n            ID: Q3826351<br>\\n            Description: entity referred to; especially entity to which a word or phrase or other symbol refers\\n            "
+            },
+            {
+                "id": "Q3885844",
+                "label": "origin\\nQ3885844",
+                "color": "rgb(139, 69, 19)",
+                "size": 30,
+                "shape": "dot",
+                "font": {
+                    "color": "black"
+                },
+                "title": "\\n            <b>origin</b><br>\\n            ID: Q3885844<br>\\n            Description: place or instant of apparition of something; intellectual reconstruction from the causal event suppo...\\n            "
+            },
+            {
+                "id": "Q7048977",
+                "label": "abstract entity\\nQ7048977",
+                "color": "rgb(255, 105, 180)",
+                "size": 30,
+                "shape": "dot",
+                "font": {
+                    "color": "black"
+                },
+                "title": "\\n            <b>abstract entity</b><br>\\n            ID: Q7048977<br>\\n            Description: entity that does not have a physical existence, including abstract objects and properties\\n            "
+            },
+            {
+                "id": "Q13196193",
+                "label": "part\\nQ13196193",
+                "color": "rgb(0, 206, 209)",
+                "size": 30,
+                "shape": "dot",
+                "font": {
+                    "color": "black"
+                },
+                "title": "\\n            <b>part</b><br>\\n            ID: Q13196193<br>\\n            Description: separate element of a larger entity. For integral parts, see Q1310239.\\n            "
+            },
+            {
+                "id": "Q15893266",
+                "label": "former entity\\nQ15893266",
+                "color": "rgb(50, 205, 50)",
+                "size": 30,
+                "shape": "dot",
+                "font": {
+                    "color": "black"
+                },
+                "title": "\\n            <b>former entity</b><br>\\n            ID: Q15893266<br>\\n            Description: entity that no longer operates or is terminated\\n            "
+            },
+            {
+                "id": "Q17853087",
+                "label": "union\\nQ17853087",
+                "color": "rgb(255, 215, 0)",
+                "size": 30,
+                "shape": "dot",
+                "font": {
+                    "color": "black"
+                },
+                "title": "\\n            <b>union</b><br>\\n            ID: Q17853087<br>\\n            Description: entity resulting from the act of combining several entities to form one; effect of the action of joi...\\n            "
+            }
+        ],
+        "edges": [
+            {
+                "from": "Q35120",
+                "to": "Q35120_P279_931456939447813722",
+                "label": "subclass of (P279)",
+                "arrows": "to",
+                "color": "rgb(220, 20, 60)",
+                "width": 2,
+                "font": {
+                    "color": "black",
+                    "size": 10
+                }
+            },
+            {
+                "from": "Q496651",
+                "to": "Q35120",
+                "label": "instance of (P31)",
+                "arrows": "to",
+                "color": "rgb(30, 144, 255)",
+                "width": 2,
+                "font": {
+                    "color": "black",
+                    "size": 10
+                }
+            },
+            {
+                "from": "Q1647158",
+                "to": "Q35120",
+                "label": "instance of (P31)",
+                "arrows": "to",
+                "color": "rgb(30, 144, 255)",
+                "width": 2,
+                "font": {
+                    "color": "black",
+                    "size": 10
+                }
+            },
+            {
+                "from": "Q3306469",
+                "to": "Q35120",
+                "label": "instance of (P31)",
+                "arrows": "to",
+                "color": "rgb(30, 144, 255)",
+                "width": 2,
+                "font": {
+                    "color": "black",
+                    "size": 10
+                }
+            },
+            {
+                "from": "Q3898136",
+                "to": "Q35120",
+                "label": "instance of (P31)",
+                "arrows": "to",
+                "color": "rgb(30, 144, 255)",
+                "width": 2,
+                "font": {
+                    "color": "black",
+                    "size": 10
+                }
+            },
+            {
+                "from": "Q4754087",
+                "to": "Q35120",
+                "label": "instance of (P31)",
+                "arrows": "to",
+                "color": "rgb(30, 144, 255)",
+                "width": 2,
+                "font": {
+                    "color": "black",
+                    "size": 10
+                }
+            },
+            {
+                "from": "Q6163967",
+                "to": "Q35120",
+                "label": "instance of (P31)",
+                "arrows": "to",
+                "color": "rgb(30, 144, 255)",
+                "width": 2,
+                "font": {
+                    "color": "black",
+                    "size": 10
+                }
+            },
+            {
+                "from": "Q6825726",
+                "to": "Q35120",
+                "label": "instance of (P31)",
+                "arrows": "to",
+                "color": "rgb(30, 144, 255)",
+                "width": 2,
+                "font": {
+                    "color": "black",
+                    "size": 10
+                }
+            },
+            {
+                "from": "Q7589986",
+                "to": "Q35120",
+                "label": "instance of (P31)",
+                "arrows": "to",
+                "color": "rgb(30, 144, 255)",
+                "width": 2,
+                "font": {
+                    "color": "black",
+                    "size": 10
+                }
+            },
+            {
+                "from": "Q7707584",
+                "to": "Q35120",
+                "label": "instance of (P31)",
+                "arrows": "to",
+                "color": "rgb(30, 144, 255)",
+                "width": 2,
+                "font": {
+                    "color": "black",
+                    "size": 10
+                }
+            },
+            {
+                "from": "Q7934591",
+                "to": "Q35120",
+                "label": "instance of (P31)",
+                "arrows": "to",
+                "color": "rgb(30, 144, 255)",
+                "width": 2,
+                "font": {
+                    "color": "black",
+                    "size": 10
+                }
+            },
+            {
+                "from": "Q8272977",
+                "to": "Q35120",
+                "label": "instance of (P31)",
+                "arrows": "to",
+                "color": "rgb(30, 144, 255)",
+                "width": 2,
+                "font": {
+                    "color": "black",
+                    "size": 10
+                }
+            },
+            {
+                "from": "Q59284452",
+                "to": "Q35120",
+                "label": "instance of (P31)",
+                "arrows": "to",
+                "color": "rgb(30, 144, 255)",
+                "width": 2,
+                "font": {
+                    "color": "black",
+                    "size": 10
+                }
+            },
+            {
+                "from": "Q59386908",
+                "to": "Q35120",
+                "label": "instance of (P31)",
+                "arrows": "to",
+                "color": "rgb(30, 144, 255)",
+                "width": 2,
+                "font": {
+                    "color": "black",
+                    "size": 10
+                }
+            },
+            {
+                "from": "Q108068261",
+                "to": "Q35120",
+                "label": "instance of (P31)",
+                "arrows": "to",
+                "color": "rgb(30, 144, 255)",
+                "width": 2,
+                "font": {
+                    "color": "black",
+                    "size": 10
+                }
+            },
+            {
+                "from": "Q116202544",
+                "to": "Q35120",
+                "label": "instance of (P31)",
+                "arrows": "to",
+                "color": "rgb(30, 144, 255)",
+                "width": 2,
+                "font": {
+                    "color": "black",
+                    "size": 10
+                }
+            },
+            {
+                "from": "Q116311879",
+                "to": "Q35120",
+                "label": "instance of (P31)",
+                "arrows": "to",
+                "color": "rgb(30, 144, 255)",
+                "width": 2,
+                "font": {
+                    "color": "black",
+                    "size": 10
+                }
+            },
+            {
+                "from": "Q116877951",
+                "to": "Q35120",
+                "label": "instance of (P31)",
+                "arrows": "to",
+                "color": "rgb(30, 144, 255)",
+                "width": 2,
+                "font": {
+                    "color": "black",
+                    "size": 10
+                }
+            },
+            {
+                "from": "Q116969557",
+                "to": "Q35120",
+                "label": "instance of (P31)",
+                "arrows": "to",
+                "color": "rgb(30, 144, 255)",
+                "width": 2,
+                "font": {
+                    "color": "black",
+                    "size": 10
+                }
+            }
+        ]
     }
   </script>
   <script id="data-for-batch_d_QD01-graph" type="application/json">
     {
-        "nodes": [{"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q42", "label": "Douglas Adams\nQ42", "shape": "dot", "size": 30}, {"color": "#4CAF50", "font": {"color": "black"}, "id": "Q14623675", "label": "Kristofers Duglass Adamss\nQ14623675", "shape": "dot", "size": 25}, {"color": "#2196F3", "font": {"color": "black"}, "id": "Q14623678", "label": "Janet Adams\nQ14623678", "shape": "dot", "size": 25}, {"color": "#9C27B0", "font": {"color": "black"}, "id": "Q14623681", "label": "Jane Belson\nQ14623681", "shape": "dot", "size": 25}, {"color": "#FF9800", "font": {"color": "black"}, "id": "Q14623684", "label": "Susan Adams\nQ14623684", "shape": "dot", "size": 25}, {"color": "#795548", "font": {"color": "black"}, "id": "Q14623683", "label": "Polly Adams\nQ14623683", "shape": "dot", "size": 25}, {"color": "#607D8B", "font": {"color": "black"}, "id": "Q25169", "label": "The Hitchhiker's Guide to the Galaxy\nQ25169", "shape": "dot", "size": 25}, {"color": "#E91E63", "font": {"color": "black"}, "id": "Q20736364", "label": "Dirk Gently series\nQ20736364", "shape": "dot", "size": 25}, {"color": "#3F51B5", "font": {"color": "black"}, "id": "Q7758404", "label": "The Private Life of Genghis Khan\nQ7758404", "shape": "dot", "size": 25}],
-        "edges": [{"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "father (P22)", "to": "Q14623675", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "mother (P25)", "to": "Q14623678", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "spouse (P26)", "to": "Q14623681", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "sibling (S1)", "to": "Q14623684", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "child (P40)", "to": "Q14623683", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "notable work (P800)", "to": "Q25169", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "notable work (P800)", "to": "Q20736364", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "notable work (P800)", "to": "Q7758404", "width": 2}]
+        "nodes": [{"color": "rgb(220, 20, 60)", "font": {"color": "black"}, "id": "Q42", "label": "Douglas Adams\nQ42", "shape": "dot", "size": 30}, {"color": "rgb(220, 20, 60)", "font": {"color": "black"}, "id": "Q14623675", "label": "Kristofers Duglass Adamss\nQ14623675", "shape": "dot", "size": 25}, {"color": "rgb(30, 144, 255)", "font": {"color": "black"}, "id": "Q14623678", "label": "Janet Adams\nQ14623678", "shape": "dot", "size": 25}, {"color": "rgb(34, 139, 34)", "font": {"color": "black"}, "id": "Q14623681", "label": "Jane Belson\nQ14623681", "shape": "dot", "size": 25}, {"color": "rgb(255, 140, 0)", "font": {"color": "black"}, "id": "Q14623684", "label": "Susan Adams\nQ14623684", "shape": "dot", "size": 25}, {"color": "rgb(148, 0, 211)", "font": {"color": "black"}, "id": "Q14623683", "label": "Polly Adams\nQ14623683", "shape": "dot", "size": 25}, {"color": "rgb(139, 69, 19)", "font": {"color": "black"}, "id": "Q25169", "label": "The Hitchhiker's Guide to the Galaxy\nQ25169", "shape": "dot", "size": 25}, {"color": "rgb(255, 105, 180)", "font": {"color": "black"}, "id": "Q20736364", "label": "Dirk Gently series\nQ20736364", "shape": "dot", "size": 25}, {"color": "rgb(0, 206, 209)", "font": {"color": "black"}, "id": "Q7758404", "label": "The Private Life of Genghis Khan\nQ7758404", "shape": "dot", "size": 25}],
+        "edges": [{"arrows": "to", "color": "rgb(220, 20, 60)", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "father (P22)", "to": "Q14623675", "width": 2}, {"arrows": "to", "color": "rgb(30, 144, 255)", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "mother (P25)", "to": "Q14623678", "width": 2}, {"arrows": "to", "color": "rgb(34, 139, 34)", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "spouse (P26)", "to": "Q14623681", "width": 2}, {"arrows": "to", "color": "rgb(255, 140, 0)", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "sibling (S1)", "to": "Q14623684", "width": 2}, {"arrows": "to", "color": "rgb(148, 0, 211)", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "child (P40)", "to": "Q14623683", "width": 2}, {"arrows": "to", "color": "rgb(139, 69, 19)", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "notable work (P800)", "to": "Q25169", "width": 2}, {"arrows": "to", "color": "rgb(255, 105, 180)", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "notable work (P800)", "to": "Q20736364", "width": 2}, {"arrows": "to", "color": "rgb(0, 206, 209)", "font": {"color": "black", "size": 10}, "from": "Q42", "label": "notable work (P800)", "to": "Q7758404", "width": 2}]
     }
   </script>
   <script id="data-for-batch_d_QD02-graph" type="application/json">
     {
-        "nodes": [{"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q608350", "label": "Veltins Brewery\nQ608350", "shape": "dot", "size": 30}, {"color": "#4CAF50", "font": {"color": "black"}, "id": "Q5632", "label": "Meschede\nQ5632", "shape": "dot", "size": 25}, {"color": "#2196F3", "font": {"color": "black"}, "id": "Q5946", "label": "Hochsauerlandkreis\nQ5946", "shape": "dot", "size": 25}, {"color": "#9C27B0", "font": {"color": "black"}, "id": "Q6125", "label": "Arnsberg Government Region\nQ6125", "shape": "dot", "size": 25}, {"color": "#FF9800", "font": {"color": "black"}, "id": "Q1198", "label": "North Rhine-Westphalia\nQ1198", "shape": "dot", "size": 25}],
-        "edges": [{"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q608350", "label": "headquarters location (P159)", "to": "Q5632", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q5632", "label": "located in the administrative territorial entity (P131)", "to": "Q5946", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q5946", "label": "located in the administrative territorial entity (P131)", "to": "Q6125", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q6125", "label": "located in the administrative territorial entity (P131)", "to": "Q1198", "width": 2}]
+        "nodes": [{"color": "rgb(220, 20, 60)", "font": {"color": "black"}, "id": "Q608350", "label": "Veltins Brewery\nQ608350", "shape": "dot", "size": 30}, {"color": "rgb(220, 20, 60)", "font": {"color": "black"}, "id": "Q5632", "label": "Meschede\nQ5632", "shape": "dot", "size": 25}, {"color": "rgb(30, 144, 255)", "font": {"color": "black"}, "id": "Q5946", "label": "Hochsauerlandkreis\nQ5946", "shape": "dot", "size": 25}, {"color": "rgb(34, 139, 34)", "font": {"color": "black"}, "id": "Q6125", "label": "Arnsberg Government Region\nQ6125", "shape": "dot", "size": 25}, {"color": "rgb(255, 140, 0)", "font": {"color": "black"}, "id": "Q1198", "label": "North Rhine-Westphalia\nQ1198", "shape": "dot", "size": 25}],
+        "edges": [{"arrows": "to", "color": "rgb(220, 20, 60)", "font": {"color": "black", "size": 10}, "from": "Q608350", "label": "headquarters location (P159)", "to": "Q5632", "width": 2}, {"arrows": "to", "color": "rgb(30, 144, 255)", "font": {"color": "black", "size": 10}, "from": "Q5632", "label": "located in the administrative territorial entity (P131)", "to": "Q5946", "width": 2}, {"arrows": "to", "color": "rgb(34, 139, 34)", "font": {"color": "black", "size": 10}, "from": "Q5946", "label": "located in the administrative territorial entity (P131)", "to": "Q6125", "width": 2}, {"arrows": "to", "color": "rgb(255, 140, 0)", "font": {"color": "black", "size": 10}, "from": "Q6125", "label": "located in the administrative territorial entity (P131)", "to": "Q1198", "width": 2}]
     }
   </script>
   <script id="data-for-batch_d_QD03-graph" type="application/json">
     {
-        "nodes": [{"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q9312", "label": "Immanuel Kant\nQ9312", "shape": "dot", "size": 30}, {"color": "#4CAF50", "font": {"color": "black"}, "id": "Q41585", "label": "David Hilbert\nQ41585", "shape": "dot", "size": 25}, {"color": "#2196F3", "font": {"color": "black"}, "id": "Q37924", "label": "Edmund Husserl\nQ37924", "shape": "dot", "size": 25}, {"color": "#9C27B0", "font": {"color": "black"}, "id": "Q71029", "label": "Hermann Weyl\nQ71029", "shape": "dot", "size": 25}, {"color": "#FF9800", "font": {"color": "black"}, "id": "Q155887", "label": "Luitzen Egbertus Jan Brouwer\nQ155887", "shape": "dot", "size": 25}, {"color": "#795548", "font": {"color": "black"}, "id": "Q6992366", "label": "Shem-Tov Gefen\nQ6992366", "shape": "dot", "size": 25}],
-        "edges": [{"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q41585", "label": "influenced by (P737)", "to": "Q9312", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q37924", "label": "influenced by (P737)", "to": "Q9312", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q71029", "label": "influenced by (P737)", "to": "Q9312", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q155887", "label": "influenced by (P737)", "to": "Q9312", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q6992366", "label": "influenced by (P737)", "to": "Q9312", "width": 2}]
+        "nodes": [{"color": "rgb(220, 20, 60)", "font": {"color": "black"}, "id": "Q9312", "label": "Immanuel Kant\nQ9312", "shape": "dot", "size": 30}, {"color": "rgb(220, 20, 60)", "font": {"color": "black"}, "id": "Q41585", "label": "David Hilbert\nQ41585", "shape": "dot", "size": 25}, {"color": "rgb(220, 20, 60)", "font": {"color": "black"}, "id": "Q170790", "label": "mathematician\nQ170790", "shape": "dot", "size": 25}, {"color": "rgb(30, 144, 255)", "font": {"color": "black"}, "id": "Q37924", "label": "Edmund Husserl\nQ37924", "shape": "dot", "size": 25}, {"color": "rgb(34, 139, 34)", "font": {"color": "black"}, "id": "Q71029", "label": "Hermann Weyl\nQ71029", "shape": "dot", "size": 25}, {"color": "rgb(255, 140, 0)", "font": {"color": "black"}, "id": "Q155887", "label": "Luitzen Egbertus Jan Brouwer\nQ155887", "shape": "dot", "size": 25}, {"color": "rgb(148, 0, 211)", "font": {"color": "black"}, "id": "Q6992366", "label": "Shem-Tov Gefen\nQ6992366", "shape": "dot", "size": 25}],
+        "edges": [{"arrows": "to", "color": "rgb(220, 20, 60)", "font": {"color": "black", "size": 10}, "from": "Q41585", "label": "influenced by (P737)", "to": "Q9312", "width": 2}, {"arrows": "to", "color": "rgb(220, 20, 60)", "font": {"color": "black", "size": 10}, "from": "Q41585", "label": "occupation (P106)", "to": "Q170790", "width": 2}, {"arrows": "to", "color": "rgb(30, 144, 255)", "font": {"color": "black", "size": 10}, "from": "Q37924", "label": "influenced by (P737)", "to": "Q9312", "width": 2}, {"arrows": "to", "color": "rgb(30, 144, 255)", "font": {"color": "black", "size": 10}, "from": "Q37924", "label": "occupation (P106)", "to": "Q170790", "width": 2}, {"arrows": "to", "color": "rgb(34, 139, 34)", "font": {"color": "black", "size": 10}, "from": "Q71029", "label": "influenced by (P737)", "to": "Q9312", "width": 2}, {"arrows": "to", "color": "rgb(34, 139, 34)", "font": {"color": "black", "size": 10}, "from": "Q71029", "label": "occupation (P106)", "to": "Q170790", "width": 2}, {"arrows": "to", "color": "rgb(255, 140, 0)", "font": {"color": "black", "size": 10}, "from": "Q155887", "label": "influenced by (P737)", "to": "Q9312", "width": 2}, {"arrows": "to", "color": "rgb(255, 140, 0)", "font": {"color": "black", "size": 10}, "from": "Q155887", "label": "occupation (P106)", "to": "Q170790", "width": 2}, {"arrows": "to", "color": "rgb(148, 0, 211)", "font": {"color": "black", "size": 10}, "from": "Q6992366", "label": "influenced by (P737)", "to": "Q9312", "width": 2}, {"arrows": "to", "color": "rgb(148, 0, 211)", "font": {"color": "black", "size": 10}, "from": "Q6992366", "label": "occupation (P106)", "to": "Q170790", "width": 2}]
     }
   </script>
   <script id="data-for-batch_d_QD04-graph" type="application/json">
     {
-        "nodes": [{"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q214917", "label": "playwright\nQ214917", "shape": "dot", "size": 30}, {"color": "#4CAF50", "font": {"color": "black"}, "id": "Q36180", "label": "writer\nQ36180", "shape": "dot", "size": 25}, {"color": "#2196F3", "font": {"color": "black"}, "id": "Q28389", "label": "screenwriter\nQ28389", "shape": "dot", "size": 25}, {"color": "#9C27B0", "font": {"color": "black"}, "id": "Q6625963", "label": "novelist\nQ6625963", "shape": "dot", "size": 25}, {"color": "#FF9800", "font": {"color": "black"}, "id": "Q4853732", "label": "children's writer\nQ4853732", "shape": "dot", "size": 25}, {"color": "#795548", "font": {"color": "black"}, "id": "Q18844224", "label": "science fiction writer\nQ18844224", "shape": "dot", "size": 25}, {"color": "#607D8B", "font": {"color": "black"}, "id": "Q108710667", "label": "speculative fiction author\nQ108710667", "shape": "dot", "size": 25}, {"color": "#E91E63", "font": {"color": "black"}, "id": "Q108710753", "label": "speculative fiction writer\nQ108710753", "shape": "dot", "size": 25}, {"color": "#3F51B5", "font": {"color": "black"}, "id": "Q245068", "label": "comedian\nQ245068", "shape": "dot", "size": 25}, {"color": "#009688", "font": {"color": "black"}, "id": "Q483501", "label": "artist\nQ483501", "shape": "dot", "size": 25}, {"color": "#FF5722", "font": {"color": "black"}, "id": "Q33999", "label": "actor\nQ33999", "shape": "dot", "size": 25}, {"color": "#8BC34A", "font": {"color": "black"}, "id": "Q639669", "label": "musician\nQ639669", "shape": "dot", "size": 25}, {"color": "#FFEB3B", "font": {"color": "black"}, "id": "Q3238422", "label": "science fiction literature\nQ3238422", "shape": "dot", "size": 25}, {"color": "#CDDC39", "font": {"color": "black"}, "id": "Q24925", "label": "science fiction\nQ24925", "shape": "dot", "size": 25}, {"color": "#FFC107", "font": {"color": "black"}, "id": "Q8242", "label": "literature\nQ8242", "shape": "dot", "size": 25}, {"color": "#03A9F4", "font": {"color": "black"}, "id": "Q5240628", "label": "speculative fiction literature\nQ5240628", "shape": "dot", "size": 25}],
-        "edges": [{"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q214917", "label": "subclass of (P279)", "to": "Q36180", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q28389", "label": "subclass of (P279)", "to": "Q36180", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q6625963", "label": "subclass of (P279)", "to": "Q36180", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q4853732", "label": "subclass of (P279)", "to": "Q36180", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q18844224", "label": "subclass of (P279)", "to": "Q108710667", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q18844224", "label": "subclass of (P279)", "to": "Q108710753", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q245068", "label": "subclass of (P279)", "to": "Q483501", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q245068", "label": "subclass of (P279)", "to": "Q33999", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q639669", "label": "subclass of (P279)", "to": "Q483501", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q3238422", "label": "subclass of (P279)", "to": "Q24925", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q3238422", "label": "subclass of (P279)", "to": "Q8242", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q3238422", "label": "subclass of (P279)", "to": "Q5240628", "width": 2}]
+        "nodes": [{"color": "rgb(220, 20, 60)", "font": {"color": "black"}, "id": "Q214917", "label": "playwright\nQ214917", "shape": "dot", "size": 30}, {"color": "rgb(220, 20, 60)", "font": {"color": "black"}, "id": "Q36180", "label": "writer\nQ36180", "shape": "dot", "size": 25}, {"color": "rgb(30, 144, 255)", "font": {"color": "black"}, "id": "Q28389", "label": "screenwriter\nQ28389", "shape": "dot", "size": 25}, {"color": "rgb(34, 139, 34)", "font": {"color": "black"}, "id": "Q6625963", "label": "novelist\nQ6625963", "shape": "dot", "size": 25}, {"color": "rgb(255, 140, 0)", "font": {"color": "black"}, "id": "Q4853732", "label": "children's writer\nQ4853732", "shape": "dot", "size": 25}, {"color": "rgb(148, 0, 211)", "font": {"color": "black"}, "id": "Q18844224", "label": "science fiction writer\nQ18844224", "shape": "dot", "size": 25}, {"color": "rgb(148, 0, 211)", "font": {"color": "black"}, "id": "Q108710667", "label": "speculative fiction author\nQ108710667", "shape": "dot", "size": 25}, {"color": "rgb(139, 69, 19)", "font": {"color": "black"}, "id": "Q108710753", "label": "speculative fiction writer\nQ108710753", "shape": "dot", "size": 25}, {"color": "rgb(255, 105, 180)", "font": {"color": "black"}, "id": "Q245068", "label": "comedian\nQ245068", "shape": "dot", "size": 25}, {"color": "rgb(255, 105, 180)", "font": {"color": "black"}, "id": "Q483501", "label": "artist\nQ483501", "shape": "dot", "size": 25}, {"color": "rgb(0, 206, 209)", "font": {"color": "black"}, "id": "Q33999", "label": "actor\nQ33999", "shape": "dot", "size": 25}, {"color": "rgb(50, 205, 50)", "font": {"color": "black"}, "id": "Q639669", "label": "musician\nQ639669", "shape": "dot", "size": 25}, {"color": "rgb(255, 215, 0)", "font": {"color": "black"}, "id": "Q3238422", "label": "science fiction literature\nQ3238422", "shape": "dot", "size": 25}, {"color": "rgb(255, 215, 0)", "font": {"color": "black"}, "id": "Q24925", "label": "science fiction\nQ24925", "shape": "dot", "size": 25}, {"color": "rgb(128, 0, 128)", "font": {"color": "black"}, "id": "Q8242", "label": "literature\nQ8242", "shape": "dot", "size": 25}, {"color": "rgb(255, 69, 0)", "font": {"color": "black"}, "id": "Q5240628", "label": "speculative fiction literature\nQ5240628", "shape": "dot", "size": 25}],
+        "edges": [{"arrows": "to", "color": "rgb(220, 20, 60)", "font": {"color": "black", "size": 10}, "from": "Q214917", "label": "subclass of (P279)", "to": "Q36180", "width": 2}, {"arrows": "to", "color": "rgb(30, 144, 255)", "font": {"color": "black", "size": 10}, "from": "Q28389", "label": "subclass of (P279)", "to": "Q36180", "width": 2}, {"arrows": "to", "color": "rgb(34, 139, 34)", "font": {"color": "black", "size": 10}, "from": "Q6625963", "label": "subclass of (P279)", "to": "Q36180", "width": 2}, {"arrows": "to", "color": "rgb(255, 140, 0)", "font": {"color": "black", "size": 10}, "from": "Q4853732", "label": "subclass of (P279)", "to": "Q36180", "width": 2}, {"arrows": "to", "color": "rgb(148, 0, 211)", "font": {"color": "black", "size": 10}, "from": "Q18844224", "label": "subclass of (P279)", "to": "Q108710667", "width": 2}, {"arrows": "to", "color": "rgb(139, 69, 19)", "font": {"color": "black", "size": 10}, "from": "Q18844224", "label": "subclass of (P279)", "to": "Q108710753", "width": 2}, {"arrows": "to", "color": "rgb(255, 105, 180)", "font": {"color": "black", "size": 10}, "from": "Q245068", "label": "subclass of (P279)", "to": "Q483501", "width": 2}, {"arrows": "to", "color": "rgb(0, 206, 209)", "font": {"color": "black", "size": 10}, "from": "Q245068", "label": "subclass of (P279)", "to": "Q33999", "width": 2}, {"arrows": "to", "color": "rgb(50, 205, 50)", "font": {"color": "black", "size": 10}, "from": "Q639669", "label": "subclass of (P279)", "to": "Q483501", "width": 2}, {"arrows": "to", "color": "rgb(255, 215, 0)", "font": {"color": "black", "size": 10}, "from": "Q3238422", "label": "subclass of (P279)", "to": "Q24925", "width": 2}, {"arrows": "to", "color": "rgb(128, 0, 128)", "font": {"color": "black", "size": 10}, "from": "Q3238422", "label": "subclass of (P279)", "to": "Q8242", "width": 2}, {"arrows": "to", "color": "rgb(255, 69, 0)", "font": {"color": "black", "size": 10}, "from": "Q3238422", "label": "subclass of (P279)", "to": "Q5240628", "width": 2}]
     }
   </script>
   <script id="data-for-batch_d_QD05-graph" type="application/json">
     {
-        "nodes": [{"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q35120", "label": "entity\nQ35120", "shape": "dot", "size": 30}, {"color": "#4CAF50", "font": {"color": "black"}, "id": "Q124711104", "label": "BFO class\nQ124711104", "shape": "dot", "size": 25}, {"color": "#2196F3", "font": {"color": "black"}, "id": "Q23958852", "label": "variable-order class\nQ23958852", "shape": "dot", "size": 25}],
-        "edges": [{"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q35120", "label": "instance of (P31)", "to": "Q124711104", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q35120", "label": "instance of (P31)", "to": "Q23958852", "width": 2}]
+        "nodes": [{"color": "rgb(220, 20, 60)", "font": {"color": "black"}, "id": "Q35120", "label": "entity\nQ35120", "shape": "dot", "size": 30}, {"color": "rgb(30, 144, 255)", "font": {"color": "black"}, "id": "Q124711104", "label": "BFO class\nQ124711104", "shape": "dot", "size": 25}, {"color": "rgb(30, 144, 255)", "font": {"color": "black"}, "id": "Q23958852", "label": "variable-order class\nQ23958852", "shape": "dot", "size": 25}],
+        "edges": [{"arrows": "to", "color": "rgb(30, 144, 255)", "font": {"color": "black", "size": 10}, "from": "Q35120", "label": "instance of (P31)", "to": "Q124711104", "width": 2}, {"arrows": "to", "color": "rgb(30, 144, 255)", "font": {"color": "black", "size": 10}, "from": "Q35120", "label": "instance of (P31)", "to": "Q23958852", "width": 2}]
     }
   </script>
   <script id="data-for-batch_d_QD06-graph" type="application/json">
     {
-        "nodes": [{"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q35120", "label": "entity\nQ35120", "shape": "dot", "size": 30}, {"color": "#4CAF50", "font": {"color": "black"}, "id": "Q378078", "label": "substance\nQ378078", "shape": "dot", "size": 25}, {"color": "#2196F3", "font": {"color": "black"}, "id": "Q488383", "label": "object\nQ488383", "shape": "dot", "size": 25}, {"color": "#9C27B0", "font": {"color": "black"}, "id": "Q103940464", "label": "continuant\nQ103940464", "shape": "dot", "size": 25}, {"color": "#FF9800", "font": {"color": "black"}, "id": "Q115095765", "label": "location\nQ115095765", "shape": "dot", "size": 25}, {"color": "#795548", "font": {"color": "black"}, "id": "Q120725535", "label": "unidentified entity\nQ120725535", "shape": "dot", "size": 25}, {"color": "#607D8B", "font": {"color": "black"}, "id": "Q121770302", "label": "conceptual entity\nQ121770302", "shape": "dot", "size": 25}, {"color": "#E91E63", "font": {"color": "black"}, "id": "Q13196193", "label": "part\nQ13196193", "shape": "dot", "size": 25}, {"color": "#3F51B5", "font": {"color": "black"}, "id": "Q7048977", "label": "abstract entity\nQ7048977", "shape": "dot", "size": 25}, {"color": "#009688", "font": {"color": "black"}, "id": "Q99527517", "label": "collective entity\nQ99527517", "shape": "dot", "size": 25}],
-        "edges": [{"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q378078", "label": "subclass of (P279)", "to": "Q35120", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q488383", "label": "subclass of (P279)", "to": "Q35120", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q103940464", "label": "subclass of (P279)", "to": "Q35120", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q115095765", "label": "subclass of (P279)", "to": "Q35120", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q120725535", "label": "subclass of (P279)", "to": "Q35120", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q121770302", "label": "subclass of (P279)", "to": "Q35120", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q13196193", "label": "subclass of (P279)", "to": "Q35120", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q7048977", "label": "subclass of (P279)", "to": "Q35120", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q99527517", "label": "subclass of (P279)", "to": "Q35120", "width": 2}]
+        "nodes": [{"color": "rgb(220, 20, 60)", "font": {"color": "black"}, "id": "Q35120", "label": "entity\nQ35120", "shape": "dot", "size": 30}, {"color": "rgb(30, 144, 255)", "font": {"color": "black"}, "id": "Q378078", "label": "substance\nQ378078", "shape": "dot", "size": 25}, {"color": "rgb(34, 139, 34)", "font": {"color": "black"}, "id": "Q488383", "label": "object\nQ488383", "shape": "dot", "size": 25}, {"color": "rgb(255, 140, 0)", "font": {"color": "black"}, "id": "Q103940464", "label": "continuant\nQ103940464", "shape": "dot", "size": 25}, {"color": "rgb(148, 0, 211)", "font": {"color": "black"}, "id": "Q115095765", "label": "location\nQ115095765", "shape": "dot", "size": 25}, {"color": "rgb(139, 69, 19)", "font": {"color": "black"}, "id": "Q120725535", "label": "unidentified entity\nQ120725535", "shape": "dot", "size": 25}, {"color": "rgb(255, 105, 180)", "font": {"color": "black"}, "id": "Q121770302", "label": "conceptual entity\nQ121770302", "shape": "dot", "size": 25}, {"color": "rgb(0, 206, 209)", "font": {"color": "black"}, "id": "Q13196193", "label": "part\nQ13196193", "shape": "dot", "size": 25}, {"color": "rgb(50, 205, 50)", "font": {"color": "black"}, "id": "Q7048977", "label": "abstract entity\nQ7048977", "shape": "dot", "size": 25}, {"color": "rgb(255, 215, 0)", "font": {"color": "black"}, "id": "Q99527517", "label": "collective entity\nQ99527517", "shape": "dot", "size": 25}],
+        "edges": [{"arrows": "to", "color": "rgb(30, 144, 255)", "font": {"color": "black", "size": 10}, "from": "Q378078", "label": "subclass of (P279)", "to": "Q35120", "width": 2}, {"arrows": "to", "color": "rgb(34, 139, 34)", "font": {"color": "black", "size": 10}, "from": "Q488383", "label": "subclass of (P279)", "to": "Q35120", "width": 2}, {"arrows": "to", "color": "rgb(255, 140, 0)", "font": {"color": "black", "size": 10}, "from": "Q103940464", "label": "subclass of (P279)", "to": "Q35120", "width": 2}, {"arrows": "to", "color": "rgb(148, 0, 211)", "font": {"color": "black", "size": 10}, "from": "Q115095765", "label": "subclass of (P279)", "to": "Q35120", "width": 2}, {"arrows": "to", "color": "rgb(139, 69, 19)", "font": {"color": "black", "size": 10}, "from": "Q120725535", "label": "subclass of (P279)", "to": "Q35120", "width": 2}, {"arrows": "to", "color": "rgb(255, 105, 180)", "font": {"color": "black", "size": 10}, "from": "Q121770302", "label": "subclass of (P279)", "to": "Q35120", "width": 2}, {"arrows": "to", "color": "rgb(0, 206, 209)", "font": {"color": "black", "size": 10}, "from": "Q13196193", "label": "subclass of (P279)", "to": "Q35120", "width": 2}, {"arrows": "to", "color": "rgb(50, 205, 50)", "font": {"color": "black", "size": 10}, "from": "Q7048977", "label": "subclass of (P279)", "to": "Q35120", "width": 2}, {"arrows": "to", "color": "rgb(255, 215, 0)", "font": {"color": "black", "size": 10}, "from": "Q99527517", "label": "subclass of (P279)", "to": "Q35120", "width": 2}]
     }
   </script>
   <script id="data-for-batch_d_QD07-graph" type="application/json">
     {
-        "nodes": [{"color": "#FF6B6B", "font": {"color": "black"}, "id": "Q220", "label": "Rome\nQ220", "shape": "dot", "size": 30}, {"color": "#4CAF50", "font": {"color": "black"}, "id": "Q1490", "label": "Tokyo\nQ1490", "shape": "dot", "size": 25}, {"color": "#2196F3", "font": {"color": "black"}, "id": "Q495", "label": "Turin\nQ495", "shape": "dot", "size": 25}, {"color": "#9C27B0", "font": {"color": "black"}, "id": "Q11751", "label": "Nagoya\nQ11751", "shape": "dot", "size": 25}, {"color": "#FF9800", "font": {"color": "black"}, "id": "Q2634", "label": "Naples\nQ2634", "shape": "dot", "size": 25}, {"color": "#795548", "font": {"color": "black"}, "id": "Q15674", "label": "Kagoshima\nQ15674", "shape": "dot", "size": 25}, {"color": "#607D8B", "font": {"color": "black"}, "id": "Q8621", "label": "Terni\nQ8621", "shape": "dot", "size": 25}, {"color": "#E91E63", "font": {"color": "black"}, "id": "Q48320", "label": "Kobe\nQ48320", "shape": "dot", "size": 25}, {"color": "#3F51B5", "font": {"color": "black"}, "id": "Q1083", "label": "Salerno\nQ1083", "shape": "dot", "size": 25}, {"color": "#009688", "font": {"color": "black"}, "id": "Q646766", "label": "Tono\nQ646766", "shape": "dot", "size": 25}, {"color": "#FF5722", "font": {"color": "black"}, "id": "Q1308", "label": "Como\nQ1308", "shape": "dot", "size": 25}, {"color": "#8BC34A", "font": {"color": "black"}, "id": "Q858369", "label": "Tokamachi\nQ858369", "shape": "dot", "size": 25}, {"color": "#FFEB3B", "font": {"color": "black"}, "id": "Q18021", "label": "Biella\nQ18021", "shape": "dot", "size": 25}, {"color": "#CDDC39", "font": {"color": "black"}, "id": "Q634022", "label": "Kiryū\nQ634022", "shape": "dot", "size": 25}, {"color": "#FFC107", "font": {"color": "black"}, "id": "Q1891", "label": "Bologna\nQ1891", "shape": "dot", "size": 25}, {"color": "#03A9F4", "font": {"color": "black"}, "id": "Q185125", "label": "Hamamatsu\nQ185125", "shape": "dot", "size": 25}, {"color": "#4CAF50", "font": {"color": "black"}, "id": "Q33962", "label": "Sanremo\nQ33962", "shape": "dot", "size": 25}, {"color": "#2196F3", "font": {"color": "black"}, "id": "Q653364", "label": "Atami\nQ653364", "shape": "dot", "size": 25}, {"color": "#9C27B0", "font": {"color": "black"}, "id": "Q52981", "label": "Faenza\nQ52981", "shape": "dot", "size": 25}, {"color": "#FF9800", "font": {"color": "black"}, "id": "Q847332", "label": "Toki\nQ847332", "shape": "dot", "size": 25}, {"color": "#795548", "font": {"color": "black"}, "id": "Q541", "label": "Orvieto\nQ541", "shape": "dot", "size": 25}, {"color": "#607D8B", "font": {"color": "black"}, "id": "Q201613", "label": "Maebashi\nQ201613", "shape": "dot", "size": 25}, {"color": "#E91E63", "font": {"color": "black"}, "id": "Q219330", "label": "Pietrasanta\nQ219330", "shape": "dot", "size": 25}, {"color": "#3F51B5", "font": {"color": "black"}, "id": "Q200589", "label": "Utsunomiya\nQ200589", "shape": "dot", "size": 25}, {"color": "#009688", "font": {"color": "black"}, "id": "Q242533", "label": "Civitavecchia\nQ242533", "shape": "dot", "size": 25}, {"color": "#FF5722", "font": {"color": "black"}, "id": "Q270814", "label": "Ishinomaki\nQ270814", "shape": "dot", "size": 25}, {"color": "#8BC34A", "font": {"color": "black"}, "id": "Q6606", "label": "Pordenone\nQ6606", "shape": "dot", "size": 25}, {"color": "#FFEB3B", "font": {"color": "black"}, "id": "Q385248", "label": "Okawa\nQ385248", "shape": "dot", "size": 25}, {"color": "#CDDC39", "font": {"color": "black"}, "id": "Q48090", "label": "Marostica\nQ48090", "shape": "dot", "size": 25}, {"color": "#FFC107", "font": {"color": "black"}, "id": "Q385779", "label": "Tendo\nQ385779", "shape": "dot", "size": 25}, {"color": "#03A9F4", "font": {"color": "black"}, "id": "Q72672", "label": "Sorrento\nQ72672", "shape": "dot", "size": 25}, {"color": "#4CAF50", "font": {"color": "black"}, "id": "Q819672", "label": "Kumano\nQ819672", "shape": "dot", "size": 25}, {"color": "#2196F3", "font": {"color": "black"}, "id": "Q51812", "label": "Alberobello\nQ51812", "shape": "dot", "size": 25}, {"color": "#9C27B0", "font": {"color": "black"}, "id": "Q877626", "label": "Historic Villages of Shirakawa-gō and Gokayama\nQ877626", "shape": "dot", "size": 25}, {"color": "#FF9800", "font": {"color": "black"}, "id": "Q13138", "label": "Chieti\nQ13138", "shape": "dot", "size": 25}, {"color": "#795548", "font": {"color": "black"}, "id": "Q990376", "label": "Minamishimabara\nQ990376", "shape": "dot", "size": 25}, {"color": "#607D8B", "font": {"color": "black"}, "id": "Q13376", "label": "Pistoia\nQ13376", "shape": "dot", "size": 25}, {"color": "#E91E63", "font": {"color": "black"}, "id": "Q1203350", "label": "Shirakawa\nQ1203350", "shape": "dot", "size": 25}],
-        "edges": [{"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q220", "label": "twinned administrative body (P190)", "to": "Q1490", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q495", "label": "twinned administrative body (P190)", "to": "Q11751", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q2634", "label": "twinned administrative body (P190)", "to": "Q15674", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q8621", "label": "twinned administrative body (P190)", "to": "Q48320", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q1083", "label": "twinned administrative body (P190)", "to": "Q646766", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q1308", "label": "twinned administrative body (P190)", "to": "Q858369", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q18021", "label": "twinned administrative body (P190)", "to": "Q634022", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q1891", "label": "twinned administrative body (P190)", "to": "Q185125", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q33962", "label": "twinned administrative body (P190)", "to": "Q653364", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q52981", "label": "twinned administrative body (P190)", "to": "Q847332", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q541", "label": "twinned administrative body (P190)", "to": "Q201613", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q219330", "label": "twinned administrative body (P190)", "to": "Q200589", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q242533", "label": "twinned administrative body (P190)", "to": "Q270814", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q6606", "label": "twinned administrative body (P190)", "to": "Q385248", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q48090", "label": "twinned administrative body (P190)", "to": "Q385779", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q72672", "label": "twinned administrative body (P190)", "to": "Q819672", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q51812", "label": "twinned administrative body (P190)", "to": "Q877626", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q13138", "label": "twinned administrative body (P190)", "to": "Q990376", "width": 2}, {"arrows": "to", "color": "#666666", "font": {"color": "black", "size": 10}, "from": "Q13376", "label": "twinned administrative body (P190)", "to": "Q1203350", "width": 2}]
+        "nodes": [{"color": "rgb(220, 20, 60)", "font": {"color": "black"}, "id": "Q220", "label": "Rome\nQ220", "shape": "dot", "size": 30}, {"color": "rgb(220, 20, 60)", "font": {"color": "black"}, "id": "Q1490", "label": "Tokyo\nQ1490", "shape": "dot", "size": 25}, {"color": "rgb(30, 144, 255)", "font": {"color": "black"}, "id": "Q495", "label": "Turin\nQ495", "shape": "dot", "size": 25}, {"color": "rgb(30, 144, 255)", "font": {"color": "black"}, "id": "Q11751", "label": "Nagoya\nQ11751", "shape": "dot", "size": 25}, {"color": "rgb(34, 139, 34)", "font": {"color": "black"}, "id": "Q2634", "label": "Naples\nQ2634", "shape": "dot", "size": 25}, {"color": "rgb(34, 139, 34)", "font": {"color": "black"}, "id": "Q15674", "label": "Kagoshima\nQ15674", "shape": "dot", "size": 25}, {"color": "rgb(255, 140, 0)", "font": {"color": "black"}, "id": "Q8621", "label": "Terni\nQ8621", "shape": "dot", "size": 25}, {"color": "rgb(255, 140, 0)", "font": {"color": "black"}, "id": "Q48320", "label": "Kobe\nQ48320", "shape": "dot", "size": 25}, {"color": "rgb(148, 0, 211)", "font": {"color": "black"}, "id": "Q1083", "label": "Salerno\nQ1083", "shape": "dot", "size": 25}, {"color": "rgb(148, 0, 211)", "font": {"color": "black"}, "id": "Q646766", "label": "Tono\nQ646766", "shape": "dot", "size": 25}, {"color": "rgb(139, 69, 19)", "font": {"color": "black"}, "id": "Q1308", "label": "Como\nQ1308", "shape": "dot", "size": 25}, {"color": "rgb(139, 69, 19)", "font": {"color": "black"}, "id": "Q858369", "label": "Tokamachi\nQ858369", "shape": "dot", "size": 25}, {"color": "rgb(255, 105, 180)", "font": {"color": "black"}, "id": "Q18021", "label": "Biella\nQ18021", "shape": "dot", "size": 25}, {"color": "rgb(255, 105, 180)", "font": {"color": "black"}, "id": "Q634022", "label": "Kiryū\nQ634022", "shape": "dot", "size": 25}, {"color": "rgb(0, 206, 209)", "font": {"color": "black"}, "id": "Q1891", "label": "Bologna\nQ1891", "shape": "dot", "size": 25}, {"color": "rgb(0, 206, 209)", "font": {"color": "black"}, "id": "Q185125", "label": "Hamamatsu\nQ185125", "shape": "dot", "size": 25}, {"color": "rgb(50, 205, 50)", "font": {"color": "black"}, "id": "Q33962", "label": "Sanremo\nQ33962", "shape": "dot", "size": 25}, {"color": "rgb(50, 205, 50)", "font": {"color": "black"}, "id": "Q653364", "label": "Atami\nQ653364", "shape": "dot", "size": 25}, {"color": "rgb(255, 215, 0)", "font": {"color": "black"}, "id": "Q52981", "label": "Faenza\nQ52981", "shape": "dot", "size": 25}, {"color": "rgb(255, 215, 0)", "font": {"color": "black"}, "id": "Q847332", "label": "Toki\nQ847332", "shape": "dot", "size": 25}, {"color": "rgb(128, 0, 128)", "font": {"color": "black"}, "id": "Q541", "label": "Orvieto\nQ541", "shape": "dot", "size": 25}, {"color": "rgb(128, 0, 128)", "font": {"color": "black"}, "id": "Q201613", "label": "Maebashi\nQ201613", "shape": "dot", "size": 25}, {"color": "rgb(255, 69, 0)", "font": {"color": "black"}, "id": "Q219330", "label": "Pietrasanta\nQ219330", "shape": "dot", "size": 25}, {"color": "rgb(255, 69, 0)", "font": {"color": "black"}, "id": "Q200589", "label": "Utsunomiya\nQ200589", "shape": "dot", "size": 25}, {"color": "rgb(0, 128, 128)", "font": {"color": "black"}, "id": "Q242533", "label": "Civitavecchia\nQ242533", "shape": "dot", "size": 25}, {"color": "rgb(0, 128, 128)", "font": {"color": "black"}, "id": "Q270814", "label": "Ishinomaki\nQ270814", "shape": "dot", "size": 25}, {"color": "rgb(128, 128, 0)", "font": {"color": "black"}, "id": "Q6606", "label": "Pordenone\nQ6606", "shape": "dot", "size": 25}, {"color": "rgb(128, 128, 0)", "font": {"color": "black"}, "id": "Q385248", "label": "Okawa\nQ385248", "shape": "dot", "size": 25}, {"color": "rgb(218, 112, 214)", "font": {"color": "black"}, "id": "Q48090", "label": "Marostica\nQ48090", "shape": "dot", "size": 25}, {"color": "rgb(218, 112, 214)", "font": {"color": "black"}, "id": "Q385779", "label": "Tendo\nQ385779", "shape": "dot", "size": 25}, {"color": "rgb(0, 191, 255)", "font": {"color": "black"}, "id": "Q72672", "label": "Sorrento\nQ72672", "shape": "dot", "size": 25}, {"color": "rgb(0, 191, 255)", "font": {"color": "black"}, "id": "Q819672", "label": "Kumano\nQ819672", "shape": "dot", "size": 25}, {"color": "rgb(255, 20, 147)", "font": {"color": "black"}, "id": "Q51812", "label": "Alberobello\nQ51812", "shape": "dot", "size": 25}, {"color": "rgb(255, 20, 147)", "font": {"color": "black"}, "id": "Q877626", "label": "Historic Villages of Shirakawa-gō and Gokayama\nQ877626", "shape": "dot", "size": 25}, {"color": "rgb(46, 139, 87)", "font": {"color": "black"}, "id": "Q13138", "label": "Chieti\nQ13138", "shape": "dot", "size": 25}, {"color": "rgb(46, 139, 87)", "font": {"color": "black"}, "id": "Q990376", "label": "Minamishimabara\nQ990376", "shape": "dot", "size": 25}, {"color": "rgb(255, 165, 0)", "font": {"color": "black"}, "id": "Q13376", "label": "Pistoia\nQ13376", "shape": "dot", "size": 25}, {"color": "rgb(255, 165, 0)", "font": {"color": "black"}, "id": "Q1203350", "label": "Shirakawa\nQ1203350", "shape": "dot", "size": 25}],
+        "edges": [{"arrows": "to", "color": "rgb(220, 20, 60)", "font": {"color": "black", "size": 10}, "from": "Q220", "label": "twinned administrative body (P190)", "to": "Q1490", "width": 2}, {"arrows": "to", "color": "rgb(30, 144, 255)", "font": {"color": "black", "size": 10}, "from": "Q495", "label": "twinned administrative body (P190)", "to": "Q11751", "width": 2}, {"arrows": "to", "color": "rgb(34, 139, 34)", "font": {"color": "black", "size": 10}, "from": "Q2634", "label": "twinned administrative body (P190)", "to": "Q15674", "width": 2}, {"arrows": "to", "color": "rgb(255, 140, 0)", "font": {"color": "black", "size": 10}, "from": "Q8621", "label": "twinned administrative body (P190)", "to": "Q48320", "width": 2}, {"arrows": "to", "color": "rgb(148, 0, 211)", "font": {"color": "black", "size": 10}, "from": "Q1083", "label": "twinned administrative body (P190)", "to": "Q646766", "width": 2}, {"arrows": "to", "color": "rgb(139, 69, 19)", "font": {"color": "black", "size": 10}, "from": "Q1308", "label": "twinned administrative body (P190)", "to": "Q858369", "width": 2}, {"arrows": "to", "color": "rgb(255, 105, 180)", "font": {"color": "black", "size": 10}, "from": "Q18021", "label": "twinned administrative body (P190)", "to": "Q634022", "width": 2}, {"arrows": "to", "color": "rgb(0, 206, 209)", "font": {"color": "black", "size": 10}, "from": "Q1891", "label": "twinned administrative body (P190)", "to": "Q185125", "width": 2}, {"arrows": "to", "color": "rgb(50, 205, 50)", "font": {"color": "black", "size": 10}, "from": "Q33962", "label": "twinned administrative body (P190)", "to": "Q653364", "width": 2}, {"arrows": "to", "color": "rgb(255, 215, 0)", "font": {"color": "black", "size": 10}, "from": "Q52981", "label": "twinned administrative body (P190)", "to": "Q847332", "width": 2}, {"arrows": "to", "color": "rgb(128, 0, 128)", "font": {"color": "black", "size": 10}, "from": "Q541", "label": "twinned administrative body (P190)", "to": "Q201613", "width": 2}, {"arrows": "to", "color": "rgb(255, 69, 0)", "font": {"color": "black", "size": 10}, "from": "Q219330", "label": "twinned administrative body (P190)", "to": "Q200589", "width": 2}, {"arrows": "to", "color": "rgb(0, 128, 128)", "font": {"color": "black", "size": 10}, "from": "Q242533", "label": "twinned administrative body (P190)", "to": "Q270814", "width": 2}, {"arrows": "to", "color": "rgb(128, 128, 0)", "font": {"color": "black", "size": 10}, "from": "Q6606", "label": "twinned administrative body (P190)", "to": "Q385248", "width": 2}, {"arrows": "to", "color": "rgb(218, 112, 214)", "font": {"color": "black", "size": 10}, "from": "Q48090", "label": "twinned administrative body (P190)", "to": "Q385779", "width": 2}, {"arrows": "to", "color": "rgb(0, 191, 255)", "font": {"color": "black", "size": 10}, "from": "Q72672", "label": "twinned administrative body (P190)", "to": "Q819672", "width": 2}, {"arrows": "to", "color": "rgb(255, 20, 147)", "font": {"color": "black", "size": 10}, "from": "Q51812", "label": "twinned administrative body (P190)", "to": "Q877626", "width": 2}, {"arrows": "to", "color": "rgb(46, 139, 87)", "font": {"color": "black", "size": 10}, "from": "Q13138", "label": "twinned administrative body (P190)", "to": "Q990376", "width": 2}, {"arrows": "to", "color": "rgb(255, 165, 0)", "font": {"color": "black", "size": 10}, "from": "Q13376", "label": "twinned administrative body (P190)", "to": "Q1203350", "width": 2}]
     }
   </script>
 
