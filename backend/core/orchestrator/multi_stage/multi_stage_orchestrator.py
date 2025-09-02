@@ -87,7 +87,8 @@ class MultiStageOrchestrator(Orchestrator):
                  experiment_id: Optional[str] = None,
                  enable_question_decomposition: bool = False,
                  metacognition: Optional['Metacognition'] = None,
-                 llm_settings: Optional[Any] = None):
+                 llm_settings: Optional[Any] = None,
+                 knowledge_source: str = "Wikidata"):
         # Set up logging first
         from datetime import datetime
         if experiment_id is None:
@@ -113,6 +114,9 @@ class MultiStageOrchestrator(Orchestrator):
         
         # Store LLM settings for model selection
         self.llm_settings = llm_settings
+        
+        # Store knowledge source for prompts
+        self.knowledge_source = knowledge_source
         
         # Initialize statistics collector (replaces attempt_history)
         self.statistics = None  # Will be initialized when query is processed
@@ -1343,7 +1347,8 @@ REMOTE DATA:
                 self.memory.get_last_llm_response(),
                 next_step_tools,
                 self.substate.value if self.substate else "Initial",
-                strategy=metacognitive_suggestion  # Use metacognitive suggestion as strategy
+                strategy=metacognitive_suggestion,  # Use metacognitive suggestion as strategy
+                knowledge_source=self.knowledge_source
             )
 
             log_prompt(
@@ -1408,7 +1413,8 @@ REMOTE DATA:
                 await self.knowledge_graph.to_readable_format(),
                 self.memory.get_last_llm_response(),
                 await self.get_evaluation_tools(),
-                self.substate.value if self.substate else "Initial"
+                self.substate.value if self.substate else "Initial",
+                knowledge_source=self.knowledge_source
             )
             
             log_prompt(

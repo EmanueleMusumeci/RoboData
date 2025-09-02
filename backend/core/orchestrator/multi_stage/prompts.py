@@ -229,7 +229,7 @@ Give clear instructions for the next stage. You may suggest using multiple tools
         assistant=assistant_data
     )
 
-def create_remote_exploration_prompt(query_text: str, memory_context: str, local_graph_data: Optional[str] = None, last_llm_response: Optional[str] = None, next_step_tools: Optional[List] = None, last_stage_name: str = "Unknown") -> PromptStructure:
+def create_remote_exploration_prompt(query_text: str, memory_context: str, local_graph_data: Optional[str] = None, last_llm_response: Optional[str] = None, next_step_tools: Optional[List] = None, last_stage_name: str = "Unknown", knowledge_source: str = "Wikidata") -> PromptStructure:
     """Create prompt for remote graph exploration."""
     
     tools_text = ""
@@ -282,7 +282,7 @@ Your response must end with the action name (the choice token) on its own line. 
         assistant=assistant_prompt
     )
 
-def create_remote_evaluation_prompt(query_text: str, memory_context: str, remote_data: list, local_graph_data: Optional[str] = None, last_llm_response: Optional[str] = None, next_step_tools: Optional[List] = None, last_stage_name: str = "Unknown", strategy: Optional[str] = "") -> PromptStructure:
+def create_remote_evaluation_prompt(query_text: str, memory_context: str, remote_data: list, local_graph_data: Optional[str] = None, last_llm_response: Optional[str] = None, next_step_tools: Optional[List] = None, last_stage_name: str = "Unknown", strategy: Optional[str] = "", knowledge_source: str = "Wikidata") -> PromptStructure:
     """Create prompt for remote data evaluation with optional strategy."""
     
     tools_text = ""
@@ -362,7 +362,7 @@ Give clear instructions for the next stage. You may suggest using multiple tools
         assistant=assistant_prompt
     )
 
-def create_graph_update_prompt(query_text: str, memory_context: str, remote_data: Optional[List], local_graph_data: Optional[str] = None, last_llm_response: Optional[str] = None, next_step_tools: Optional[List] = None, last_stage_name: str = "Unknown") -> PromptStructure:
+def create_graph_update_prompt(query_text: str, memory_context: str, remote_data: Optional[List], local_graph_data: Optional[str] = None, last_llm_response: Optional[str] = None, next_step_tools: Optional[List] = None, last_stage_name: str = "Unknown", knowledge_source: str = "Wikidata") -> PromptStructure:
     """Create prompt for graph update."""
     
     tools_text = ""
@@ -371,11 +371,11 @@ def create_graph_update_prompt(query_text: str, memory_context: str, remote_data
 
     # SHORTENED SYSTEM PROMPT
     system_prompt = (
-        """
+        f"""
 Update the local graph with relevant remote data. Only add entities/relationships that are directly related to the query. Avoid isolated nodes and redundancy. Always connect new entities. Mirror remote relationships in the local graph.
 
 AVAILABLE GRAPH UPDATE STRATEGIES:
-- Use fetch_node to add individual Wikidata entities to the local graph
+- Use fetch_node to add individual {knowledge_source} entities to the local graph
 - Use fetch_relationship_from_node to get all relationships of a specific property from a subject entity
 - Use fetch_relationship_to_node to find all entities that reference a specific object through a particular property (e.g., all people born in a city, all works by an author)
 

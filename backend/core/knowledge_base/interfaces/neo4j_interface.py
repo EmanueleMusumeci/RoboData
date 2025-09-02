@@ -11,6 +11,7 @@ import logging
 from abc import ABC, abstractmethod
 
 from ..schema import Node, Edge, Graph
+import re
 
 if TYPE_CHECKING:
     from neo4j import AsyncDriver, Query
@@ -414,13 +415,25 @@ class Neo4jInterface(DatabaseInterface):
         import uuid
         rel_id = str(uuid.uuid4())
         properties['id'] = rel_id
-        
+        # Sanitize relationship type to a Neo4j-safe identifier (only letters, numbers, underscore)
+        if relationship_type:
+            safe_rel_type = re.sub(r'[^A-Za-z0-9_]', '_', relationship_type)
+            if not safe_rel_type:
+                safe_rel_type = 'REL'
+        else:
+            safe_rel_type = 'REL'
+
+        # Preserve original type in properties for traceability
+        properties['original_type'] = relationship_type
+        properties['_rel_type'] = safe_rel_type
+
+        # Use backticks around the sanitized relationship type
         query = f"""
         MATCH (a {{id: $from_id}}), (b {{id: $to_id}})
-        CREATE (a)-[r:{relationship_type} $properties]->(b)
+        CREATE (a)-[r:`{safe_rel_type}` $properties]->(b)
         RETURN r.id as rel_id
         """
-        
+
         result = await self.execute_query(query, {
             'from_id': from_node_id,
             'to_id': to_node_id,

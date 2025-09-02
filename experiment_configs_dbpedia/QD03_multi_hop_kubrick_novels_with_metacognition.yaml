@@ -1,22 +1,22 @@
-# Default configuration for RoboData
-# This file contains the default settings that are used when no configuration is provided
-# or to fill in missing values in user-provided configurations.
+# QA03 – Multi-hop (Success): "Which movies directed by Stanley Kubrick are based on novels?" (DBpedia)
+# Tests sequential traversal. 
+# Requires remote exploration, filtering, and correct graph integration.
 
-experiment_id: ""
+experiment_id: "QD03_multi_hop_kubrick_novels_with_metacognition_dbpedia"
 
 # Knowledge source selection: "wikidata" or "dbpedia"
-knowledge_source: "wikidata"
+knowledge_source: "dbpedia"
 
 orchestrator:
   type: "multi_stage"
-  context_length: 16000
-  model: "gpt-4o"  # Model for agent creation (kept for compatibility)
+  context_length: 8000
+  model: "gpt-4o"
   memory:
     use_summary_memory: true
     max_memory_slots: 30
   max_turns: 30
   enable_question_decomposition: false
-  enable_metacognition: false
+  enable_metacognition: true
   metacognition:
     system_description: >
       An AI-powered ontology exploration framework where a metacognitive LLM agent monitors
@@ -29,51 +29,37 @@ orchestrator:
       Multi-stage orchestrator with six distinct execution phases:
       (1) LOCAL_GRAPH_EXPLORATION using graph database tools (GetNodeTool, CypherQueryTool, GetEdgeTool) to search the accumulated local knowledge graph,
       (2) EVAL_LOCAL_DATA using evaluation tools to assess local search results,
-      (3) REMOTE_GRAPH_EXPLORATION using Wikidata API tools (GetEntityInfoTool, SearchEntitiesTool, SPARQLQueryTool, NeighborsExplorationTool, LocalGraphTool) to fetch data from the Wikidata ontology,
+      (3) REMOTE_GRAPH_EXPLORATION using DBPedia API tools (GetEntityInfoTool, SearchEntitiesTool, SPARQLQueryTool, NeighborsExplorationTool, LocalGraphTool) to fetch data from the DBPedia ontology,
       (4) EVAL_REMOTE_DATA using evaluation tools to assess remote retrieval results,
       (5) LOCAL_GRAPH_UPDATE using graph update tools (FetchNodeTool, FetchRelationshipTool, RemoveNodeTool) to populate the local knowledge graph with validated remote data,
       (6) PRODUCE_ANSWER using evaluation tools to generate final responses with supporting evidence from the accumulated graph.
     
     task_description: >
-      Systematically explore the Wikidata ontology
+      Systematically explore the DBPedia ontology
       through strategic tool usage to populate a local knowledge graph
       that can answer natural language queries.
       Each answer must be supported by a comprehensive set of nodes
       and relationships from the accumulated local knowledge graph,
       providing complete provenance and evidence chains
       for every statement in the response.
-  
+      The resulting graph should be as connected as possible. Avoid isolated nodes and ensure all relevant information is linked.
+
   toolboxes:
-    # Toolboxes are automatically configured based on knowledge_source setting
-    # For Wikidata: Uses Wikidata API tools (GetEntityInfoTool, SPARQLQueryTool, etc.)
-    # For DBpedia: Uses DBpedia API tools (DBpedia GetEntityInfoTool, SPARQLQueryTool, etc.)
-    # Local exploration and graph update tools are shared between both sources
-    local_exploration: []    # Auto-configured: GetNodeTool, GetEdgeTool, CypherQueryTool
-    remote_exploration: []   # Auto-configured based on knowledge_source (Wikidata or DBpedia tools)
-    graph_update: []         # Auto-configured: FetchNodeTool, FetchRelationshipTool, RemoveNodeTool
-    evaluation: []           # Auto-configured: GetNodeTool, GetEdgeTool, CypherQueryTool
+    local_exploration: []
+    remote_exploration: []
+    graph_update: []
+    evaluation: []
 
 log_level: "DEBUG"
 memory: ""
 
-llm:
-  provider: "openai"
-  model: "gpt-4o"  # Default/fallback model
-  temperature: 0.7
-  max_tokens: 4096
-  # Specific models for different operations
-  metacognition_model: "gpt-4o"  # Strategic assessment and meta-observation
-  evaluation_model: "gpt-4o"     # Data evaluation and answer production
-  exploration_model: "gpt-4o"   # Local and remote graph exploration
-  update_model: "gpt-4o"        # Knowledge graph updates
-
 dataset:
   path: ""
-  type: "auto"  # auto-detect, json, jsonl, lcquad
+  type: "auto"
   load_on_start: false
 
-# List of queries to process sequentially
-queries: []
+queries:
+  - "Which movies directed by Stanley Kubrick are based on novels?"
 
 output:
   save_results: true

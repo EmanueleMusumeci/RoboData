@@ -1,9 +1,18 @@
 #!/bin/bash
 
 # RoboData Experiments Runner
-# Executes all experiments described in experiments.tex using individual YAML config files
+# Executes all experiments for either Wikidata or DBpedia knowledge sources
+# 
+# Usage: ./run_experiments.sh [knowledge_source]
+#   knowledge_source: "wikidata" (default) or "dbpedia"
+#
+# Examples:
+#   ./run_experiments.sh              # Run Wikidata experiments
+#   ./run_experiments.sh wikidata     # Run Wikidata experiments  
+#   ./run_experiments.sh dbpedia      # Run DBpedia experiments
+#
 # Author: Generated based on experiments.tex specifications
-# Date: August 1, 2025
+# Updated: August 16, 2025 - Added knowledge source selection
 
 set -e  # Exit on any error
 
@@ -16,12 +25,40 @@ NC='\033[0m' # No Color
 
 # Configuration
 ROBODATA_ROOT="/DATA/RoboData"
-CONFIG_DIR="experiment_configs"
-RESULTS_DIR="experiments"
-LOG_FILE="experiments_batch_$(date +%Y%m%d_%H%M%S).log"
+KNOWLEDGE_SOURCE="${1:-wikidata}"  # Default to wikidata, can be overridden by first argument
+CONFIG_DIR="experiment_configs_${KNOWLEDGE_SOURCE}"
+RESULTS_DIR="experiments_${KNOWLEDGE_SOURCE}"
+LOG_FILE="experiments_${KNOWLEDGE_SOURCE}_batch_$(date +%Y%m%d_%H%M%S).log"
 
 # Ensure we're in the right directory
 cd "$ROBODATA_ROOT"
+
+# Display usage information if requested
+if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+    echo "RoboData Experiments Runner"
+    echo ""
+    echo "Usage: $0 [knowledge_source]"
+    echo ""
+    echo "Arguments:"
+    echo "  knowledge_source    Knowledge source to use (wikidata|dbpedia). Default: wikidata"
+    echo ""
+    echo "Examples:"
+    echo "  $0                  # Run Wikidata experiments (default)"
+    echo "  $0 wikidata         # Run Wikidata experiments"
+    echo "  $0 dbpedia          # Run DBpedia experiments"
+    echo ""
+    echo "This will run all experiments from experiment_configs_[source]/ directory"
+    echo "and save results to experiments_[source]/ directory."
+    exit 0
+fi
+
+# Validate knowledge source argument
+if [[ "$KNOWLEDGE_SOURCE" != "wikidata" && "$KNOWLEDGE_SOURCE" != "dbpedia" ]]; then
+    echo -e "${RED}Error: Invalid knowledge source '$KNOWLEDGE_SOURCE'${NC}"
+    echo "Valid options: wikidata, dbpedia"
+    echo "Use '$0 --help' for usage information."
+    exit 1
+fi
 
 # Check if virtual environment exists
 if [ ! -d ".venv" ]; then
@@ -37,6 +74,8 @@ echo -e "${BLUE}Activating virtual environment...${NC}"
 # Check if config directory exists
 if [ ! -d "$CONFIG_DIR" ]; then
     echo -e "${RED}Error: Configuration directory $CONFIG_DIR not found${NC}"
+    echo "Available directories:"
+    ls -d experiment_configs_* 2>/dev/null || echo "  No experiment_configs_* directories found"
     exit 1
 fi
 
@@ -52,7 +91,7 @@ run_experiment() {
     echo -e "${BLUE}Config: $config_file${NC}"
     echo ""
     
-    local cmd="python -m backend.main -c $CONFIG_DIR/$config_file"
+    local cmd="python -m backend.main -c \"$CONFIG_DIR/$config_file\" --knowledge-source \"$KNOWLEDGE_SOURCE\""
     
     echo "Executing: $cmd" >> "$LOG_FILE"
     
@@ -90,12 +129,14 @@ run_consistency_test() {
 
 # Start logging
 echo "Starting RoboData Experiments Batch - $(date)" > "$LOG_FILE"
+echo "Knowledge Source: $KNOWLEDGE_SOURCE" >> "$LOG_FILE"
 echo "Configuration Directory: $CONFIG_DIR" >> "$LOG_FILE"
 echo "Results Directory: $RESULTS_DIR" >> "$LOG_FILE"
 echo "========================================" >> "$LOG_FILE"
 
 echo -e "${GREEN}=== RoboData Experiments Runner ===${NC}"
 echo -e "${BLUE}Starting comprehensive experiment batch...${NC}"
+echo -e "${YELLOW}Knowledge Source: $KNOWLEDGE_SOURCE${NC}"
 echo -e "${BLUE}Configuration Directory: $CONFIG_DIR${NC}"
 echo -e "${BLUE}Results will be saved to: $RESULTS_DIR${NC}"
 echo -e "${BLUE}Full log: $LOG_FILE${NC}"
@@ -107,10 +148,11 @@ total_configs=${#config_files[@]}
 
 if [ $total_configs -eq 0 ]; then
     echo -e "${RED}No YAML configuration files found in $CONFIG_DIR${NC}"
+    echo "Make sure the directory contains experiment configuration files."
     exit 1
 fi
 
-echo -e "${BLUE}Found $total_configs experiment configurations${NC}"
+echo -e "${BLUE}Found $total_configs experiment configurations for $KNOWLEDGE_SOURCE${NC}"
 echo ""
 
 # Run all experiments
@@ -149,6 +191,7 @@ echo -e "${BLUE}Results are saved in: $RESULTS_DIR${NC}"
 echo -e "${BLUE}Complete log available at: $LOG_FILE${NC}"
 echo ""
 echo -e "${YELLOW}Summary of experiments run:${NC}"
+echo "- Knowledge Source: $KNOWLEDGE_SOURCE"
 echo "- Total configurations: $total_configs"
 echo "- Successful experiments: $successful_count"
 echo "- Failed experiments: $failed_count"
@@ -159,11 +202,11 @@ echo -e "${GREEN}You can now analyze the results and generate statistics from th
 # Generate experiment tables automatically
 echo ""
 echo -e "${GREEN}=== GENERATING EXPERIMENT TABLES ===${NC}"
-echo -e "${BLUE}Extracting experiment statistics and creating CSV tables...${NC}"
+echo -e "${BLUE}Extracting experiment statistics and creating CSV tables for $KNOWLEDGE_SOURCE...${NC}"
 
 if python backend/evaluation/extract_experiment_tables_updated.py 2>&1 | tee -a "$LOG_FILE"; then
     echo -e "${GREEN}✓ Experiment tables generated successfully${NC}"
-    echo -e "${BLUE}Tables available:${NC}"
+    echo -e "${BLUE}Tables available for $KNOWLEDGE_SOURCE:${NC}"
     echo "  - experiment_overview.csv (all experiments overview)"
     echo "  - batch_QA_table.csv (Batch A experiments)"
     echo "  - batch_QB_table.csv (Batch B experiments)"

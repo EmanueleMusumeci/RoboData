@@ -1,22 +1,22 @@
-# Default configuration for RoboData
-# This file contains the default settings that are used when no configuration is provided
-# or to fill in missing values in user-provided configurations.
+# QD08 – Twin Cities (WITH metacognition): "Which German cities are twinned with both Paris and a Japanese city?" (Wikidata)
+# Metacognition version to evaluate the difference in performance with strategic monitoring and guidance.
+# This question is more constrained than the original, focusing on German cities specifically.
 
-experiment_id: ""
+experiment_id: "QD08_twin_cities_with_metacognition_wikidata"
 
 # Knowledge source selection: "wikidata" or "dbpedia"
 knowledge_source: "wikidata"
 
 orchestrator:
   type: "multi_stage"
-  context_length: 16000
-  model: "gpt-4o"  # Model for agent creation (kept for compatibility)
+  context_length: 8000
+  model: "gpt-4o"
   memory:
     use_summary_memory: true
     max_memory_slots: 30
   max_turns: 30
   enable_question_decomposition: false
-  enable_metacognition: false
+  enable_metacognition: true
   metacognition:
     system_description: >
       An AI-powered ontology exploration framework where a metacognitive LLM agent monitors
@@ -44,36 +44,21 @@ orchestrator:
       for every statement in the response.
   
   toolboxes:
-    # Toolboxes are automatically configured based on knowledge_source setting
-    # For Wikidata: Uses Wikidata API tools (GetEntityInfoTool, SPARQLQueryTool, etc.)
-    # For DBpedia: Uses DBpedia API tools (DBpedia GetEntityInfoTool, SPARQLQueryTool, etc.)
-    # Local exploration and graph update tools are shared between both sources
-    local_exploration: []    # Auto-configured: GetNodeTool, GetEdgeTool, CypherQueryTool
-    remote_exploration: []   # Auto-configured based on knowledge_source (Wikidata or DBpedia tools)
-    graph_update: []         # Auto-configured: FetchNodeTool, FetchRelationshipTool, RemoveNodeTool
-    evaluation: []           # Auto-configured: GetNodeTool, GetEdgeTool, CypherQueryTool
+    local_exploration: []
+    remote_exploration: []
+    graph_update: []
+    evaluation: []
 
 log_level: "DEBUG"
 memory: ""
 
-llm:
-  provider: "openai"
-  model: "gpt-4o"  # Default/fallback model
-  temperature: 0.7
-  max_tokens: 4096
-  # Specific models for different operations
-  metacognition_model: "gpt-4o"  # Strategic assessment and meta-observation
-  evaluation_model: "gpt-4o"     # Data evaluation and answer production
-  exploration_model: "gpt-4o"   # Local and remote graph exploration
-  update_model: "gpt-4o"        # Knowledge graph updates
-
 dataset:
   path: ""
-  type: "auto"  # auto-detect, json, jsonl, lcquad
+  type: "auto"
   load_on_start: false
 
-# List of queries to process sequentially
-queries: []
+queries:
+  - "Which Italian cities are twinned with a Japanese city?"
 
 output:
   save_results: true

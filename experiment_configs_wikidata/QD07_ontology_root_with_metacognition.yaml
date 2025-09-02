@@ -1,8 +1,4 @@
-# Default configuration for RoboData
-# This file contains the default settings that are used when no configuration is provided
-# or to fill in missing values in user-provided configurations.
-
-experiment_id: ""
+experiment_id: "QD05_ontology_root_with_metacognition_wikidata"
 
 # Knowledge source selection: "wikidata" or "dbpedia"
 knowledge_source: "wikidata"
@@ -10,13 +6,13 @@ knowledge_source: "wikidata"
 orchestrator:
   type: "multi_stage"
   context_length: 16000
-  model: "gpt-4o"  # Model for agent creation (kept for compatibility)
+  model: "gpt-4o"
   memory:
     use_summary_memory: true
     max_memory_slots: 30
-  max_turns: 30
+  max_turns: 50
   enable_question_decomposition: false
-  enable_metacognition: false
+  enable_metacognition: true
   metacognition:
     system_description: >
       An AI-powered ontology exploration framework where a metacognitive LLM agent monitors
@@ -42,38 +38,26 @@ orchestrator:
       and relationships from the accumulated local knowledge graph,
       providing complete provenance and evidence chains
       for every statement in the response.
-  
+      The resulting graph should be as connected as possible. Avoid isolated nodes and ensure all relevant information is linked.
+      NOTICE: IN WIKIDATA RELATIONS ARE DIRECTED, SO THE GRAPH WILL BE DIRECTED AS WELL. SO RELATIONS ARE NOT SYMMETRICAL. YOU SHOULD CONSIDER THIS WHEN EXPLORING THE ONTOLOGY.
+      ONLY WRITE THE MOST IMMEDIATE TASK TO PERFORM.
+
   toolboxes:
-    # Toolboxes are automatically configured based on knowledge_source setting
-    # For Wikidata: Uses Wikidata API tools (GetEntityInfoTool, SPARQLQueryTool, etc.)
-    # For DBpedia: Uses DBpedia API tools (DBpedia GetEntityInfoTool, SPARQLQueryTool, etc.)
-    # Local exploration and graph update tools are shared between both sources
-    local_exploration: []    # Auto-configured: GetNodeTool, GetEdgeTool, CypherQueryTool
-    remote_exploration: []   # Auto-configured based on knowledge_source (Wikidata or DBpedia tools)
-    graph_update: []         # Auto-configured: FetchNodeTool, FetchRelationshipTool, RemoveNodeTool
-    evaluation: []           # Auto-configured: GetNodeTool, GetEdgeTool, CypherQueryTool
+    local_exploration: []
+    remote_exploration: []
+    graph_update: []
+    evaluation: []
 
 log_level: "DEBUG"
 memory: ""
 
-llm:
-  provider: "openai"
-  model: "gpt-4o"  # Default/fallback model
-  temperature: 0.7
-  max_tokens: 4096
-  # Specific models for different operations
-  metacognition_model: "gpt-4o"  # Strategic assessment and meta-observation
-  evaluation_model: "gpt-4o"     # Data evaluation and answer production
-  exploration_model: "gpt-4o"   # Local and remote graph exploration
-  update_model: "gpt-4o"        # Knowledge graph updates
-
 dataset:
   path: ""
-  type: "auto"  # auto-detect, json, jsonl, lcquad
+  type: "auto"
   load_on_start: false
 
-# List of queries to process sequentially
-queries: []
+queries:
+  - "Explore the ontology: Start from the root and list all direct subclasses. Then for each subclass, list its direct subclasses."
 
 output:
   save_results: true

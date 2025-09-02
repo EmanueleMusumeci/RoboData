@@ -20,7 +20,9 @@ from core.orchestrator.multi_stage.toolboxes import (
     create_local_exploration_toolbox,
     create_remote_exploration_toolbox,
     create_graph_update_toolbox,
-    create_evaluation_toolbox
+    create_evaluation_toolbox,
+    create_dbpedia_remote_exploration_toolbox,
+    create_dbpedia_graph_update_toolbox
 )
 from core.orchestrator.hil_orchestrator import HILOrchestrator, AsyncQueueInputHandler
 from core.memory import SimpleMemory
@@ -104,15 +106,27 @@ def create_agent(model_name: str, toolbox=None):
         return OpenAIAgent(model=model_name, toolbox=toolbox)
 
 
-def create_configured_toolboxes() -> Tuple[Toolbox, Toolbox, Toolbox, Toolbox]:
+def create_configured_toolboxes(knowledge_source: str = "wikidata") -> Tuple[Toolbox, Toolbox, Toolbox, Toolbox]:
     """Create and configure toolboxes for different orchestrator phases.
+    
+    Args:
+        knowledge_source: Source of remote knowledge ("wikidata" or "dbpedia")
     
     Returns:
         Tuple of (local_exploration, remote_exploration, graph_update, evaluation) toolboxes
     """
     local_exploration_toolbox = create_local_exploration_toolbox()
-    remote_exploration_toolbox = create_remote_exploration_toolbox()
-    graph_update_toolbox = create_graph_update_toolbox()
+    
+    # Choose remote exploration toolbox based on knowledge source
+    if knowledge_source.lower() == "dbpedia":
+        remote_exploration_toolbox = create_dbpedia_remote_exploration_toolbox()
+        # For DBpedia, we need DBpedia-aware graph update tools
+        graph_update_toolbox = create_dbpedia_graph_update_toolbox()
+    else:
+        # Default to Wikidata
+        remote_exploration_toolbox = create_remote_exploration_toolbox()
+        graph_update_toolbox = create_graph_update_toolbox()
+    
     evaluation_toolbox = create_evaluation_toolbox()
     
     return local_exploration_toolbox, remote_exploration_toolbox, graph_update_toolbox, evaluation_toolbox
@@ -145,7 +159,8 @@ async def create_multi_stage_orchestrator(
             experiment_id = config.get("experiment_id") or f"query_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     
     # Create toolboxes
-    local_exploration_toolbox, remote_exploration_toolbox, graph_update_toolbox, evaluation_toolbox = create_configured_toolboxes()
+    knowledge_source = config.get("knowledge_source", "wikidata")
+    local_exploration_toolbox, remote_exploration_toolbox, graph_update_toolbox, evaluation_toolbox = create_configured_toolboxes(knowledge_source)
     
     # Create agent
     orchestrator_config = config["orchestrator"]
@@ -187,14 +202,15 @@ async def create_multi_stage_orchestrator(
             system_description=system_description,
             agent_description=agent_description,
             task_description=task_description,
-            llm_settings=llm_settings
+            llm_settings=llm_settings,
+            knowledge_source=knowledge_source.title()  # Capitalize first letter
         )
         log_debug("Metacognition module enabled", "METACOGNITION")
     
     # Get knowledge graph instance
     knowledge_graph = get_knowledge_graph()
     
-    # Create orchestrator
+    # Create orchestrator with dynamic configuration based on knowledge source
     orchestrator = MultiStageOrchestrator(
         agent, 
         knowledge_graph,
@@ -209,7 +225,8 @@ async def create_multi_stage_orchestrator(
         experiment_id=experiment_id,
         enable_question_decomposition=enable_question_decomposition,
         metacognition=metacognition,
-        llm_settings=llm_settings
+        llm_settings=llm_settings,
+        knowledge_source=knowledge_source.title()  # Capitalize first letter
     )
     
     return orchestrator

@@ -43,7 +43,8 @@ class Metacognition:
                  system_description: str,
                  agent_description: str,
                  task_description: str,
-                 llm_settings: Optional[Any] = None):
+                 llm_settings: Optional[Any] = None,
+                 knowledge_source: str = "Wikidata"):
         """
         Initialize the metacognition module.
         
@@ -53,11 +54,15 @@ class Metacognition:
             agent_description: Description of the agent being observed
             task_description: Description of the current task
             llm_settings: Optional LLM settings for model selection
+            knowledge_source: Knowledge source being used (Wikidata or DBpedia)
         """
         self.agent = agent
         self.system_description = system_description
-        self.agent_description = agent_description
-        self.task_description = task_description
+        self.knowledge_source = knowledge_source
+        
+        # Update descriptions to use the correct knowledge source
+        self.agent_description = agent_description.replace("Wikidata", knowledge_source)
+        self.task_description = task_description.replace("Wikidata", knowledge_source)
         self.llm_settings = llm_settings
         self.previous_observation: Optional[MetacognitiveObservation] = None
         

@@ -1,0 +1,42 @@
+# QA03 – Multi-hop (Success): "Which movies directed by Stanley Kubrick are based on novels?" (DBpedia)
+# Tests sequential traversal. 
+# Requires remote exploration, filtering, and correct graph integration.
+
+experiment_id: "QA06_multi_hop_kubrick_novels_without_metacognition_dbpedia"
+
+# Knowledge source selection: "wikidata" or "dbpedia"
+knowledge_source: "dbpedia"
+
+orchestrator:
+  type: "multi_stage"
+  context_length: 8000
+  model: "gpt-4o"
+  memory:
+    use_summary_memory: true
+    max_memory_slots: 30
+  max_turns: 30
+  enable_question_decomposition: false
+  enable_metacognition: false
+  
+  toolboxes:
+    local_exploration: []
+    remote_exploration: []
+    graph_update: []
+    evaluation: []
+
+log_level: "DEBUG"
+memory: ""
+
+dataset:
+  path: ""
+  type: "auto"
+  load_on_start: false
+
+queries:
+  - "Which movies directed by Stanley Kubrick are based on novels?"
+
+output:
+  save_results: true
+  export_formats: ["json", "cypher"]
+  create_visualizations: true
+  results_directory: "experiments"

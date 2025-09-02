@@ -252,6 +252,14 @@ def parse_arguments():
         help="Enable metacognitive strategic assessment and observation"
     )
     
+    parser.add_argument(
+        "--knowledge-source",
+        type=str,
+        choices=["wikidata", "dbpedia"],
+        default="wikidata",
+        help="Knowledge source to use for remote exploration (default: wikidata)"
+    )
+    
     return parser.parse_args()
 
 
@@ -265,6 +273,7 @@ async def main():
         print("\nUsage examples:")
         print("  python main.py -q 'What is climate change?'")
         print("  python main.py -q 'What is climate change?' --enable-question-decomposition")
+        print("  python main.py -q 'Who wrote The Hitchhiker's Guide?' --knowledge-source dbpedia")
         print("  python main.py -c experiment.yaml")
         print("  python main.py -c experiment.yaml -q 'Who was Albert Einstein?'")
         print("  python main.py -c experiment_with_multiple_queries.yaml")
@@ -274,6 +283,7 @@ async def main():
         print("\nOptions:")
         print("  --enable-question-decomposition   Break complex queries into sub-questions")
         print("  --enable-metacognition           Enable strategic assessment and meta-observation")
+        print("  --knowledge-source               Knowledge source: wikidata (default) or dbpedia")
         print("  --interactive                     Simple interactive mode (default)")
         print("                                   Shows normal orchestrator feed with input prompts")
         print("  --interactive --experimental-gui  Experimental curses-based GUI")
@@ -297,6 +307,10 @@ async def main():
         # Override save setting from command line
         if args.no_save:
             config["output"]["save_results"] = False
+        
+        # Override knowledge source from command line
+        if args.knowledge_source:
+            config["knowledge_source"] = args.knowledge_source
         
         # Check if interactive mode is requested
         if args.interactive:

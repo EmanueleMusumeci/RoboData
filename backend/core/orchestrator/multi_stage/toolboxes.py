@@ -6,7 +6,7 @@ def create_local_exploration_toolbox() -> Toolbox:
     toolbox = Toolbox()
     
     # Graph database tools for local exploration
-    from ...toolbox.graph.graph_tools import (
+    from ...toolbox.graph.wikidata_graph_tools import (
         GetNodeTool, GetEdgeTool, CypherQueryTool, FindNodesTool, FindEdgesTool, 
         GetNeighborsTool, GetSubgraphTool, GetGraphStatsTool
     )
@@ -51,7 +51,7 @@ def create_graph_update_toolbox() -> Toolbox:
     toolbox = Toolbox()
     
     # Graph database tools for adding/updating data
-    from ...toolbox.graph.graph_tools import (
+    from ...toolbox.graph.wikidata_graph_tools import (
         AddNodeTool, AddEdgeTool, GetNodeTool, GetEdgeTool, RemoveNodeTool, 
         RemoveEdgeTool, FindNodesTool, FindEdgesTool, FetchNodeTool, FetchRelationshipTool,
         FetchReverseRelationshipTool
@@ -69,9 +69,60 @@ def create_evaluation_toolbox() -> Toolbox:
     toolbox = Toolbox()
     
     # Basic query tools for checking local data
-    from ...toolbox.graph.graph_tools import GetNodeTool, GetEdgeTool, CypherQueryTool, GetGraphStatsTool
+    from ...toolbox.graph.wikidata_graph_tools import GetNodeTool, GetEdgeTool, CypherQueryTool, GetGraphStatsTool
     toolbox.register_tool(GetNodeTool())
     toolbox.register_tool(GetEdgeTool())
     toolbox.register_tool(CypherQueryTool())
+    
+    return toolbox
+
+def create_dbpedia_remote_exploration_toolbox() -> Toolbox:
+    """Create toolbox for remote DBpedia exploration."""
+    toolbox = Toolbox()
+    
+    # DBpedia base tools
+    from ...toolbox.dbpedia.base import GetEntityInfoTool, GetPropertyInfoTool, SearchEntitiesTool, GetWikipediaPageTool
+    toolbox.register_tool(GetEntityInfoTool())
+    toolbox.register_tool(GetPropertyInfoTool())
+    toolbox.register_tool(SearchEntitiesTool())
+    toolbox.register_tool(GetWikipediaPageTool())
+    
+    # DBpedia query tools
+    from ...toolbox.dbpedia.queries import SPARQLQueryTool, SubclassQueryTool, SuperclassQueryTool, GetInstancesQueryTool, InstanceOfQueryTool
+    toolbox.register_tool(SPARQLQueryTool())
+    toolbox.register_tool(SubclassQueryTool())
+    toolbox.register_tool(SuperclassQueryTool())
+    toolbox.register_tool(GetInstancesQueryTool())
+    toolbox.register_tool(InstanceOfQueryTool())
+    
+    # DBpedia exploration tools
+    from ...toolbox.dbpedia.exploration import NeighborsExplorationTool, LocalGraphTool
+    toolbox.register_tool(NeighborsExplorationTool())
+    toolbox.register_tool(LocalGraphTool())
+    
+    return toolbox
+
+def create_dbpedia_graph_update_toolbox() -> Toolbox:
+    """Create toolbox for updating local graph with DBpedia data."""
+    toolbox = Toolbox()
+    
+    # Use DBpedia-specific fetch tools
+    from ...toolbox.graph.dbpedia_graph_tools import (
+        DBpediaFetchNodeTool, DBpediaFetchRelationshipTool, DBpediaFetchReverseRelationshipTool
+    )
+    
+    # Graph database tools for adding/updating data (reuse existing tools for basic operations)
+    from ...toolbox.graph.wikidata_graph_tools import (
+        RemoveNodeTool, RemoveEdgeTool
+    )
+    
+    # Register DBpedia-specific fetch tools
+    toolbox.register_tool(DBpediaFetchNodeTool())
+    toolbox.register_tool(DBpediaFetchRelationshipTool())
+    toolbox.register_tool(DBpediaFetchReverseRelationshipTool())
+    
+    # Register basic graph manipulation tools
+    toolbox.register_tool(RemoveNodeTool())
+    toolbox.register_tool(RemoveEdgeTool())
     
     return toolbox
