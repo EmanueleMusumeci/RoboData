@@ -4,10 +4,6 @@
 
 ## About This Project
 
-[Anonymized]
-
----
-
 An interactive ontology explorer that uses LLM agents to navigate and query Wikidata entities, with a graphical visualization interface and comprehensive testing infrastructure.
 
 ## Project Overview
